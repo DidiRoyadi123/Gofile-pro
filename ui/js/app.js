@@ -60,6 +60,10 @@ document.addEventListener('DOMContentLoaded', () => {
   const headerDownloadText = document.getElementById('header-download-text');
 
   // Settings Elements
+  const settingLang = document.getElementById('setting-lang');
+  const settingTheme = document.getElementById('setting-theme');
+  const btnThemeToggle = document.getElementById('btn-theme-toggle');
+  const btnHeaderTrakteer = document.getElementById('btn-header-trakteer');
   const settingDownloadDir = document.getElementById('setting-download-dir');
   const btnChooseFolder = document.getElementById('btn-choose-folder');
   const settingWorkers = document.getElementById('setting-workers');
@@ -89,6 +93,16 @@ document.addEventListener('DOMContentLoaded', () => {
   const chipCountAll = document.getElementById('chip-count-all');
   const chipCountVideo = document.getElementById('chip-count-video');
   const chipCountPhoto = document.getElementById('chip-count-photo');
+
+  // Initialize Theme and Internationalization
+  if (window.ThemeManager) {
+    ThemeManager.init();
+    if (settingTheme) settingTheme.value = ThemeManager.currentTheme;
+  }
+  if (window.I18n) {
+    I18n.init();
+    if (settingLang) settingLang.value = I18n.langSetting;
+  }
 
   // Load Saved Settings into Form
   settingDownloadDir.value = state.downloadDir;
@@ -175,10 +189,16 @@ document.addEventListener('DOMContentLoaded', () => {
     const activeOrQueued = state.queue.filter(q => q.status === 'downloading' || q.status === 'queued').length;
     if (activeOrQueued > 0) {
       headerDownloadIndicator.classList.add('active');
-      headerDownloadText.textContent = `Unduh (${state.sessionBatchCompleted}/${state.sessionBatchTotal})`;
+      const label = window.I18n
+        ? I18n.t('header.downloading', { done: state.sessionBatchCompleted, total: state.sessionBatchTotal })
+        : `Unduh (${state.sessionBatchCompleted}/${state.sessionBatchTotal})`;
+      headerDownloadText.textContent = label;
     } else if (state.sessionBatchTotal > 0 && state.sessionBatchCompleted > 0) {
       headerDownloadIndicator.classList.add('active');
-      headerDownloadText.textContent = 'Selesai ✓';
+      const doneLabel = window.I18n
+        ? (I18n.getLanguage() === 'en' ? 'Completed ✓' : 'Selesai ✓')
+        : 'Selesai ✓';
+      headerDownloadText.textContent = doneLabel;
       setTimeout(() => {
         const stillActive = state.queue.filter(q => q.status === 'downloading' || q.status === 'queued').length;
         if (stillActive === 0) {
@@ -1295,6 +1315,56 @@ document.addEventListener('DOMContentLoaded', () => {
     }
   });
 
+  // Theme Toggle Listener
+  if (btnThemeToggle && window.ThemeManager) {
+    btnThemeToggle.addEventListener('click', () => {
+      const nextTheme = ThemeManager.toggleTheme();
+      if (settingTheme) settingTheme.value = nextTheme;
+    });
+  }
+
+  // Theme Dropdown Selector Listener
+  if (settingTheme && window.ThemeManager) {
+    settingTheme.addEventListener('change', (e) => {
+      ThemeManager.applyTheme(e.target.value);
+    });
+  }
+
+  // Language Dropdown Selector Listener
+  if (settingLang && window.I18n) {
+    settingLang.addEventListener('change', (e) => {
+      I18n.setLanguage(e.target.value);
+    });
+  }
+
+  // Trakteer Link Opener (Cross-Platform)
+  const openTrakteer = (e) => {
+    if (e) e.preventDefault();
+    const trakteerUrl = 'https://trakteer.id/roy1304';
+    if (window.Capacitor && window.Capacitor.isNativePlatform()) {
+      window.open(trakteerUrl, '_system');
+    } else {
+      window.open(trakteerUrl, '_blank', 'noopener,noreferrer');
+    }
+  };
+
+  if (btnHeaderTrakteer) {
+    btnHeaderTrakteer.addEventListener('click', openTrakteer);
+  }
+  document.querySelectorAll('.btn-trakteer-trigger').forEach(btn => {
+    btn.addEventListener('click', openTrakteer);
+  });
+  const btnTrakteerSponsor = document.getElementById('btn-trakteer-sponsor');
+  if (btnTrakteerSponsor) {
+    btnTrakteerSponsor.addEventListener('click', openTrakteer);
+  }
+  const btnGithubSponsor = document.getElementById('btn-github-sponsor');
+  if (btnGithubSponsor) {
+    btnGithubSponsor.addEventListener('click', () => {
+      window.open('https://github.com/DidiRoyadi123/Gofile-pro', '_blank', 'noopener,noreferrer');
+    });
+  }
+
   btnSaveSettings.addEventListener('click', () => {
     state.downloadDir = settingDownloadDir.value.trim() || './downloads';
     state.concurrentMax = parseInt(settingWorkers.value, 10);
@@ -1315,7 +1385,8 @@ document.addEventListener('DOMContentLoaded', () => {
       document.getElementById('account-tier-text').textContent = 'Guest Session';
     }
 
-    showToast('Pengaturan berhasil disimpan', 'success', 2500);
+    const savedMsg = window.I18n ? I18n.t('toast.settings_saved') : 'Pengaturan berhasil disimpan';
+    showToast(savedMsg, 'success', 2500);
   });
 
   // ----------------------------------------------------

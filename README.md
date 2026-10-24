@@ -26,12 +26,14 @@ GoFile Pro 100% gratis, open-source, dan bebas iklan. Jika aplikasi ini membantu
 ├── engine/                    # Core Python engine (Backend logic & API communication)
 │   ├── gofile_engine.py       # GoFile API client, dynamic tokens, multi-threaded worker
 │   └── gofile_api.py          # Legacy / helper utilities
-├── ui/                        # Modern Web Frontend (Dark Theme)
+├── ui/                        # Modern Web Frontend (Dark & Light Theme)
 │   ├── index.html             # UI layout (Home, Downloads, File Manager, Settings)
-│   ├── css/style.css          # Responsive styling for mobile and desktop
+│   ├── css/style.css          # Responsive styling for mobile and desktop (Dark/Light palettes)
 │   └── js/
 │       ├── api.js             # Universal API bridge between UI, Python, and Java
 │       ├── app.js             # App controller, event handlers, telemetry & queue
+│       ├── i18n.js            # Multi-language translation engine (Indonesian & English)
+│       ├── theme.js           # Theme manager (Auto, Dark, Light)
 │       └── client_engine.js   # Pure client-side GoFile engine fallback
 ├── dist/                      # Ready-to-use binaries
 │   ├── GoFile-Pro.apk         # Android installation package (.APK)
@@ -50,32 +52,42 @@ GoFile Pro 100% gratis, open-source, dan bebas iklan. Jika aplikasi ini membantu
 
 ## Key Features / Fitur Utama
 
-1. **Multi-Threaded Acceleration & Auto-Resume**
+1. **Multi-Language Support (Bilingual ID / EN)**
+   - Automatically detects phone/PC system language (`navigator.language`).
+   - Seamless manual override in Settings (Indonesian / English).
+   - *Dukungan multi-bahasa dengan deteksi otomatis sistem HP/PC dan opsi manual di Pengaturan.*
+
+2. **Dark & Light Mode (Mode Gelap & Terang)**
+   - Ultra-clean aesthetic with curated dark (deep obsidian) and light (slate & indigo glass) palettes.
+   - Quick header toggle and auto-matching with system preferences (`prefers-color-scheme`).
+   - *Dukungan mode gelap dan terang dengan peralihan instan di header dan pengaturan sistem.*
+
+3. **Multi-Threaded Acceleration & Auto-Resume**
    - Configurable concurrent workers (1 to 10 threads).
    - Automatically resumes interrupted downloads without re-downloading existing chunks.
    - *Mendukung pengunduhan simultan multi-worker (1-10 threads) dengan fitur auto-resume.*
 
-2. **File Integrity Verification & Duplicate Skipping**
+4. **File Integrity Verification & Duplicate Skipping**
    - Precise byte-size matching against existing downloads in local storage (`Downloads/GoFile`).
    - Already downloaded files are automatically skipped to preserve mobile data and storage.
    - *Pengecekan ukuran byte persis terhadap penyimpanan lokal; file ganda otomatis dilewati.*
 
-3. **Touch-Friendly Responsive UI**
+5. **Touch-Friendly Responsive UI & Trakteer Support**
    - Compact single-line telemetry banner displaying real-time speed, active workers, and session total.
-   - Large touch targets, quick clipboard paste icon, and clean segmented tabs.
-   - *Desain ringkas dan ramah sentuhan dengan bilah telemetri kecepatan dan status antrean.*
+   - Prominent header support badge and per-page sponsor cards for Trakteer.
+   - *Desain modern responsif dengan bilah telemetri serta integrasi dukungan Trakteer yang elegan.*
 
-4. **Internal Storage Manager (Kelola File)**
+6. **Internal Storage Manager (Kelola File)**
    - View, search, and manage downloaded files directly on device storage.
    - Quick category filters: All, Videos, Photos, and Other archives.
    - Direct file launching with default device apps and safe deletion.
    - *Manajemen berkas internal untuk memantau, memfilter, membuka, dan menghapus file hasil unduhan.*
 
-5. **Non-Blocking Dynamic Queue**
+7. **Non-Blocking Dynamic Queue**
    - Add new single links or batch links at any time while active downloads are in progress.
    - *Penambahan link baru dapat dilakukan kapan saja tanpa mengganggu proses unduhan yang sedang berjalan.*
 
-6. **Automatic Startup Storage Synchronization**
+8. **Automatic Startup Storage Synchronization**
    - Automatically scans the download folder on launch to index existing files upon fresh install or update.
    - *Otomatis memindai folder penyimpanan saat aplikasi dibuka untuk mendata file yang telah ada.*
 
