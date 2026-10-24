@@ -126,6 +126,20 @@ document.addEventListener('DOMContentLoaded', () => {
     return `${formatBytes(bytesPerSec)}/s`;
   }
 
+  function debounceClick(btn, fn, delay = 350) {
+    if (!btn) return;
+    let isBusy = false;
+    btn.addEventListener('click', async (e) => {
+      if (isBusy) return;
+      isBusy = true;
+      try {
+        await fn(e);
+      } finally {
+        setTimeout(() => { isBusy = false; }, delay);
+      }
+    });
+  }
+
   function showToast(message, type = 'info', duration = 3000) {
     // Keep max 2 toasts on screen to prevent visual clutter
     while (toastContainer.children.length >= 2) {
@@ -292,19 +306,19 @@ document.addEventListener('DOMContentLoaded', () => {
   const GITHUB_REPO_URL = 'https://github.com/DidiRoyadi123/Gofile-pro';
 
   if (btnSponsorHeader) {
-    btnSponsorHeader.addEventListener('click', () => {
+    debounceClick(btnSponsorHeader, () => {
       ApiBridge.openUrl(TRAKTEER_URL);
     });
   }
 
   if (btnTrakteerSponsor) {
-    btnTrakteerSponsor.addEventListener('click', () => {
+    debounceClick(btnTrakteerSponsor, () => {
       ApiBridge.openUrl(TRAKTEER_URL);
     });
   }
 
   if (btnGithubSponsor) {
-    btnGithubSponsor.addEventListener('click', () => {
+    debounceClick(btnGithubSponsor, () => {
       ApiBridge.openUrl(GITHUB_REPO_URL);
     });
   }
@@ -361,7 +375,7 @@ document.addEventListener('DOMContentLoaded', () => {
   // Single Link Actions
   // ----------------------------------------------------
   if (btnPasteUrl) {
-    btnPasteUrl.addEventListener('click', async () => {
+    debounceClick(btnPasteUrl, async () => {
       try {
         const text = await ApiBridge.readClipboard();
         if (text && text.trim()) {
@@ -379,7 +393,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
   const btnClearUrl = document.getElementById('btn-clear-url');
   if (btnClearUrl) {
-    btnClearUrl.addEventListener('click', () => {
+    debounceClick(btnClearUrl, () => {
       singleUrlInput.value = '';
       singleUrlInput.focus();
       showToast('Input link berhasil dibersihkan.', 'info', 1500);
@@ -390,7 +404,7 @@ document.addEventListener('DOMContentLoaded', () => {
   const btnClearBatch = document.getElementById('btn-clear-batch');
 
   if (btnPasteBatch) {
-    btnPasteBatch.addEventListener('click', async () => {
+    debounceClick(btnPasteBatch, async () => {
       try {
         const text = await ApiBridge.readClipboard();
         if (text && text.trim()) {
@@ -409,7 +423,7 @@ document.addEventListener('DOMContentLoaded', () => {
   }
 
   if (btnClearBatch) {
-    btnClearBatch.addEventListener('click', () => {
+    debounceClick(btnClearBatch, () => {
       batchUrlsInput.value = '';
       batchParsedSummary.textContent = '0 link terdeteksi';
       batchUrlsInput.focus();
@@ -429,6 +443,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
   // Inspect URL
   btnInspectUrl.addEventListener('click', async () => {
+    if (btnInspectUrl.disabled) return;
     const url = singleUrlInput.value.trim();
     if (!url) {
       showToast('Masukkan link GoFile atau Content ID terlebih dahulu', 'error');
@@ -482,6 +497,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
   // Quick Download All
   btnQuickDownload.addEventListener('click', async () => {
+    if (btnQuickDownload.disabled) return;
     const url = singleUrlInput.value.trim();
     if (!url) {
       showToast('Masukkan link GoFile atau Content ID terlebih dahulu', 'error');
@@ -771,6 +787,7 @@ document.addEventListener('DOMContentLoaded', () => {
   });
 
   btnStartBatch.addEventListener('click', async () => {
+    if (btnStartBatch.disabled) return;
     const text = batchUrlsInput.value.trim();
     if (!text) {
       showToast('Please enter at least one link', 'error');
@@ -1193,7 +1210,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
   // Start All / Resume All Queue
   if (btnStartAllQueue) {
-    btnStartAllQueue.addEventListener('click', () => {
+    debounceClick(btnStartAllQueue, () => {
       let resumed = 0;
       state.queue.forEach(q => {
         if (q.status === 'paused' || q.status === 'failed') {
@@ -1212,7 +1229,7 @@ document.addEventListener('DOMContentLoaded', () => {
     });
   }
 
-  btnPauseAll.addEventListener('click', () => {
+  debounceClick(btnPauseAll, () => {
     ApiBridge.stopAll();
     state.queue.forEach(q => {
       if (q.status === 'downloading' || q.status === 'queued') {
@@ -1237,14 +1254,14 @@ document.addEventListener('DOMContentLoaded', () => {
   }
 
   if (btnOpenFolderQueue) {
-    btnOpenFolderQueue.addEventListener('click', openDownloadsDirectory);
+    debounceClick(btnOpenFolderQueue, openDownloadsDirectory);
   }
 
   if (btnOpenFolderHistory) {
-    btnOpenFolderHistory.addEventListener('click', openDownloadsDirectory);
+    debounceClick(btnOpenFolderHistory, openDownloadsDirectory);
   }
 
-  btnClearQueue.addEventListener('click', () => {
+  debounceClick(btnClearQueue, () => {
     ApiBridge.stopAll();
     state.queue.forEach(q => {
       q.status = 'cancelled';
@@ -1258,7 +1275,7 @@ document.addEventListener('DOMContentLoaded', () => {
     showToast('Queue cleared', 'info');
   });
 
-  btnClearHistory.addEventListener('click', () => {
+  debounceClick(btnClearHistory, () => {
     historyContainer.innerHTML = '';
     state.history = [];
     localStorage.removeItem('gf_history');
@@ -1275,7 +1292,7 @@ document.addEventListener('DOMContentLoaded', () => {
     valWorkers.textContent = settingWorkers.value;
   });
 
-  btnChooseFolder.addEventListener('click', async () => {
+  debounceClick(btnChooseFolder, async () => {
     const chosen = await ApiBridge.chooseFolder();
     if (chosen) {
       settingDownloadDir.value = chosen;

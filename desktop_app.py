@@ -39,15 +39,25 @@ class DesktopAPI:
             raise Exception(str(e))
 
     def download_file(self, item: dict, download_dir: str = "./downloads"):
-        """Downloads a single file item with live progress pumped to JS."""
+        """Downloads a single file item with live progress pumped to JS safely."""
         dest_path = Path(download_dir).resolve()
         dest_path.mkdir(parents=True, exist_ok=True)
 
+        import time
+        last_eval_time = [0.0]
+
         def on_progress(prog: dict):
             if self.window:
-                # Dispatch progress event to JavaScript
-                prog_json = json.dumps(prog)
-                self.window.evaluate_js(f"if (window.updateItemProgress) {{ window.updateItemProgress({prog_json}); }}")
+                now = time.time()
+                st = prog.get("status")
+                # Dispatch immediately on terminal state or throttle to max 12 calls/sec
+                if st in ("completed", "failed") or (now - last_eval_time[0]) >= 0.08:
+                    last_eval_time[0] = now
+                    try:
+                        prog_json = json.dumps(prog)
+                        self.window.evaluate_js(f"if (window.updateItemProgress) {{ window.updateItemProgress({prog_json}); }}")
+                    except Exception:
+                        pass
 
         try:
             self.engine.reset_stop()
@@ -157,19 +167,32 @@ class DesktopAPI:
         return results
 
     def read_clipboard(self):
-        """Reads text from native system clipboard with PowerShell fallback."""
-        try:
-            import subprocess
-            if os.name == "nt":
-                res = subprocess.run(
-                    ["powershell", "-NoProfile", "-Command", "Get-Clipboard"],
-                    capture_output=True,
-                    text=True,
-                    timeout=2
-                )
-                return res.stdout.strip()
-        except Exception:
-            pass
+        """Reads text from native system clipboard with zero subprocess overhead via Win32 ctypes."""
+        if os.name == "nt":
+            try:
+                import ctypes
+                from ctypes import wintypes
+
+                user32 = ctypes.windll.user32
+                kernel32 = ctypes.windll.kernel32
+                CF_UNICODETEXT = 13
+
+                if user32.OpenClipboard(None):
+                    try:
+                        h_mem = user32.GetClipboardData(CF_UNICODETEXT)
+                        if h_mem:
+                            kernel32.GlobalLock.restype = wintypes.LPVOID
+                            ptr = kernel32.GlobalLock(h_mem)
+                            if ptr:
+                                try:
+                                    val = ctypes.c_wchar_p(ptr).value or ""
+                                    return val.strip()
+                                finally:
+                                    kernel32.GlobalUnlock(h_mem)
+                    finally:
+                        user32.CloseClipboard()
+            except Exception:
+                pass
         return ""
 
     def delete_file(self, file_path: str, download_dir: str = "./downloads"):
@@ -206,7 +229,7 @@ def main():
         height=760,
         min_size=(780, 580),
         background_color="#0a0d14",
-        easy_drag=True
+        easy_drag=False
     )
     window_holder["window"] = window
 

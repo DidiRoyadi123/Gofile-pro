@@ -433,44 +433,52 @@ class GoFileEngine:
             part_size = part_path.stat().st_size
             headers["Range"] = f"bytes={part_size}-"
 
+        # Create an isolated worker session to avoid thread-safety contention in curl_cffi
+        if _HAS_CFFI and cffi_requests is not None:
+            worker_session = cffi_requests.Session(impersonate="chrome")
+        else:
+            worker_session = requests.Session()
+        if self.proxy:
+            worker_session.proxies = {"http": self.proxy, "https": self.proxy}
+
         resp: Optional[Any] = None
 
-        for _ in range(self.retries):
-            if self._stop_event.is_set():
-                return False
-            try:
-                resp = self.session.get(url, headers=headers, stream=True, timeout=self.timeout)
-                if resp.status_code in (200, 206):
-                    break
-            except Exception:
-                sleep(1.0)
-                continue
-
-        if not resp or resp.status_code not in (200, 206):
-            if on_progress:
-                on_progress({
-                    "id": item["id"],
-                    "filename": raw_filename,
-                    "status": "failed",
-                    "message": f"Server returned status {resp.status_code if resp else 'timeout'}"
-                })
-            return False
-
-        # Extract file size
-        content_length = resp.headers.get("Content-Length")
-        content_range = resp.headers.get("Content-Range")
-        total_size: float = 0
-        if part_size == 0 and content_length:
-            total_size = float(content_length)
-        elif content_range:
-            total_size = float(content_range.split("/")[-1])
-        else:
-            total_size = float(item.get("size", 0))
-
-        start_time = perf_counter()
-        downloaded = part_size
-
         try:
+            for _ in range(self.retries):
+                if self._stop_event.is_set():
+                    return False
+                try:
+                    resp = worker_session.get(url, headers=headers, stream=True, timeout=self.timeout)
+                    if resp.status_code in (200, 206):
+                        break
+                except Exception:
+                    sleep(1.0)
+                    continue
+
+            if not resp or resp.status_code not in (200, 206):
+                if on_progress:
+                    on_progress({
+                        "id": item["id"],
+                        "filename": raw_filename,
+                        "status": "failed",
+                        "message": f"Server returned status {resp.status_code if resp else 'timeout'}"
+                    })
+                return False
+
+            # Extract file size
+            content_length = resp.headers.get("Content-Length")
+            content_range = resp.headers.get("Content-Range")
+            total_size: float = 0
+            if part_size == 0 and content_length:
+                total_size = float(content_length)
+            elif content_range:
+                total_size = float(content_range.split("/")[-1])
+            else:
+                total_size = float(item.get("size", 0))
+
+            start_time = perf_counter()
+            downloaded = part_size
+
             with open(part_path, "ab" if part_size > 0 else "wb") as f:
                 last_notify_time = perf_counter()
                 for chunk in resp.iter_content(chunk_size=self.chunk_size):
@@ -528,6 +536,11 @@ class GoFileEngine:
                     "message": str(e)
                 })
             return False
+        finally:
+            try:
+                worker_session.close()
+            except Exception:
+                pass
 
     def stop_all(self):
         """Stops all active download tasks gracefully."""
