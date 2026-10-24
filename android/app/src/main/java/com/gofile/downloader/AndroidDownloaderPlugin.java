@@ -657,6 +657,27 @@ public class AndroidDownloaderPlugin extends Plugin {
     }
 
     @PluginMethod
+    public void openUrl(PluginCall call) {
+        String urlStr = call.getString("url");
+        if (urlStr == null || urlStr.trim().isEmpty()) {
+            call.reject("URL wajib diisi");
+            return;
+        }
+        mainHandler.post(() -> {
+            try {
+                Intent intent = new Intent(Intent.ACTION_VIEW, Uri.parse(urlStr.trim()));
+                intent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK);
+                getContext().startActivity(intent);
+                JSObject ret = new JSObject();
+                ret.put("success", true);
+                call.resolve(ret);
+            } catch (Exception e) {
+                call.reject("Gagal membuka URL: " + e.getMessage());
+            }
+        });
+    }
+
+    @PluginMethod
     public void cancelDownload(PluginCall call) {
         String id = call.getString("id");
         if (id != null) {

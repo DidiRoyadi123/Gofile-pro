@@ -119,6 +119,17 @@ class DesktopAPI:
         except Exception:
             return False
 
+    def open_url(self, url: str) -> bool:
+        """Opens an external URL safely in default system browser."""
+        try:
+            import webbrowser
+            if url and (url.startswith("http://") or url.startswith("https://")):
+                webbrowser.open(url)
+                return True
+            return False
+        except Exception:
+            return False
+
     def stop_all(self):
         """Stops all active download tasks."""
         self.engine.stop_all()

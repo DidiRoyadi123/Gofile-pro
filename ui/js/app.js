@@ -283,6 +283,33 @@ document.addEventListener('DOMContentLoaded', () => {
   });
 
   // ----------------------------------------------------
+  // Open Sponsor & Traktir Kopi Action Listeners
+  // ----------------------------------------------------
+  const btnSponsorHeader = document.getElementById('btn-sponsor-header');
+  const btnTrakteerSponsor = document.getElementById('btn-trakteer-sponsor');
+  const btnGithubSponsor = document.getElementById('btn-github-sponsor');
+  const TRAKTEER_URL = 'https://trakteer.id/roy1304';
+  const GITHUB_REPO_URL = 'https://github.com/DidiRoyadi123/Gofile-pro';
+
+  if (btnSponsorHeader) {
+    btnSponsorHeader.addEventListener('click', () => {
+      ApiBridge.openUrl(TRAKTEER_URL);
+    });
+  }
+
+  if (btnTrakteerSponsor) {
+    btnTrakteerSponsor.addEventListener('click', () => {
+      ApiBridge.openUrl(TRAKTEER_URL);
+    });
+  }
+
+  if (btnGithubSponsor) {
+    btnGithubSponsor.addEventListener('click', () => {
+      ApiBridge.openUrl(GITHUB_REPO_URL);
+    });
+  }
+
+  // ----------------------------------------------------
   // Sub-Tab Switching (Single URL vs Batch Mode inside Home)
   // ----------------------------------------------------
   const subtabBtnSingle = document.getElementById('subtab-btn-single');

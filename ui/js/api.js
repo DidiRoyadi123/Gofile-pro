@@ -50,6 +50,7 @@ const ApiBridge = {
         checkFileExists: (options) => window.Capacitor.nativePromise('AndroidDownloader', 'checkFileExists', options),
         listDownloadedFiles: () => window.Capacitor.nativePromise('AndroidDownloader', 'listDownloadedFiles', {}),
         deleteFile: (options) => window.Capacitor.nativePromise('AndroidDownloader', 'deleteFile', options),
+        openUrl: (options) => window.Capacitor.nativePromise('AndroidDownloader', 'openUrl', options),
         readClipboard: () => window.Capacitor.nativePromise('AndroidDownloader', 'readClipboard', {}),
         addListener: (eventName, callback) => {
           if (typeof window.Capacitor.addListener === 'function') {
@@ -228,6 +229,37 @@ const ApiBridge = {
     }
 
     return false;
+  },
+
+  async openUrl(url) {
+    if (!url) return false;
+    this.detectPlatform();
+
+    if (window.pywebview && window.pywebview.api && typeof window.pywebview.api.open_url === 'function') {
+      try {
+        return await window.pywebview.api.open_url(url);
+      } catch (e) {
+        console.warn('PyWebView open_url error:', e);
+      }
+    }
+
+    const androidPlugin = this.getAndroidPlugin();
+    if (androidPlugin && typeof androidPlugin.openUrl === 'function') {
+      try {
+        const res = await androidPlugin.openUrl({ url });
+        return res && res.success;
+      } catch (e) {
+        console.warn('Android openUrl error:', e);
+      }
+    }
+
+    try {
+      window.open(url, '_blank', 'noopener,noreferrer');
+      return true;
+    } catch (e) {
+      window.location.href = url;
+      return true;
+    }
   },
 
   cancelDownload(id) {

@@ -1477,3 +1477,78 @@ body {
   transform: scale(0.96);
 }
 
+/* ---------------------------------------------------- */
+/* Open Sponsor & Traktir Kopi UI Components           */
+/* ---------------------------------------------------- */
+.btn-sponsor-pill {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
+  padding: 0.22rem 0.6rem;
+  background: rgba(190, 30, 45, 0.15);
+  border: 1px solid rgba(190, 30, 45, 0.35);
+  border-radius: var(--radius-full);
+  color: #ff6b7a;
+  font-size: 0.72rem;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all var(--transition-fast);
+  white-space: nowrap;
+}
+
+.btn-sponsor-pill:hover {
+  background: rgba(190, 30, 45, 0.28);
+  border-color: rgba(190, 30, 45, 0.6);
+  color: #fff;
+  transform: translateY(-1px);
+  box-shadow: 0 2px 10px rgba(190, 30, 45, 0.3);
+}
+
+.btn-sponsor-pill svg {
+  color: #ff6b7a;
+}
+
+@media (max-width: 600px) {
+  .sponsor-pill-label {
+    display: none;
+  }
+  .btn-sponsor-pill {
+    padding: 0.35rem;
+    border-radius: 8px;
+  }
+}
+
+.sponsor-card {
+  border: 1px solid rgba(190, 30, 45, 0.25);
+  background: linear-gradient(135deg, rgba(35, 18, 25, 0.45) 0%, rgba(15, 23, 42, 0.6) 100%);
+}
+
+.btn-trakteer {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.45rem;
+  background: #be1e2d;
+  color: #ffffff;
+  font-weight: 600;
+  font-size: 0.85rem;
+  padding: 0.55rem 1.15rem;
+  border-radius: var(--radius-md);
+  border: none;
+  cursor: pointer;
+  transition: all var(--transition-fast);
+  box-shadow: 0 2px 10px rgba(190, 30, 45, 0.35);
+  text-decoration: none;
+}
+
+.btn-trakteer:hover {
+  background: #d62436;
+  transform: translateY(-1.5px);
+  box-shadow: 0 4px 14px rgba(190, 30, 45, 0.5);
+  color: #ffffff;
+}
+
+.btn-trakteer:active {
+  transform: scale(0.97);
+}
+

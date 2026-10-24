@@ -1,136 +1,147 @@
 # GoFile Pro Downloader v2.0 Multiplatform
 
-GoFile Pro Downloader adalah aplikasi pengunduh berkas multi-threaded modern untuk platform GoFile.io, mendukung sistem operasi Windows (Portable .EXE) dan Android (Native .APK). Aplikasi ini dilengkapi sistem inspeksi struktur direktori, auto-resume unduhan terputus, antrean dinamis non-blocking, serta verifikasi integritas berkas untuk mencegah unduhan ganda.
+GoFile Pro Downloader is a high-speed, modern multi-threaded download manager designed for GoFile.io. It supports both **Android (Native .APK)** and **Windows (Portable .EXE)** platforms. Built with directory tree inspection, automatic chunked resume, a non-blocking dynamic queue, and strict file integrity verification to prevent duplicate downloads.
+
+GoFile Pro Downloader adalah aplikasi pengunduh berkas multi-threaded modern untuk platform GoFile.io, mendukung sistem operasi **Android (.APK)** dan **Windows (.EXE)**. Dilengkapi inspeksi struktur direktori, auto-resume unduhan terputus, antrean dinamis non-blocking, serta verifikasi integritas berkas untuk mencegah unduhan ganda.
 
 ---
 
-## Struktur Berkas Proyek
+## Support & Sponsorship / Dukungan & Sponsor
 
-Rincian struktur dan fungsi direktori serta berkas utama dalam proyek ini:
+GoFile Pro is 100% free, open-source, and ad-free. If you find this software helpful, consider supporting ongoing development and maintenance by buying a cup of coffee:
+
+GoFile Pro 100% gratis, open-source, dan bebas iklan. Jika aplikasi ini membantu Anda, dukung kelanjutan pengembangan dan pemeliharaan fitur dengan mentraktir secangkir kopi:
+
+- **Trakteer**: [https://trakteer.id/roy1304](https://trakteer.id/roy1304)
+- **GitHub**: [https://github.com/DidiRoyadi123/Gofile-pro](https://github.com/DidiRoyadi123/Gofile-pro)
+
+---
+
+## Project Structure / Struktur Berkas
 
 ```
-├── android/                   # Kode sumber aplikasi Android (Capacitor Native Android + Java Plugin)
-│   ├── app/src/main/java/     # Plugin AndroidDownloaderPlugin.java (Download service, MediaStore, Notifikasi)
-│   └── build.gradle           # Konfigurasi Gradle Android SDK
-├── engine/                    # Modul inti Python (Backend logic & GoFile API parser)
-│   ├── gofile_api.py          # Komunikasi API GoFile, bypass Cloudflare & pembuatan token
-│   └── downloader.py          # Engine pengunduhan paralel multi-thread & chunked resume
-├── ui/                        # Antarmuka Pengguna (Web Frontend Modern & Dark Theme)
-│   ├── index.html             # Struktur tampilan aplikasi (Home, Unduhan, Kelola File, Settings)
-│   ├── css/style.css          # Desain visual responsif mobile dan desktop
+├── android/                   # Android source code (Capacitor Native Android + Java Plugin)
+│   ├── app/src/main/java/     # AndroidDownloaderPlugin.java (Download service, MediaStore, Intent)
+│   └── build.gradle           # Android Gradle configuration
+├── engine/                    # Core Python engine (Backend logic & API communication)
+│   ├── gofile_engine.py       # GoFile API client, dynamic tokens, multi-threaded worker
+│   └── gofile_api.py          # Legacy / helper utilities
+├── ui/                        # Modern Web Frontend (Dark Theme)
+│   ├── index.html             # UI layout (Home, Downloads, File Manager, Settings)
+│   ├── css/style.css          # Responsive styling for mobile and desktop
 │   └── js/
-│       ├── api.js             # Bridge komunikasi antara antarmuka UI dengan Python & Java
-│       └── app.js             # Logika antrian, event listener, filter file & telemetry
-├── dist/                      # Direktori rilis berkas biner siap pakai
-│   ├── GoFile-Pro.apk         # Berkas instalasi Android
-│   └── GoFile-Downloader-v2.exe # Berkas executable Windows portable
-├── desktop_app.py             # Entrypoint aplikasi desktop GUI berbasis PyWebView
-├── gofile-downloader.py       # Versi CLI / backend standalone
-├── build_windows.bat          # Skrip kompilasi otomatis Windows .EXE
-├── build_android.bat          # Skrip kompilasi otomatis Android .APK
-├── run_desktop.bat            # Skrip menjalankan aplikasi dalam mode development
-├── GoFile-Downloader-v2.spec  # Konfigurasi PyInstaller untuk kompilasi Windows
-├── capacitor.config.json      # Konfigurasi integrasi Capacitor mobile
-├── package.json               # Dependensi Capacitor & Node.js
-└── pyproject.toml             # Manajemen dependensi Python
+│       ├── api.js             # Universal API bridge between UI, Python, and Java
+│       ├── app.js             # App controller, event handlers, telemetry & queue
+│       └── client_engine.js   # Pure client-side GoFile engine fallback
+├── dist/                      # Ready-to-use binaries
+│   ├── GoFile-Pro.apk         # Android installation package (.APK)
+│   └── GoFile-Downloader-v2.exe # Windows portable standalone (.EXE)
+├── desktop_app.py             # Desktop GUI entrypoint based on PyWebView
+├── gofile-downloader.py       # Standalone CLI / backend script
+├── build_windows.bat          # Automated Windows .EXE build script
+├── build_android.bat          # Automated Android .APK build script
+├── run_desktop.bat            # Development mode runner script
+├── GoFile-Downloader-v2.spec  # PyInstaller packaging configuration
+├── capacitor.config.json      # Mobile integration config
+└── pyproject.toml             # Python dependency configuration
 ```
 
 ---
 
-## Fitur Utama
+## Key Features / Fitur Utama
 
-### 1. Multi-Threading & Resume Support
-- Mendukung pengunduhan berkas simultan dengan alokasi 1 hingga 10 worker.
-- Fitur auto-resume otomatis melanjutkan sisa byte saat koneksi terputus tanpa mengulang proses dari awal.
+1. **Multi-Threaded Acceleration & Auto-Resume**
+   - Configurable concurrent workers (1 to 10 threads).
+   - Automatically resumes interrupted downloads without re-downloading existing chunks.
+   - *Mendukung pengunduhan simultan multi-worker (1-10 threads) dengan fitur auto-resume.*
 
-### 2. Verifikasi Integritas & Anti-Duplikat
-- Menggunakan verifikasi ukuran byte persis dan pencocokan nama berkas terhadap penyimpanan lokal (`Downloads/GoFile`).
-- Berkas yang telah lengkap tersimpan di perangkat akan otomatis dilewati (skip) untuk menghemat bandwidth dan kapasitas memori.
+2. **File Integrity Verification & Duplicate Skipping**
+   - Precise byte-size matching against existing downloads in local storage (`Downloads/GoFile`).
+   - Already downloaded files are automatically skipped to preserve mobile data and storage.
+   - *Pengecekan ukuran byte persis terhadap penyimpanan lokal; file ganda otomatis dilewati.*
 
-### 3. Antarmuka Responsif & Ramah Sentuh
-- Desain telemetry bar satu baris yang menyajikan metrik kecepatan, worker aktif, dan akumulasi unduhan secara ringkas.
-- Tombol aksi cepat terintegrasi (paste dari clipboard dan pembersih input).
-- Tab Unduhan terpadu yang memisahkan antrean aktif dan berkas selesai dengan segmented pill.
+3. **Touch-Friendly Responsive UI**
+   - Compact single-line telemetry banner displaying real-time speed, active workers, and session total.
+   - Large touch targets, quick clipboard paste icon, and clean segmented tabs.
+   - *Desain ringkas dan ramah sentuhan dengan bilah telemetri kecepatan dan status antrean.*
 
-### 4. Manajemen Berkas Lokal (Kelola File)
-- Tab khusus untuk memantau berkas hasil unduhan langsung di penyimpanan internal.
-- Ringkasan ruang memori: total berkas dan kapasitas penyimpanan yang digunakan.
-- Filter kategori berkas: Semua, Video, Foto, dan Lainnya.
-- Aksi pembuka berkas langsung dengan aplikasi default perangkat dan opsi penghapusan berkas.
+4. **Internal Storage Manager (Kelola File)**
+   - View, search, and manage downloaded files directly on device storage.
+   - Quick category filters: All, Videos, Photos, and Other archives.
+   - Direct file launching with default device apps and safe deletion.
+   - *Manajemen berkas internal untuk memantau, memfilter, membuka, dan menghapus file hasil unduhan.*
 
-### 5. Antrean Dinamis Non-Blocking
-- Penambahan link baru (Single Link maupun Batch Links) dapat dilakukan kapan saja saat proses pengunduhan lain sedang berjalan tanpa menghentikan worker yang aktif.
+5. **Non-Blocking Dynamic Queue**
+   - Add new single links or batch links at any time while active downloads are in progress.
+   - *Penambahan link baru dapat dilakukan kapan saja tanpa mengganggu proses unduhan yang sedang berjalan.*
 
-### 6. Mode Single Link & Batch Links
-- Single Link: Eksplorasi folder GoFile untuk memilih berkas tertentu atau mengunduh seluruh isi folder.
-- Batch Links: Memproses daftar banyak tautan sekaligus secara berurutan.
-
----
-
-## Panduan Pemasangan
-
-### A. Pengguna Android (.APK)
-Berkas installer tersedia di: `dist/GoFile-Pro.apk`
-
-1. Salin berkas `GoFile-Pro.apk` ke perangkat Android Anda.
-2. Buka aplikasi File Manager pada perangkat, lalu ketuk berkas `GoFile-Pro.apk`.
-3. Pilih opsi Pasang (Install). Jika diminta izin penginstalan dari sumber tidak dikenal, aktifkan izin untuk File Manager Anda.
-4. Buka aplikasi GoFile Pro. Berkas yang diunduh akan otomatis tersimpan di direktori `Internal Storage -> Download/GoFile/`.
-
-### B. Pengguna Windows (.EXE Portable)
-Berkas aplikasi siap pakai tersedia di: `dist/GoFile-Downloader-v2.exe`
-
-1. Buka folder `dist/` pada komputer Anda.
-2. Klik dua kali pada `GoFile-Downloader-v2.exe`.
-3. Jika Windows SmartScreen menampilkan konfirmasi, pilih More Info lalu klik Run anyway.
-4. Aplikasi akan terbuka langsung tanpa memerlukan proses instalasi sistem.
+6. **Automatic Startup Storage Synchronization**
+   - Automatically scans the download folder on launch to index existing files upon fresh install or update.
+   - *Otomatis memindai folder penyimpanan saat aplikasi dibuka untuk mendata file yang telah ada.*
 
 ---
 
-## Panduan Build dari Source Code
+## Installation Guide / Panduan Pemasangan
 
-### Prasyarat Sistem:
+### Android (.APK)
+Binary package: `dist/GoFile-Pro.apk` (or download from [GitHub Releases](https://github.com/DidiRoyadi123/Gofile-pro/releases))
+
+1. Copy `GoFile-Pro.apk` to your Android device or download it directly via your mobile browser.
+2. Open your device's File Manager and tap `GoFile-Pro.apk` to install.
+3. Allow installation from unknown sources if prompted.
+4. Downloaded files are saved to `Internal Storage -> Download/GoFile/`.
+
+*1. Salin berkas `GoFile-Pro.apk` ke perangkat Android Anda.*  
+*2. Buka File Manager dan ketuk berkas untuk menginstal.*  
+*3. Berkas hasil unduhan tersimpan di `Penyimpanan Internal -> Download/GoFile/`.*
+
+### Windows (.EXE Portable)
+Binary package: `dist/GoFile-Downloader-v2.exe` (or download from [GitHub Releases](https://github.com/DidiRoyadi123/Gofile-pro/releases))
+
+1. Download or locate `GoFile-Downloader-v2.exe` in the `dist/` directory.
+2. Double-click `GoFile-Downloader-v2.exe` to run.
+3. If Windows SmartScreen prompts for confirmation, select **More Info** -> **Run anyway**.
+4. Runs standalone without installation.
+
+*1. Buka folder `dist/` dan jalankan `GoFile-Downloader-v2.exe`.*  
+*2. Jika muncul konfirmasi SmartScreen, pilih Info Selengkapnya lalu Tetap Jalankan.*  
+*3. Berjalan portabel tanpa perlu proses instalasi sistem.*
+
+---
+
+## Building from Source / Panduan Build
+
+### Prerequisites / Prasyarat:
 - Python 3.10+
 - Node.js (v18+) & npm
-- JDK 17 atau 21
-- Android SDK (untuk build APK Android)
+- JDK 17 or JDK 21
+- Android SDK (for Android APK build)
 
-### 1. Build Windows Portable (.EXE):
-Jalankan file batch:
+### Build Windows Executable (.EXE):
 ```cmd
 build_windows.bat
 ```
-Atau melalui terminal:
+Or manually:
 ```powershell
-.venv\Scripts\pyinstaller GoFile-Downloader-v2.spec --noconfirm
+uv run pyinstaller GoFile-Downloader-v2.spec --noconfirm
 ```
-Hasil kompilasi akan tersimpan di `dist/GoFile-Downloader-v2.exe`.
+Output: `dist/GoFile-Downloader-v2.exe`
 
-### 2. Build Android Package (.APK):
-Jalankan file batch:
+### Build Android Package (.APK):
 ```cmd
 build_android.bat
 ```
-Atau melalui terminal:
+Or manually:
 ```powershell
-npx cap sync android
+npx cap copy android
 cd android
 gradlew.bat assembleDebug
 cd ..
-copy android\app\build\outputs\apk\debug\app-debug.apk dist\GoFile-Pro.apk
+Copy-Item android\app\build\outputs\apk\debug\app-debug.apk dist\GoFile-Pro.apk
 ```
-
-### 3. Menjalankan Mode Development:
-Untuk menjalankan aplikasi desktop secara langsung dari kode sumber:
-```cmd
-run_desktop.bat
-```
-Atau:
-```powershell
-python desktop_app.py
-```
+Output: `dist/GoFile-Pro.apk`
 
 ---
 
-## Lisensi
-Didistribusikan di bawah lisensi GPL v3.0. Dibuat untuk efisiensi pengunduhan konten legal di GoFile.io.
+## License / Lisensi
+Distributed under the GNU General Public License v3.0 (GPLv3). Intended for fast and efficient downloading of user-authorized content from GoFile.io.
