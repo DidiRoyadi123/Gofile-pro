@@ -1,0 +1,3 @@
+@echo off
+echo Starting GoFile Pro Downloader Desktop...
+call uv run desktop_app.py

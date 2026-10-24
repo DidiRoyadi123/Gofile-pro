@@ -1,0 +1,17 @@
+{
+  "name": "gofile-pro-downloader",
+  "version": "2.0.0",
+  "description": "GoFile Pro Downloader with Modern UI for Windows and Android",
+  "main": "desktop_app.py",
+  "scripts": {
+    "build:windows": "build_windows.bat",
+    "cap:sync": "npx cap sync",
+    "cap:open": "npx cap open android",
+    "build:android": "npx cap sync android && cd android && gradlew assembleDebug"
+  },
+  "dependencies": {
+    "@capacitor/android": "^7.0.0",
+    "@capacitor/cli": "^7.0.0",
+    "@capacitor/core": "^7.0.0"
+  }
+}

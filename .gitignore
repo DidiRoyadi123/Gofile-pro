@@ -1,0 +1,43 @@
+# Byte-compiled / optimized / DLL files
+__pycache__/
+*.py[cod]
+*$py.class
+
+# Environments & Virtualenv
+.venv/
+env/
+venv/
+ENV/
+.env
+
+# Dependencies & Package Managers
+node_modules/
+.gradle/
+android/.gradle/
+android/build/
+android/app/build/
+android/capacitor-cordova-android-plugins/build/
+
+# IDE & Editor Settings
+.vscode/
+.idea/
+.cm/
+
+# Build Artefacts
+build/
+*.egg-info/
+*.manifest
+
+# Allow active PyInstaller spec file
+*.spec
+!GoFile-Downloader-v2.spec
+
+# Binaries & Downloads
+downloads/
+dist/*
+!dist/GoFile-Pro.apk
+!dist/GoFile-Downloader-v2.exe
+
+# OS generated files
+.DS_Store
+Thumbs.db

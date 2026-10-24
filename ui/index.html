@@ -1,0 +1,623 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+  <meta name="theme-color" content="#0a0d14">
+  <meta name="description" content="GoFile Pro Downloader - Ultra Fast Multi-threaded Downloader for GoFile with Tree Explorer and Resume Support">
+  <title>GoFile Pro Downloader</title>
+
+  <!-- Google Fonts -->
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;600&family=Outfit:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+
+  <link rel="stylesheet" href="css/style.css">
+</head>
+<body>
+  <!-- Ambient Lights -->
+  <div class="ambient-glow"></div>
+  <div class="ambient-glow-2"></div>
+
+  <div class="app-container">
+    <!-- Top Header (Ultra-Sleek Modern Bar) -->
+    <header class="app-header">
+      <div class="brand-wrapper">
+        <div class="brand-icon">
+          <svg viewBox="0 0 24 24">
+            <path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm-1 14v-4H8l4-4 4 4h-3v4h-2zm5 2H8v-1.5h8V18z"/>
+          </svg>
+        </div>
+        <div class="brand-info">
+          <h1>GoFile Pro</h1>
+          <div class="brand-status-chip" id="token-status-badge" title="GoFile Session Status">
+            <span class="pulse-dot"></span>
+            <span id="account-tier-text">Guest</span>
+          </div>
+        </div>
+      </div>
+
+      <div class="header-actions">
+        <div class="header-download-pill" id="header-download-indicator">
+          <span class="spin-ring"></span>
+          <span id="header-download-text">Unduh 0/0</span>
+        </div>
+
+        <div class="platform-mini-tag" id="platform-tag">
+          <span id="platform-name">Android</span>
+        </div>
+
+        <button class="btn-icon-header" id="open-settings-header-btn" title="Settings">
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <circle cx="12" cy="12" r="3"></circle>
+            <path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-2 2 2 2 0 0 1-2-2v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83 0 2 2 0 0 1 0-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1-2-2 2 2 0 0 1 2-2h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 0-2.83 2 2 0 0 1 2.83 0l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 2-2 2 2 0 0 1 2 2v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 0 2 2 0 0 1 0 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 2 2 2 2 0 0 1-2 2h-.09a1.65 1.65 0 0 0-1.51 1z"></path>
+          </svg>
+        </button>
+      </div>
+    </header>
+
+    <!-- Navigation Tabs -->
+    <nav class="tabs-nav" id="main-nav-tabs">
+      <button class="tab-btn active" data-tab="tab-home" id="nav-home-tab">
+        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+          <path d="M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"></path>
+          <polyline points="9 22 9 12 15 12 15 22"></polyline>
+        </svg>
+        <span>Home</span>
+      </button>
+
+      <button class="tab-btn" data-tab="tab-downloads" id="nav-downloads-tab">
+        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+          <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path>
+          <polyline points="7 10 12 15 17 10"></polyline>
+          <line x1="12" y1="15" x2="12" y2="3"></line>
+        </svg>
+        <span>Unduhan</span>
+        <span class="tab-count" id="active-queue-count">0</span>
+      </button>
+
+      <button class="tab-btn" data-tab="tab-files" id="nav-files-tab">
+        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+          <path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z"></path>
+        </svg>
+        <span>Kelola File</span>
+        <span class="tab-count" id="stored-files-count">0</span>
+      </button>
+
+      <button class="tab-btn" data-tab="tab-settings" id="nav-settings-tab">
+        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+          <circle cx="12" cy="12" r="3"></circle>
+          <path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-2 2 2 2 0 0 1-2-2v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83 0 2 2 0 0 1 0-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1-2-2 2 2 0 0 1 2-2h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 0-2.83 2 2 0 0 1 2.83 0l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 2-2 2 2 0 0 1 2 2v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 0 2 2 0 0 1 0 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 2 2 2 2 0 0 1-2 2h-.09a1.65 1.65 0 0 0-1.51 1z"></path>
+        </svg>
+        <span>Settings</span>
+      </button>
+    </nav>
+
+    <!-- Compact Sleek Telemetry Strip (Single Horizontal Row) -->
+    <section class="telemetry-strip" id="stats-banner">
+      <div class="telemetry-pill">
+        <div class="telemetry-icon speed">
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5">
+            <path d="M13 2L3 14h9l-1 8 10-12h-9l1-8z"></path>
+          </svg>
+        </div>
+        <div class="telemetry-data">
+          <span class="telemetry-val" id="global-speed-val">0.0 MB/s</span>
+          <span class="telemetry-lbl">Speed</span>
+        </div>
+      </div>
+
+      <div class="telemetry-sep"></div>
+
+      <div class="telemetry-pill">
+        <div class="telemetry-icon queue">
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2">
+            <rect x="2" y="7" width="20" height="14" rx="2" ry="2"></rect>
+            <path d="M16 21V5a2 2 0 0 0-2-2h-4a2 2 0 0 0-2 2v16"></path>
+          </svg>
+        </div>
+        <div class="telemetry-data">
+          <span class="telemetry-val" id="active-tasks-val">0 / 5</span>
+          <span class="telemetry-lbl">Workers</span>
+        </div>
+      </div>
+
+      <div class="telemetry-sep"></div>
+
+      <div class="telemetry-pill">
+        <div class="telemetry-icon done">
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5">
+            <path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"></path>
+            <polyline points="22 4 12 14.01 9 11.01"></polyline>
+          </svg>
+        </div>
+        <div class="telemetry-data">
+          <span class="telemetry-val" id="total-downloaded-val">0.0 MB</span>
+          <span class="telemetry-lbl">Total</span>
+        </div>
+      </div>
+    </section>
+
+    <!-- TAB 1: Home (Single Link & Batch Mode in One Page) -->
+    <main class="tab-content active" id="tab-home">
+      <div class="card">
+        <!-- Sub-menu Segmented Switch -->
+        <div class="sub-nav-segmented">
+          <button type="button" class="sub-tab-btn active" id="subtab-btn-single">
+            <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+              <path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71"></path>
+              <path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71"></path>
+            </svg>
+            Single Link (Link Tunggal)
+          </button>
+          <button type="button" class="sub-tab-btn" id="subtab-btn-batch">
+            <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+              <line x1="8" y1="6" x2="21" y2="6"></line>
+              <line x1="8" y1="12" x2="21" y2="12"></line>
+              <line x1="8" y1="18" x2="21" y2="18"></line>
+            </svg>
+            Batch Links (Banyak Link)
+          </button>
+        </div>
+
+        <!-- Panel 1: Single URL -->
+        <div class="subtab-panel active" id="subtab-panel-single">
+          <div class="card-title-row">
+            <h2>
+              <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path>
+                <polyline points="7 10 12 15 17 10"></polyline>
+                <line x1="12" y1="15" x2="12" y2="3"></line>
+              </svg>
+              Download GoFile Link
+            </h2>
+            <span class="badge badge-success">Folder & File Support</span>
+          </div>
+
+          <form id="single-download-form" onsubmit="return false;">
+            <div class="form-group">
+              <label class="form-label" for="single-url-input">GoFile Link or Content ID</label>
+              <div class="input-with-action">
+                <input type="text" class="form-input" id="single-url-input" placeholder="https://gofile.io/d/abcdef atau abcdef" required autocomplete="off">
+                <button type="button" class="btn-icon-action" id="btn-paste-url" title="Tempel dari Clipboard (Paste)" aria-label="Paste">
+                  <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                    <path d="M16 4h2a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2h2"></path>
+                    <rect x="8" y="2" width="8" height="4" rx="1" ry="1"></rect>
+                  </svg>
+                </button>
+                <button type="button" class="btn-icon-action btn-icon-clear" id="btn-clear-url" title="Hapus input link (Clear)" aria-label="Clear">
+                  <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                    <line x1="18" y1="6" x2="6" y2="18"></line>
+                    <line x1="6" y1="6" x2="18" y2="18"></line>
+                  </svg>
+                </button>
+              </div>
+            </div>
+
+            <div class="form-group">
+              <label class="form-label" for="single-password-input">Password (Optional)</label>
+              <div class="password-wrapper">
+                <input type="password" class="form-input" id="single-password-input" placeholder="Leave blank if not protected">
+                <button type="button" class="toggle-pw-btn" id="toggle-single-pw-btn" title="Toggle visibility">
+                  <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                    <path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"></path>
+                    <circle cx="12" cy="12" r="3"></circle>
+                  </svg>
+                </button>
+              </div>
+            </div>
+
+            <div style="display: flex; gap: 0.75rem; flex-wrap: wrap; margin-top: 1.5rem;">
+              <button type="button" class="btn btn-primary" id="btn-inspect-url">
+                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                  <circle cx="11" cy="11" r="8"></circle>
+                  <line x1="21" y1="21" x2="16.65" y2="16.65"></line>
+                </svg>
+                Explore & Select Files
+              </button>
+
+              <button type="button" class="btn btn-secondary" id="btn-quick-download">
+                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                  <path d="M12 5v14M5 12l7 7 7-7"/>
+                </svg>
+                Download All Directly
+              </button>
+            </div>
+          </form>
+        </div>
+
+        <!-- Panel 2: Batch Mode -->
+        <div class="subtab-panel" id="subtab-panel-batch">
+          <div class="card-title-row">
+            <h2>
+              <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                <line x1="8" y1="6" x2="21" y2="6"></line>
+                <line x1="8" y1="12" x2="21" y2="12"></line>
+                <line x1="8" y1="18" x2="21" y2="18"></line>
+              </svg>
+              Batch Links Downloader
+            </h2>
+            <div style="display: flex; gap: 0.4rem; align-items: center;">
+              <button type="button" class="btn-icon-action" id="btn-paste-batch" title="Tempel link dari Clipboard (Paste)" aria-label="Paste">
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                  <path d="M16 4h2a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2h2"></path>
+                  <rect x="8" y="2" width="8" height="4" rx="1" ry="1"></rect>
+                </svg>
+              </button>
+              <button type="button" class="btn-icon-action btn-icon-clear" id="btn-clear-batch" title="Hapus semua baris link (Clear)" aria-label="Clear">
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                  <path d="M3 6h18M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"></path>
+                </svg>
+              </button>
+            </div>
+          </div>
+
+          <p style="font-size:0.85rem; color:var(--text-secondary); margin-bottom: 0.85rem;">
+            Masukkan beberapa link sekaligus. Format: <code>https://gofile.io/d/id password</code> (pisahkan password dengan spasi, atau tanpa password).
+          </p>
+
+          <div class="form-group">
+            <textarea class="form-textarea" id="batch-urls-input" placeholder="https://gofile.io/d/abc123&#10;https://gofile.io/d/def456 mypassword&#10;https://gofile.io/d/ghi789"></textarea>
+          </div>
+
+          <div style="display: flex; gap: 0.75rem; justify-content: space-between; align-items: center; flex-wrap: wrap;">
+            <div style="font-size: 0.85rem; color: var(--text-muted);" id="batch-parsed-summary">
+              0 link terdeteksi
+            </div>
+            <button type="button" class="btn btn-primary" id="btn-start-batch">
+              <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                <polygon points="5 3 19 12 5 21 5 3"></polygon>
+              </svg>
+              Download Semua Link (Batch)
+            </button>
+          </div>
+        </div>
+      </div>
+    </main>
+
+    <!-- TAB 2: Unduhan (Combined Queue & Completed History with Clean Segmented Switch) -->
+    <main class="tab-content" id="tab-downloads">
+      <div class="card">
+        <!-- Sub-nav Segmented Switch for Downloads Hub -->
+        <div class="sub-nav-segmented" style="margin-bottom: 1.25rem;">
+          <button type="button" class="sub-tab-btn active" id="subtab-btn-queue">
+            <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+              <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path>
+              <polyline points="7 10 12 15 17 10"></polyline>
+              <line x1="12" y1="15" x2="12" y2="3"></line>
+            </svg>
+            Antrean Aktif
+            <span class="subtab-badge" id="subtab-queue-count">0</span>
+          </button>
+          <button type="button" class="sub-tab-btn" id="subtab-btn-history">
+            <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+              <polyline points="20 6 9 17 4 12"></polyline>
+            </svg>
+            Selesai Diunduh
+            <span class="subtab-badge" id="subtab-history-count">0</span>
+          </button>
+        </div>
+
+        <!-- Panel A: Active Download Queue -->
+        <div class="subtab-panel active" id="subtab-panel-queue">
+          <div class="card-title-row" style="margin-bottom: 1rem;">
+            <div>
+              <h3 style="font-size: 1.05rem; font-weight: 600; margin: 0; color: var(--text-primary);">Antrean Download Berjalan</h3>
+              <span style="font-size: 0.8rem; color: var(--text-muted);">Diurutkan: yang sedang download selalu tampil paling atas</span>
+            </div>
+            <div style="display:flex; gap:0.5rem; flex-wrap:wrap;">
+              <button class="btn btn-primary btn-sm" id="btn-start-all-queue" title="Mulai / Lanjutkan semua unduhan">
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor"><polygon points="5 3 19 12 5 21 5 3"></polygon></svg>
+                Start All
+              </button>
+              <button class="btn btn-secondary btn-sm" id="btn-pause-all-queue" title="Jeda semua unduhan aktif">
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor"><rect x="6" y="4" width="4" height="16"></rect><rect x="14" y="4" width="4" height="16"></rect></svg>
+                Pause All
+              </button>
+              <button class="btn btn-secondary btn-sm" id="btn-open-folder-queue" title="Buka Folder Penyimpanan">
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z"></path></svg>
+                Buka Folder
+              </button>
+              <button class="btn btn-danger btn-sm" id="btn-clear-queue">Bersihkan</button>
+            </div>
+          </div>
+
+          <div class="queue-list" id="queue-container">
+            <div class="empty-state" id="queue-empty-state">
+              <svg viewBox="0 0 24 24" fill="none" stroke-width="1.5">
+                <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path>
+                <polyline points="7 10 12 15 17 10"></polyline>
+                <line x1="12" y1="15" x2="12" y2="3"></line>
+              </svg>
+              <h4>Antrean unduhan kosong</h4>
+              <p>Tambahkan link GoFile pada menu Home untuk memulai pengunduhan.</p>
+            </div>
+          </div>
+        </div>
+
+        <!-- Panel B: Completed History -->
+        <div class="subtab-panel" id="subtab-panel-history">
+          <div class="card-title-row" style="margin-bottom: 1rem;">
+            <div>
+              <h3 style="font-size: 1.05rem; font-weight: 600; margin: 0; color: var(--text-primary);">File yang Telah Selesai</h3>
+              <span style="font-size: 0.8rem; color: var(--text-muted);">Riwayat file yang berhasil diunduh ke perangkat</span>
+            </div>
+            <div style="display:flex; gap:0.5rem; flex-wrap:wrap;">
+              <button class="btn btn-secondary btn-sm" id="btn-open-folder-history" title="Buka Folder Penyimpanan">
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z"></path></svg>
+                Buka Folder
+              </button>
+              <button class="btn btn-secondary btn-sm" id="btn-clear-history">Bersihkan Riwayat</button>
+            </div>
+          </div>
+
+          <div class="queue-list" id="history-container">
+            <div class="empty-state" id="history-empty-state">
+              <svg viewBox="0 0 24 24" fill="none" stroke-width="1.5">
+                <circle cx="12" cy="12" r="10"></circle>
+                <polyline points="12 6 12 12 14 14"></polyline>
+              </svg>
+              <h4>Belum ada unduhan yang selesai</h4>
+              <p>File yang telah selesai diunduh akan tercatat di sini dan dapat dibuka langsung.</p>
+            </div>
+          </div>
+        </div>
+      </div>
+    </main>
+
+    <!-- TAB 3: Kelola File (Storage & File Manager with File Integrity Protection) -->
+    <main class="tab-content" id="tab-files">
+      <div class="card">
+        <div class="card-title-row">
+          <div>
+            <h2>
+              <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                <path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z"></path>
+              </svg>
+              Kelola File Unduhan
+            </h2>
+            <span style="font-size:0.75rem; color:var(--text-muted);">Penyimpanan: Downloads/GoFile</span>
+          </div>
+          <div style="display:flex; gap:0.4rem; flex-wrap:wrap;">
+            <button class="btn btn-secondary btn-sm" id="btn-refresh-files" title="Pindai ulang penyimpanan lokal">
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                <polyline points="23 4 23 10 17 10"></polyline>
+                <polyline points="1 20 1 14 7 14"></polyline>
+                <path d="M3.51 9a9 9 0 0 1 14.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0 0 20.49 15"></path>
+              </svg>
+              Pindai
+            </button>
+            <button class="btn btn-secondary btn-sm" id="btn-open-folder-files" title="Buka di File Manager HP/Explorer">
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                <path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z"></path>
+              </svg>
+              Buka Folder
+            </button>
+          </div>
+        </div>
+
+        <!-- Sleek Integrity Status Chip -->
+        <div class="integrity-strip">
+          <div class="integrity-badge">
+            <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5">
+              <path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"></path>
+              <polyline points="9 12 11 14 15 10"></polyline>
+            </svg>
+            <span>Integritas Aktif</span>
+          </div>
+          <span class="integrity-desc">File ganda otomatis dilewati (skip) agar hemat kuota & memori</span>
+        </div>
+
+        <!-- Storage Dashboard -->
+        <div class="storage-dashboard">
+          <div class="storage-stat-card">
+            <div class="stat-icon-sm folder">
+              <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                <path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z"></path>
+              </svg>
+            </div>
+            <div>
+              <div class="stat-num" id="storage-total-files">0 file</div>
+              <div class="stat-label">Total File</div>
+            </div>
+          </div>
+
+          <div class="storage-stat-card">
+            <div class="stat-icon-sm disk">
+              <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                <ellipse cx="12" cy="5" rx="9" ry="3"></ellipse>
+                <path d="M21 12c0 1.66-4 3-9 3s-9-1.34-9-3"></path>
+                <path d="M3 5v14c0 1.66 4 3 9 3s9-1.34 9-3V5"></path>
+              </svg>
+            </div>
+            <div>
+              <div class="stat-num" id="storage-total-size">0.0 MB</div>
+              <div class="stat-label">Ruang Terpakai</div>
+            </div>
+          </div>
+        </div>
+
+        <!-- Search & Filter Controls -->
+        <div class="files-filter-bar">
+          <div class="search-input-wrapper">
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+              <circle cx="11" cy="11" r="8"></circle>
+              <line x1="21" y1="21" x2="16.65" y2="16.65"></line>
+            </svg>
+            <input type="text" class="form-input form-input-sm" id="search-files-input" placeholder="Cari nama file...">
+            <button type="button" class="btn-clear-search" id="btn-clear-file-search" title="Bersihkan pencarian" style="display:none;">✕</button>
+          </div>
+
+          <div class="filter-chips">
+            <button type="button" class="chip active" id="chip-file-all">Semua <span id="chip-count-all" class="subtab-badge">0</span></button>
+            <button type="button" class="chip" id="chip-file-video">🎬 Video <span id="chip-count-video" class="subtab-badge">0</span></button>
+            <button type="button" class="chip" id="chip-file-photo">🖼️ Foto <span id="chip-count-photo" class="subtab-badge">0</span></button>
+            <button type="button" class="chip" id="chip-file-other">📦 Lainnya <span id="chip-count-other" class="subtab-badge">0</span></button>
+          </div>
+        </div>
+
+        <!-- Files List -->
+        <div class="queue-list" id="files-list-container" style="margin-top: 0.75rem;">
+          <div class="empty-state" id="files-empty-state">
+            <svg viewBox="0 0 24 24" fill="none" stroke-width="1.5">
+              <path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z"></path>
+            </svg>
+            <h4>Belum ada file di folder penyimpanan</h4>
+            <p>File yang diunduh akan otomatis terdata di sini dan tersimpan di memori perangkat.</p>
+          </div>
+        </div>
+      </div>
+    </main>
+
+    <!-- TAB 5: Settings -->
+    <main class="tab-content" id="tab-settings">
+      <div class="card">
+        <div class="card-title-row">
+          <h2>
+            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+              <circle cx="12" cy="12" r="3"></circle>
+              <path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-2 2 2 2 0 0 1-2-2v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83 0 2 2 0 0 1 0-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1-2-2 2 2 0 0 1 2-2h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 0-2.83 2 2 0 0 1 2.83 0l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 2-2 2 2 0 0 1 2 2v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 0 2 2 0 0 1 0 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 2 2 2 2 0 0 1-2 2h-.09a1.65 1.65 0 0 0-1.51 1z"></path>
+            </svg>
+            Downloader Configuration
+          </h2>
+          <button class="btn btn-primary btn-sm" id="btn-save-settings">Save Changes</button>
+        </div>
+
+        <div class="settings-grid">
+          <div class="form-group" style="grid-column: 1 / -1;">
+            <label class="form-label" for="setting-download-dir">Download Directory</label>
+            <div class="input-with-action">
+              <input type="text" class="form-input" id="setting-download-dir" value="./downloads">
+              <button type="button" class="btn btn-secondary" id="btn-choose-folder">
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                  <path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z"></path>
+                </svg>
+                Browse...
+              </button>
+            </div>
+            <span style="font-size:0.75rem; color:var(--text-muted); margin-top:4px; display:block;">
+              On Windows, files will be saved in this path. On Android, files go directly to the device Download folder.
+            </span>
+          </div>
+
+          <div class="form-group">
+            <label class="form-label" for="setting-workers">Max Concurrent Workers (Threads)</label>
+            <div class="range-slider-wrapper">
+              <input type="range" class="range-slider" id="setting-workers" min="1" max="10" value="5">
+              <span class="slider-val-badge" id="val-workers">5</span>
+            </div>
+          </div>
+
+          <div class="form-group">
+            <label class="form-label" for="setting-chunk-size">Chunk Size</label>
+            <select class="form-input" id="setting-chunk-size">
+              <option value="1048576">1 MB</option>
+              <option value="2097152" selected>2 MB (Recommended)</option>
+              <option value="4194304">4 MB</option>
+              <option value="8388608">8 MB</option>
+            </select>
+          </div>
+
+          <div class="form-group" style="grid-column: 1 / -1;">
+            <label class="form-label" for="setting-token">Custom GoFile Account Token (Optional)</label>
+            <input type="text" class="form-input" id="setting-token" placeholder="Optional. If you have a premium/registered GoFile account token">
+            <span style="font-size:0.75rem; color:var(--text-muted); margin-top:4px; display:block;">
+              Leave blank to auto-create and use a free guest session.
+            </span>
+          </div>
+
+          <div class="form-group">
+            <label class="form-label" for="setting-retries">Connection Retries</label>
+            <input type="number" class="form-input" id="setting-retries" value="5" min="1" max="15">
+          </div>
+
+          <div class="form-group">
+            <label class="form-label" for="setting-timeout">Connection Timeout (Seconds)</label>
+            <input type="number" class="form-input" id="setting-timeout" value="15" min="5" max="60">
+          </div>
+
+          <div class="form-group" style="grid-column: 1 / -1;">
+            <label class="form-label" for="setting-notif-mode">Download Notification Mode</label>
+            <select class="form-input" id="setting-notif-mode">
+              <option value="summary_only" selected>Discreet (Only notify when all files finish - Recommended for Mobile)</option>
+              <option value="each_file">Notify for each file</option>
+              <option value="silent">Completely silent (Badge count only)</option>
+            </select>
+            <span style="font-size:0.75rem; color:var(--text-muted); margin-top:4px; display:block;">
+              Discreet mode prevents annoying notification spam while downloading folders with many files.
+            </span>
+          </div>
+        </div>
+      </div>
+    </main>
+  </div>
+
+  <!-- Inspection Tree Modal -->
+  <div class="modal-backdrop" id="inspection-modal">
+    <div class="modal-window">
+      <div class="modal-header">
+        <div>
+          <h3 id="modal-folder-title">Folder Contents</h3>
+          <span style="font-size:0.75rem; color:var(--text-muted);" id="modal-folder-subtitle">0 files, 0 MB total</span>
+        </div>
+        <button class="btn-icon" id="btn-close-modal">
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <line x1="18" y1="6" x2="6" y2="18"></line>
+            <line x1="6" y1="6" x2="18" y2="18"></line>
+          </svg>
+        </button>
+      </div>
+
+      <div class="modal-body">
+        <div style="display:flex; flex-direction:column; gap:0.65rem; margin-bottom:1rem; padding-bottom:0.75rem; border-bottom:1px solid var(--glass-border);">
+          <div style="display:flex; justify-content:space-between; align-items:center;">
+            <label style="display:flex; align-items:center; gap:0.5rem; font-size:0.85rem; cursor:pointer;">
+              <input type="checkbox" id="modal-select-all" checked>
+              <span style="font-weight:600;">Pilih Semua</span>
+            </label>
+            <span style="font-size:0.8rem; color:var(--cyan-400); font-weight:600;" id="modal-selected-summary">0 selected</span>
+          </div>
+
+          <!-- Quick Filter Buttons: All, Videos, Photos -->
+          <div class="modal-filter-chips" style="display:flex; gap:0.4rem; flex-wrap:wrap;">
+            <button type="button" class="btn-filter-chip active" id="btn-chip-all">
+              Semua (<span id="chip-count-all">0</span>)
+            </button>
+            <button type="button" class="btn-filter-chip" id="btn-chip-video">
+              🎬 Hanya Video (<span id="chip-count-video">0</span>)
+            </button>
+            <button type="button" class="btn-filter-chip" id="btn-chip-photo">
+              🖼️ Hanya Foto (<span id="chip-count-photo">0</span>)
+            </button>
+            <button type="button" class="btn-filter-chip" id="btn-chip-none">
+              Batal Semua
+            </button>
+          </div>
+        </div>
+
+        <div class="tree-list" id="modal-file-list">
+          <!-- Files injected dynamically -->
+        </div>
+      </div>
+
+      <div class="modal-footer">
+        <button class="btn btn-secondary" id="btn-cancel-modal">Cancel</button>
+        <button class="btn btn-primary" id="btn-confirm-download-modal">
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <path d="M12 5v14M5 12l7 7 7-7"/>
+          </svg>
+          Download Selected
+        </button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Toast Container -->
+  <div class="toast-container" id="toast-container"></div>
+
+  <!-- Scripts -->
+  <script src="js/client_engine.js"></script>
+  <script src="js/api.js"></script>
+  <script src="js/app.js"></script>
+</body>
+</html>

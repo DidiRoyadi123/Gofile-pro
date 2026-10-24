@@ -1,0 +1,13 @@
+{
+  "appId": "com.gofile.downloader",
+  "appName": "GoFile Pro",
+  "webDir": "ui",
+  "bundledWebRuntime": false,
+  "server": {
+    "androidScheme": "https",
+    "cleartext": true
+  },
+  "android": {
+    "allowMixedContent": true
+  }
+}
