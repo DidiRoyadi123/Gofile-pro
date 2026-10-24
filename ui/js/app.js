@@ -29,7 +29,6 @@ document.addEventListener('DOMContentLoaded', () => {
   const activeTasksEl = document.getElementById('active-tasks-val');
   const totalDownloadedEl = document.getElementById('total-downloaded-val');
   const activeQueueCountEl = document.getElementById('active-queue-count');
-  const completedCountEl = document.getElementById('completed-count');
 
   // Single Tab Form Elements
   const singleUrlInput = document.getElementById('single-url-input');
@@ -220,7 +219,7 @@ document.addEventListener('DOMContentLoaded', () => {
   }
   window.updatePlatformBadge = updatePlatformBadge;
 
-  // Safe async bridge initialization
+  // Safe async bridge initialization & auto-scan download directory
   (async () => {
     try {
       await ApiBridge.init();
@@ -228,6 +227,22 @@ document.addEventListener('DOMContentLoaded', () => {
       console.warn('ApiBridge.init non-fatal warning:', err);
     }
     updatePlatformBadge();
+
+    // Auto-check and scan download directory on startup (first install / update)
+    try {
+      const CURRENT_VERSION = '2.0.0';
+      const lastVersion = localStorage.getItem('gf_app_version');
+      const isFirstRunOrUpdate = !lastVersion || lastVersion !== CURRENT_VERSION;
+      localStorage.setItem('gf_app_version', CURRENT_VERSION);
+
+      await loadStoredFiles();
+
+      if (isFirstRunOrUpdate && state.storedFiles && state.storedFiles.length > 0) {
+        showToast(`Sinkronisasi awal: ${state.storedFiles.length} file terdeteksi di folder unduhan.`, 'info', 3500);
+      }
+    } catch (err) {
+      console.warn('Initial storage scan non-fatal error:', err);
+    }
   })();
 
   // ----------------------------------------------------
@@ -464,7 +479,7 @@ document.addEventListener('DOMContentLoaded', () => {
       if (data && data.files && data.files.length > 0) {
         enqueueFiles(data.files);
         showToast(`Berhasil menambahkan ${data.files.length} file ke antrean!`, 'success');
-        document.getElementById('nav-queue-tab').click();
+        showDownloadsTab('queue');
       } else {
         showToast('Tidak ada file yang dapat diunduh.', 'error');
       }
@@ -546,14 +561,14 @@ document.addEventListener('DOMContentLoaded', () => {
       itemEl.dataset.isVid = isVid ? '1' : '0';
       itemEl.dataset.isImg = isImg ? '1' : '0';
       itemEl.innerHTML = `
-        <input type="checkbox" id="check-${file.id}" checked>
+        <input type="checkbox" id="check-${escapeHtml(file.id)}" checked>
         <div style="color:var(--indigo-400); display:flex; align-items:center;">
           ${getFileIcon(file.name)}
         </div>
-        <div class="tree-item-name" title="${file.name}">
-          ${file.name}
+        <div class="tree-item-name" title="${escapeHtml(file.name)}">
+          ${escapeHtml(file.name)}
           ${typeBadge ? `<span style="font-size:0.7rem; font-weight:600; color:var(--cyan-400); margin-left:6px;">${typeBadge}</span>` : ''}
-          ${(file.relDir || file.rel_dir) ? `<span style="font-size:0.75rem; color:var(--text-muted); display:block;">/${file.relDir || file.rel_dir}</span>` : ''}
+          ${(file.relDir || file.rel_dir) ? `<span style="font-size:0.75rem; color:var(--text-muted); display:block;">/${escapeHtml(file.relDir || file.rel_dir)}</span>` : ''}
         </div>
         <div class="tree-item-size">${formatBytes(file.size)}</div>
       `;
@@ -1065,6 +1080,7 @@ document.addEventListener('DOMContentLoaded', () => {
     updateQueueCounters();
     updateGlobalMetrics();
     updateHeaderDownloadIndicator();
+    loadStoredFiles();
 
     // Check notification preference
     const activeOrQueued = state.queue.filter(q => q.status === 'queued' || q.status === 'downloading').length;
@@ -1281,10 +1297,10 @@ document.addEventListener('DOMContentLoaded', () => {
   const chipFileVideo = document.getElementById('chip-file-video');
   const chipFilePhoto = document.getElementById('chip-file-photo');
   const chipFileOther = document.getElementById('chip-file-other');
-  const chipCountAll = document.getElementById('chip-count-all');
-  const chipCountVideo = document.getElementById('chip-count-video');
-  const chipCountPhoto = document.getElementById('chip-count-photo');
-  const chipCountOther = document.getElementById('chip-count-other');
+  const chipStoredCountAll = document.getElementById('chip-stored-count-all');
+  const chipStoredCountVideo = document.getElementById('chip-stored-count-video');
+  const chipStoredCountPhoto = document.getElementById('chip-stored-count-photo');
+  const chipStoredCountOther = document.getElementById('chip-stored-count-other');
   const btnClearFileSearch = document.getElementById('btn-clear-file-search');
 
   state.storedFiles = [];
@@ -1375,10 +1391,10 @@ document.addEventListener('DOMContentLoaded', () => {
     const all = state.storedFiles || [];
 
     // Update filter counts
-    if (chipCountAll) chipCountAll.textContent = all.length;
-    if (chipCountVideo) chipCountVideo.textContent = all.filter(f => isVideoFile(f.name)).length;
-    if (chipCountPhoto) chipCountPhoto.textContent = all.filter(f => isPhotoFile(f.name)).length;
-    if (chipCountOther) chipCountOther.textContent = all.filter(f => !isVideoFile(f.name) && !isPhotoFile(f.name)).length;
+    if (chipStoredCountAll) chipStoredCountAll.textContent = all.length;
+    if (chipStoredCountVideo) chipStoredCountVideo.textContent = all.filter(f => isVideoFile(f.name)).length;
+    if (chipStoredCountPhoto) chipStoredCountPhoto.textContent = all.filter(f => isPhotoFile(f.name)).length;
+    if (chipStoredCountOther) chipStoredCountOther.textContent = all.filter(f => !isVideoFile(f.name) && !isPhotoFile(f.name)).length;
 
     let filtered = all;
 

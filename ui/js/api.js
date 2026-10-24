@@ -48,6 +48,8 @@ const ApiBridge = {
         stopAll: () => window.Capacitor.nativePromise('AndroidDownloader', 'stopAll', {}),
         inspectContent: (options) => window.Capacitor.nativePromise('AndroidDownloader', 'inspectContent', options),
         checkFileExists: (options) => window.Capacitor.nativePromise('AndroidDownloader', 'checkFileExists', options),
+        listDownloadedFiles: () => window.Capacitor.nativePromise('AndroidDownloader', 'listDownloadedFiles', {}),
+        deleteFile: (options) => window.Capacitor.nativePromise('AndroidDownloader', 'deleteFile', options),
         readClipboard: () => window.Capacitor.nativePromise('AndroidDownloader', 'readClipboard', {}),
         addListener: (eventName, callback) => {
           if (typeof window.Capacitor.addListener === 'function') {
@@ -154,12 +156,19 @@ const ApiBridge = {
     throw new Error('Tidak ada mesin pengunduh yang aktif');
   },
 
-  async checkFileExists(filename, relDir = '') {
+  async checkFileExists(filename, relDir = '', size = 0) {
     this.detectPlatform();
+    if (window.pywebview && window.pywebview.api && typeof window.pywebview.api.check_file_exists === 'function') {
+      try {
+        return await window.pywebview.api.check_file_exists(filename, relDir, size);
+      } catch (e) {
+        return false;
+      }
+    }
     const androidPlugin = this.getAndroidPlugin();
     if (androidPlugin && typeof androidPlugin.checkFileExists === 'function') {
       try {
-        const res = await androidPlugin.checkFileExists({ filename, relDir });
+        const res = await androidPlugin.checkFileExists({ filename, relDir, size });
         return res && res.exists === true;
       } catch (e) {
         return false;

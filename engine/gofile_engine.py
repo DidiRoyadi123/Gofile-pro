@@ -349,7 +349,13 @@ class GoFileEngine:
         Downloads a single file item with chunking, resume support, and progress events.
         """
         rel_dir = item.get("relDir") or item.get("rel_dir") or ""
-        file_dir = dest_dir / rel_dir if rel_dir else dest_dir
+        # Strict path traversal protection on rel_dir
+        safe_rel_parts = [sanitize_filename(p) for p in Path(rel_dir).parts if p not in (".", "..", "/", "\\", "")]
+        safe_rel = Path(*safe_rel_parts) if safe_rel_parts else Path()
+        dest_base = dest_dir.resolve()
+        file_dir = (dest_base / safe_rel).resolve()
+        if not file_dir.is_relative_to(dest_base):
+            file_dir = dest_base
         file_dir.mkdir(parents=True, exist_ok=True)
 
         raw_filename = item["name"]

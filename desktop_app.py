@@ -80,11 +80,35 @@ class DesktopAPI:
         except Exception as e:
             return False
 
-    def open_file(self, file_path: str):
-        """Opens a downloaded file directly with its default system app."""
+    def check_file_exists(self, filename: str, rel_dir: str = "", expected_size: int = 0, download_dir: str = "./downloads") -> bool:
+        """Checks if a file exists safely within the downloads directory."""
+        try:
+            dest_base = Path(download_dir).resolve()
+            safe_rel = (rel_dir or "").replace("..", "").replace("\\", "/").strip("/")
+            safe_name = Path(filename).name
+            candidate = (dest_base / safe_rel / safe_name).resolve()
+            fallback_base = Path("./downloads").resolve()
+            if not (candidate.is_relative_to(dest_base) or candidate.is_relative_to(fallback_base)):
+                return False
+            if candidate.exists() and candidate.is_file():
+                sz = candidate.stat().st_size
+                if expected_size > 0:
+                    return sz == expected_size
+                return sz > 0
+            return False
+        except Exception:
+            return False
+
+    def open_file(self, file_path: str, download_dir: str = "./downloads") -> bool:
+        """Opens a downloaded file safely with its default system app."""
         try:
             target = Path(file_path).resolve()
-            if not target.exists():
+            dest_base = Path(download_dir).resolve()
+            fallback_base = Path("./downloads").resolve()
+            # Security boundary check: prevent opening files outside downloads
+            if not (target.is_relative_to(dest_base) or target.is_relative_to(fallback_base)):
+                return False
+            if not target.exists() or not target.is_file():
                 return False
             if os.name == "nt":
                 os.startfile(str(target))
@@ -92,7 +116,7 @@ class DesktopAPI:
                 import subprocess
                 subprocess.run(["xdg-open", str(target)])
             return True
-        except Exception as e:
+        except Exception:
             return False
 
     def stop_all(self):
@@ -142,8 +166,9 @@ class DesktopAPI:
         try:
             target = Path(file_path).resolve()
             dest_base = Path(download_dir).resolve()
-            # Security check: file must be inside dest_base or downloads folder
-            if not target.is_relative_to(dest_base) and not target.is_relative_to(Path("./downloads").resolve()):
+            fallback_base = Path("./downloads").resolve()
+            # Security boundary check: file must be inside dest_base or downloads folder
+            if not (target.is_relative_to(dest_base) or target.is_relative_to(fallback_base)):
                 return False
             if target.exists() and target.is_file():
                 target.unlink()

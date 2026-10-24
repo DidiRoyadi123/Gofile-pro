@@ -112,30 +112,48 @@ public class AndroidDownloaderPlugin extends Plugin {
         }
     }
 
-    private FileCandidateInfo queryFileInfo(String filename, String relDir) {
-        if (filename == null || filename.trim().isEmpty()) {
+    private String getSafeRelDir(String relDir) {
+        if (relDir == null) return "";
+        String safe = relDir.replace("..", "").replace('\\', '/').trim();
+        while (safe.startsWith("/")) safe = safe.substring(1);
+        while (safe.endsWith("/")) safe = safe.substring(0, safe.length() - 1);
+        return safe;
+    }
+
+    private String getSafeFilename(String filename) {
+        if (filename == null || filename.trim().isEmpty()) return "file";
+        String name = new File(filename).getName();
+        name = name.replaceAll("[\\\\/:*?\"<>|]", "_");
+        return name.isEmpty() ? "file" : name;
+    }
+
+    private FileCandidateInfo queryFileInfo(String rawFilename, String rawRelDir) {
+        if (rawFilename == null || rawFilename.trim().isEmpty()) {
             return new FileCandidateInfo(false, 0L, null, null);
         }
+        final String filename = getSafeFilename(rawFilename);
+        final String relDir = getSafeRelDir(rawRelDir);
         Context ctx = getContext();
         ContentResolver resolver = ctx.getContentResolver();
 
-        // 1. Check standard File in Downloads/GoFile or Downloads
+        // 1. Check standard File in Downloads/GoFile or Downloads with path boundary check
         try {
             File downloadDir = Environment.getExternalStoragePublicDirectory(Environment.DIRECTORY_DOWNLOADS);
-            if (relDir != null && !relDir.trim().isEmpty()) {
-                File subCandidate = new File(downloadDir, "GoFile/" + relDir.trim() + "/" + filename);
-                if (subCandidate.exists() && subCandidate.length() > 0) {
+            File goFileBase = new File(downloadDir, "GoFile").getCanonicalFile();
+            if (!relDir.isEmpty()) {
+                File subCandidate = new File(goFileBase, relDir + "/" + filename).getCanonicalFile();
+                if (subCandidate.getPath().startsWith(goFileBase.getPath()) && subCandidate.exists() && subCandidate.length() > 0) {
                     Uri uri = FileProvider.getUriForFile(ctx, ctx.getPackageName() + ".fileprovider", subCandidate);
                     return new FileCandidateInfo(true, subCandidate.length(), uri, subCandidate);
                 }
             }
-            File candidate = new File(downloadDir, "GoFile/" + filename);
-            if (candidate.exists() && candidate.length() > 0) {
+            File candidate = new File(goFileBase, filename).getCanonicalFile();
+            if (candidate.getPath().startsWith(goFileBase.getPath()) && candidate.exists() && candidate.length() > 0) {
                 Uri uri = FileProvider.getUriForFile(ctx, ctx.getPackageName() + ".fileprovider", candidate);
                 return new FileCandidateInfo(true, candidate.length(), uri, candidate);
             }
-            File candidateDirect = new File(downloadDir, filename);
-            if (candidateDirect.exists() && candidateDirect.length() > 0) {
+            File candidateDirect = new File(downloadDir, filename).getCanonicalFile();
+            if (candidateDirect.getPath().startsWith(downloadDir.getCanonicalPath()) && candidateDirect.exists() && candidateDirect.length() > 0) {
                 Uri uri = FileProvider.getUriForFile(ctx, ctx.getPackageName() + ".fileprovider", candidateDirect);
                 return new FileCandidateInfo(true, candidateDirect.length(), uri, candidateDirect);
             }
@@ -574,6 +592,13 @@ public class AndroidDownloaderPlugin extends Plugin {
         final String mimeType = (reqMime == null || reqMime.isEmpty() || reqMime.equals("application/octet-stream"))
                 ? getMimeType(filename != null ? filename : fileUri.getLastPathSegment())
                 : reqMime;
+
+        if (fileUri != null && "file".equalsIgnoreCase(fileUri.getScheme())) {
+            try {
+                File f = new File(fileUri.getPath());
+                fileUri = FileProvider.getUriForFile(getContext(), getContext().getPackageName() + ".fileprovider", f);
+            } catch (Exception ignored) {}
+        }
 
         final Uri finalUri = fileUri;
 
