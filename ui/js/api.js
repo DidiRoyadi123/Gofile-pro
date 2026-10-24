@@ -48,6 +48,7 @@ const ApiBridge = {
         stopAll: () => window.Capacitor.nativePromise('AndroidDownloader', 'stopAll', {}),
         inspectContent: (options) => window.Capacitor.nativePromise('AndroidDownloader', 'inspectContent', options),
         checkFileExists: (options) => window.Capacitor.nativePromise('AndroidDownloader', 'checkFileExists', options),
+        readClipboard: () => window.Capacitor.nativePromise('AndroidDownloader', 'readClipboard', {}),
         addListener: (eventName, callback) => {
           if (typeof window.Capacitor.addListener === 'function') {
             return window.Capacitor.addListener('AndroidDownloader', eventName, callback);
@@ -313,6 +314,40 @@ const ApiBridge = {
     }
 
     return false;
+  },
+
+  async readClipboard() {
+    const androidPlugin = this.getAndroidPlugin();
+    if (androidPlugin && typeof androidPlugin.readClipboard === 'function') {
+      try {
+        const res = await androidPlugin.readClipboard();
+        if (res && typeof res.text === 'string' && res.text) {
+          return res.text;
+        }
+      } catch (e) {
+        console.warn('Android readClipboard error:', e);
+      }
+    }
+
+    if (window.pywebview && window.pywebview.api && typeof window.pywebview.api.read_clipboard === 'function') {
+      try {
+        const text = await window.pywebview.api.read_clipboard();
+        if (text) return text;
+      } catch (e) {
+        console.warn('PyWebView read_clipboard error:', e);
+      }
+    }
+
+    if (navigator.clipboard && typeof navigator.clipboard.readText === 'function') {
+      try {
+        const text = await navigator.clipboard.readText();
+        if (text) return text;
+      } catch (e) {
+        console.warn('navigator.clipboard error:', e);
+      }
+    }
+
+    return '';
   }
 };
 

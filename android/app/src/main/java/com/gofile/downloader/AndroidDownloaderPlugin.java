@@ -1,6 +1,8 @@
 package com.gofile.downloader;
 
 import android.app.DownloadManager;
+import android.content.ClipboardManager;
+import android.content.ClipData;
 import android.content.ContentResolver;
 import android.content.ContentUris;
 import android.content.ContentValues;
@@ -580,7 +582,6 @@ public class AndroidDownloaderPlugin extends Plugin {
                 Intent intent = new Intent(Intent.ACTION_VIEW);
                 intent.setDataAndType(finalUri, mimeType);
                 intent.addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION);
-                intent.addFlags(Intent.FLAG_GRANT_WRITE_URI_PERMISSION);
                 intent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK);
 
                 Intent chooser = Intent.createChooser(intent, "Buka " + (filename != null ? filename : "file") + " dengan");
@@ -669,11 +670,15 @@ public class AndroidDownloaderPlugin extends Plugin {
         Context ctx = getContext();
         ContentResolver resolver = ctx.getContentResolver();
 
-        // 1. Delete standard file from GoFile directory if exists
+        // 1. Delete standard file from GoFile directory if exists with Path Traversal Protection
         try {
             File downloadDir = Environment.getExternalStoragePublicDirectory(Environment.DIRECTORY_DOWNLOADS);
-            File candidate = new File(downloadDir, "GoFile/" + (relDir != null && !relDir.isEmpty() ? relDir + "/" : "") + filename);
-            if (candidate.exists() && candidate.isFile()) {
+            File goFileBase = new File(downloadDir, "GoFile").getCanonicalFile();
+            String safeFilename = new File(filename != null ? filename : "").getName();
+            String safeRel = (relDir != null ? relDir.replace("..", "").replace("\\", "/") : "").trim();
+            File candidate = new File(goFileBase, (safeRel.isEmpty() ? "" : safeRel + "/") + safeFilename).getCanonicalFile();
+
+            if (candidate.getPath().startsWith(goFileBase.getPath()) && candidate.exists() && candidate.isFile()) {
                 deleted = candidate.delete() || deleted;
             }
         } catch (Exception ignored) {}
@@ -700,6 +705,29 @@ public class AndroidDownloaderPlugin extends Plugin {
         JSObject ret = new JSObject();
         ret.put("success", deleted);
         call.resolve(ret);
+    }
+
+    @PluginMethod
+    public void readClipboard(PluginCall call) {
+        mainHandler.post(() -> {
+            try {
+                ClipboardManager clipboard = (ClipboardManager) getContext().getSystemService(Context.CLIPBOARD_SERVICE);
+                String text = "";
+                if (clipboard != null && clipboard.hasPrimaryClip() && clipboard.getPrimaryClip().getItemCount() > 0) {
+                    CharSequence cs = clipboard.getPrimaryClip().getItemAt(0).getText();
+                    if (cs != null) {
+                        text = cs.toString();
+                    }
+                }
+                JSObject ret = new JSObject();
+                ret.put("text", text);
+                call.resolve(ret);
+            } catch (Exception e) {
+                JSObject ret = new JSObject();
+                ret.put("text", "");
+                call.resolve(ret);
+            }
+        });
     }
 
     @PluginMethod

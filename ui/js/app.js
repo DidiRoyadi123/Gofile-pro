@@ -103,6 +103,16 @@ document.addEventListener('DOMContentLoaded', () => {
   // ----------------------------------------------------
   // Utility Functions
   // ----------------------------------------------------
+  function escapeHtml(str) {
+    if (typeof str !== 'string') return String(str ?? '');
+    return str
+      .replace(/&/g, '&amp;')
+      .replace(/</g, '&lt;')
+      .replace(/>/g, '&gt;')
+      .replace(/"/g, '&quot;')
+      .replace(/'/g, '&#039;');
+  }
+
   function formatBytes(bytes, decimals = 1) {
     if (!+bytes) return '0 B';
     const k = 1024;
@@ -135,7 +145,7 @@ document.addEventListener('DOMContentLoaded', () => {
       iconSvg = `<span class="toast-icon"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><circle cx="12" cy="12" r="10"></circle><line x1="12" y1="16" x2="12" y2="12"></line><line x1="12" y1="8" x2="12.01" y2="8"></line></svg></span>`;
     }
 
-    toast.innerHTML = `${iconSvg}<span>${message}</span>`;
+    toast.innerHTML = `${iconSvg}<span>${escapeHtml(message)}</span>`;
     toastContainer.appendChild(toast);
 
     setTimeout(() => {
@@ -311,13 +321,16 @@ document.addEventListener('DOMContentLoaded', () => {
   if (btnPasteUrl) {
     btnPasteUrl.addEventListener('click', async () => {
       try {
-        const text = await navigator.clipboard.readText();
-        if (text) {
+        const text = await ApiBridge.readClipboard();
+        if (text && text.trim()) {
           singleUrlInput.value = text.trim();
           showToast('Link berhasil ditempel.', 'info', 1500);
+        } else {
+          showToast('Clipboard kosong atau belum ada link yang disalin.', 'warning', 2000);
         }
-      } catch {
-        showToast('Akses clipboard tidak diizinkan atau tidak didukung.', 'error', 2000);
+      } catch (err) {
+        console.warn('Paste URL error:', err);
+        showToast('Gagal membaca clipboard.', 'error', 2000);
       }
     });
   }
@@ -337,15 +350,18 @@ document.addEventListener('DOMContentLoaded', () => {
   if (btnPasteBatch) {
     btnPasteBatch.addEventListener('click', async () => {
       try {
-        const text = await navigator.clipboard.readText();
-        if (text) {
+        const text = await ApiBridge.readClipboard();
+        if (text && text.trim()) {
           batchUrlsInput.value = (batchUrlsInput.value ? batchUrlsInput.value + '\n' : '') + text.trim();
           const lines = batchUrlsInput.value.split('\n').filter(l => l.trim().length > 0);
           batchParsedSummary.textContent = `${lines.length} link terdeteksi`;
           showToast('Link batch berhasil ditempel.', 'info', 1500);
+        } else {
+          showToast('Clipboard kosong atau belum ada link yang disalin.', 'warning', 2000);
         }
-      } catch {
-        showToast('Akses clipboard tidak diizinkan atau tidak didukung.', 'error', 2000);
+      } catch (err) {
+        console.warn('Paste Batch error:', err);
+        showToast('Gagal membaca clipboard.', 'error', 2000);
       }
     });
   }
@@ -821,8 +837,8 @@ document.addEventListener('DOMContentLoaded', () => {
         <div class="file-info">
           <div class="file-type-badge">${getFileIcon(item.name)}</div>
           <div class="file-names">
-            <div class="file-title" title="${item.name}">${item.name}</div>
-            <div class="file-subpath">${item.relDir ? `/${item.relDir}` : 'Root'} • ${formatBytes(item.size)}</div>
+            <div class="file-title" title="${escapeHtml(item.name)}">${escapeHtml(item.name)}</div>
+            <div class="file-subpath">${item.relDir ? `/${escapeHtml(item.relDir)}` : 'Root'} • ${formatBytes(item.size)}</div>
           </div>
         </div>
         <div class="queue-actions">
@@ -1093,8 +1109,8 @@ document.addEventListener('DOMContentLoaded', () => {
         <div class="file-info">
           <div class="file-type-badge" style="color:var(--emerald-400);">${getFileIcon(item.name)}</div>
           <div class="file-names">
-            <div class="file-title" title="${item.name}">${item.name}</div>
-            <div class="file-subpath">${item.relDir ? `/${item.relDir}` : 'Root'} • ${formatBytes(item.size)}</div>
+            <div class="file-title" title="${escapeHtml(item.name)}">${escapeHtml(item.name)}</div>
+            <div class="file-subpath">${item.relDir ? `/${escapeHtml(item.relDir)}` : 'Root'} • ${formatBytes(item.size)}</div>
           </div>
         </div>
         <div class="queue-actions">
@@ -1419,12 +1435,12 @@ document.addEventListener('DOMContentLoaded', () => {
         <div class="stored-file-main">
           <div class="stored-file-icon ${iconClass}">${iconEmoji}</div>
           <div class="stored-file-info">
-            <div class="stored-file-name" title="${file.name}">${file.name}</div>
+            <div class="stored-file-name" title="${escapeHtml(file.name)}">${escapeHtml(file.name)}</div>
             <div class="stored-file-meta">
               <span class="stored-file-size-badge">${formatBytes(file.size)}</span>
               <span>•</span>
-              <span>${subpath}</span>
-              ${dateStr ? `<span>•</span><span>${dateStr}</span>` : ''}
+              <span>${escapeHtml(subpath)}</span>
+              ${dateStr ? `<span>•</span><span>${escapeHtml(dateStr)}</span>` : ''}
             </div>
           </div>
         </div>

@@ -121,10 +121,30 @@ class DesktopAPI:
                 })
         return results
 
-    def delete_file(self, file_path: str):
-        """Deletes a downloaded file from disk."""
+    def read_clipboard(self):
+        """Reads text from native system clipboard with PowerShell fallback."""
+        try:
+            import subprocess
+            if os.name == "nt":
+                res = subprocess.run(
+                    ["powershell", "-NoProfile", "-Command", "Get-Clipboard"],
+                    capture_output=True,
+                    text=True,
+                    timeout=2
+                )
+                return res.stdout.strip()
+        except Exception:
+            pass
+        return ""
+
+    def delete_file(self, file_path: str, download_dir: str = "./downloads"):
+        """Deletes a downloaded file from disk safely, preventing path traversal."""
         try:
             target = Path(file_path).resolve()
+            dest_base = Path(download_dir).resolve()
+            # Security check: file must be inside dest_base or downloads folder
+            if not target.is_relative_to(dest_base) and not target.is_relative_to(Path("./downloads").resolve()):
+                return False
             if target.exists() and target.is_file():
                 target.unlink()
                 return True
