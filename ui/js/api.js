@@ -151,7 +151,9 @@ const ApiBridge = {
         relDir: item.relDir || item.rel_dir || '',
         mimetype: item.mimetype || '',
         size: item.size || 0,
-        md5: item.md5 || ''
+        md5: item.md5 || '',
+        overwrite: !!(item.overwrite || item.isUpdate),
+        isUpdate: !!item.isUpdate
       });
 
       if (res && res.filename) {

@@ -499,8 +499,19 @@ class GoFileEngine:
         final_path = file_dir / filename
         part_path = file_dir / f"{filename}.part"
 
-        # Check if already completed or if another file with this name exists
-        if final_path.exists() and final_path.stat().st_size > 0:
+        overwrite = bool(item.get("overwrite") or item.get("isUpdate"))
+        if overwrite:
+            if final_path.exists():
+                try:
+                    final_path.unlink()
+                except Exception:
+                    pass
+            if part_path.exists():
+                try:
+                    part_path.unlink()
+                except Exception:
+                    pass
+        elif final_path.exists() and final_path.stat().st_size > 0:
             if expected_size > 0 and final_path.stat().st_size == expected_size:
                 if on_progress:
                     on_progress({

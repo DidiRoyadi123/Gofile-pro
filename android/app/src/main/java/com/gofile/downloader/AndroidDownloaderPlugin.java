@@ -311,6 +311,8 @@ public class AndroidDownloaderPlugin extends Plugin {
         final String relDir = call.getString("relDir", "");
         final String reqMime = call.getString("mimetype");
         final long expectedSize = call.getLong("size", 0L);
+        final boolean overwrite = Boolean.TRUE.equals(call.getBoolean("overwrite", false));
+        final boolean isUpdate = Boolean.TRUE.equals(call.getBoolean("isUpdate", false));
 
         if (urlStr == null || filename == null) {
             call.reject("URL dan nama file wajib diisi");
@@ -348,32 +350,55 @@ public class AndroidDownloaderPlugin extends Plugin {
         cancelFlags.put(taskId, false);
 
         executor.submit(() -> {
-            String resolvedFilename = resolveAvailableFilename(filename, relDir, expectedSize);
+            String resolvedFilename;
+            if (isUpdate || overwrite) {
+                resolvedFilename = getSafeFilename(filename);
+                // Clean up any stale existing file in MediaStore and Download folder so fresh file is written
+                Context ctx = getContext();
+                ContentResolver resolver = ctx.getContentResolver();
+                try {
+                    if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
+                        String selection = MediaStore.MediaColumns.DISPLAY_NAME + " = ?";
+                        String[] args = new String[]{resolvedFilename};
+                        resolver.delete(MediaStore.Downloads.EXTERNAL_CONTENT_URI, selection, args);
+                    }
+                } catch (Exception ignored) {}
+                try {
+                    File downloadDir = Environment.getExternalStoragePublicDirectory(Environment.DIRECTORY_DOWNLOADS);
+                    File goFileBase = new File(downloadDir, "GoFile");
+                    File oldFile = new File(goFileBase, resolvedFilename);
+                    if (oldFile.exists()) oldFile.delete();
+                    File oldDirect = new File(downloadDir, resolvedFilename);
+                    if (oldDirect.exists()) oldDirect.delete();
+                } catch (Exception ignored) {}
+            } else {
+                resolvedFilename = resolveAvailableFilename(filename, relDir, expectedSize);
 
-            // Check if file already exists in local storage with matching size
-            Uri existingUri = findFileUri(resolvedFilename, relDir, expectedSize);
-            if (existingUri != null) {
-                JSObject finishData = new JSObject();
-                finishData.put("id", taskId);
-                finishData.put("filename", resolvedFilename);
-                finishData.put("uri", existingUri.toString());
-                finishData.put("status", "completed");
-                finishData.put("progress", 100);
-                finishData.put("speed", 0);
-                finishData.put("alreadyExists", true);
+                // Check if file already exists in local storage with matching size
+                Uri existingUri = findFileUri(resolvedFilename, relDir, expectedSize);
+                if (existingUri != null) {
+                    JSObject finishData = new JSObject();
+                    finishData.put("id", taskId);
+                    finishData.put("filename", resolvedFilename);
+                    finishData.put("uri", existingUri.toString());
+                    finishData.put("status", "completed");
+                    finishData.put("progress", 100);
+                    finishData.put("speed", 0);
+                    finishData.put("alreadyExists", true);
 
-                notifyListeners("downloadProgress", finishData);
+                    notifyListeners("downloadProgress", finishData);
 
-                JSObject callRes = new JSObject();
-                callRes.put("success", true);
-                callRes.put("id", taskId);
-                callRes.put("filename", resolvedFilename);
-                callRes.put("uri", existingUri.toString());
-                callRes.put("alreadyExists", true);
-                call.resolve(callRes);
+                    JSObject callRes = new JSObject();
+                    callRes.put("success", true);
+                    callRes.put("id", taskId);
+                    callRes.put("filename", resolvedFilename);
+                    callRes.put("uri", existingUri.toString());
+                    callRes.put("alreadyExists", true);
+                    call.resolve(callRes);
 
-                DownloadService.stop(getContext());
-                return;
+                    DownloadService.stop(getContext());
+                    return;
+                }
             }
 
             HttpURLConnection conn = null;

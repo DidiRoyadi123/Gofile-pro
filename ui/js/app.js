@@ -3,7 +3,7 @@
  */
 
 document.addEventListener('DOMContentLoaded', () => {
-  const CURRENT_VERSION = 'v2.2.6';
+  const CURRENT_VERSION = 'v2.2.7';
 
   // State Management
   const state = {
@@ -857,8 +857,8 @@ document.addEventListener('DOMContentLoaded', () => {
 
       const isAlreadyStored = state.storedFiles && state.storedFiles.some(sf => {
         if (sf.name !== file.name) return false;
-        if (file.size && sf.size) return sf.size === file.size;
-        return true;
+        if (file.size > 0 && sf.size > 0) return sf.size === file.size;
+        return false;
       });
       const storedBadge = isAlreadyStored
         ? `<span style="font-size:0.68rem; padding:2px 6px; border-radius:4px; background:rgba(16,185,129,0.15); color:#10b981; font-weight:600; margin-left:6px;" title="File sudah ada di penyimpanan lokal">✓ Sudah Diunduh</span>`
@@ -1139,8 +1139,8 @@ document.addEventListener('DOMContentLoaded', () => {
       if (!allowAlreadyStored) {
         const alreadyStored = state.storedFiles && state.storedFiles.some(sf => {
           if (sf.name !== file.name) return false;
-          if (file.size && sf.size) return sf.size === file.size;
-          return true;
+          if (file.size > 0 && sf.size > 0) return sf.size === file.size;
+          return false;
         });
 
         if (alreadyStored) {
@@ -1359,7 +1359,7 @@ document.addEventListener('DOMContentLoaded', () => {
       }
     }
 
-    if (prog && prog.alreadyExists) {
+    if (prog && prog.alreadyExists && !item?.isUpdate) {
       showToast(`File "${prog.filename || item?.name}" sudah ada di memori internal (di-skip).`, 'info', 3000);
     }
 
@@ -2652,7 +2652,9 @@ document.addEventListener('DOMContentLoaded', () => {
         link: asset.downloadUrl,
         size: asset.size || 0,
         relDir: '',
-        mimetype: platInfo.isAndroid ? 'application/vnd.android.package-archive' : 'application/octet-stream'
+        mimetype: platInfo.isAndroid ? 'application/vnd.android.package-archive' : 'application/octet-stream',
+        overwrite: true,
+        isUpdate: true
       };
 
       try {
