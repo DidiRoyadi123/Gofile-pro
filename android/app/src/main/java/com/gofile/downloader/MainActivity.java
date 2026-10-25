@@ -142,6 +142,17 @@ public class MainActivity extends BridgeActivity {
         super.onCreate(savedInstanceState);
         updatePipParams(false);
 
+        // Prevent Android OS crash if Chromium WebView renderer terminates
+        if (getBridge() != null) {
+            getBridge().addWebViewListener(new com.getcapacitor.WebViewListener() {
+                @Override
+                public boolean onRenderProcessGone(android.webkit.WebView webView, android.webkit.RenderProcessGoneDetail detail) {
+                    android.util.Log.e("GoFilePro", "WebView render process exited: " + detail);
+                    return true;
+                }
+            });
+        }
+
         // Hardware Back Button Controller
         getOnBackPressedDispatcher().addCallback(this, new OnBackPressedCallback(true) {
             @Override

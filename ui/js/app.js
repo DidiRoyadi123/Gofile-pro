@@ -3,7 +3,7 @@
  */
 
 document.addEventListener('DOMContentLoaded', () => {
-  const CURRENT_VERSION = 'v2.2.9';
+  const CURRENT_VERSION = 'v2.2.10';
 
   // Ensure native Android PiP is strictly disarmed until a video is played
   if (window.ApiBridge && typeof window.ApiBridge.setVideoPlaybackState === 'function') {
@@ -23,6 +23,8 @@ document.addEventListener('DOMContentLoaded', () => {
     activeWorkersCount: 0,
     totalDownloadedBytes: 0,
     inspectedData: null,
+    inspectedFilter: 'all',
+    inspectedRenderLimit: 35,
     selectedItemIds: new Set(),
     storedFiles: [],
     storedFilesFilter: 'all',
@@ -101,6 +103,9 @@ document.addEventListener('DOMContentLoaded', () => {
   const btnCloseModal = document.getElementById('btn-close-modal');
   const btnCancelModal = document.getElementById('btn-cancel-modal');
   const btnConfirmDownloadModal = document.getElementById('btn-confirm-download-modal');
+  const modalLoadMoreBar = document.getElementById('modal-load-more-bar');
+  const btnModalLoadMore = document.getElementById('btn-modal-load-more');
+  const modalPaginationStatus = document.getElementById('modal-pagination-status');
 
   // Filter Chips in Modal
   const btnChipAll = document.getElementById('btn-chip-all');
@@ -832,42 +837,88 @@ document.addEventListener('DOMContentLoaded', () => {
   // ----------------------------------------------------
   // Inspection Tree Modal Logic
   // ----------------------------------------------------
+  // ----------------------------------------------------
+  // Inspection Tree Modal Logic (Lazy Chunked Virtual Rendering for Hundreds/Thousands of Files)
+  // ----------------------------------------------------
+  function getFilteredInspectedFiles() {
+    if (!state.inspectedData || !state.inspectedData.files) return [];
+    const files = state.inspectedData.files;
+    if (state.inspectedFilter === 'video') return files.filter(f => isVideoFile(f));
+    if (state.inspectedFilter === 'photo') return files.filter(f => isPhotoFile(f));
+    if (state.inspectedFilter === 'audio') return files.filter(f => isAudioFile(f));
+    return files;
+  }
+
   function openInspectionModal(data) {
+    state.inspectedData = data;
+    state.inspectedFilter = 'all';
+    state.inspectedRenderLimit = 35;
+    state.selectedItemIds.clear();
+
     const cId = data.contentId || data.content_id || 'Files';
     const totalCount = data.totalFiles ?? data.total_files ?? (data.files ? data.files.length : 0);
     const totalBytes = data.totalSize ?? data.total_size ?? 0;
     modalFolderTitle.textContent = `Content: ${cId}`;
     modalFolderSubtitle.textContent = `${totalCount} files • Total: ${formatBytes(totalBytes)}`;
-    modalFileList.innerHTML = '';
-    state.selectedItemIds.clear();
+
+    // Select all by default
+    if (data.files) {
+      data.files.forEach(f => state.selectedItemIds.add(f.id));
+    }
 
     // Calculate category counts
-    const videoFiles = data.files.filter(f => isVideoFile(f));
-    const photoFiles = data.files.filter(f => isPhotoFile(f));
-    const audioFiles = data.files.filter(f => isAudioFile(f));
+    const videoFiles = data.files ? data.files.filter(f => isVideoFile(f)) : [];
+    const photoFiles = data.files ? data.files.filter(f => isPhotoFile(f)) : [];
+    const audioFiles = data.files ? data.files.filter(f => isAudioFile(f)) : [];
 
-    if (chipCountAll) chipCountAll.textContent = data.files.length;
+    if (chipCountAll) chipCountAll.textContent = data.files ? data.files.length : 0;
     if (chipCountVideo) chipCountVideo.textContent = videoFiles.length;
     if (chipCountPhoto) chipCountPhoto.textContent = photoFiles.length;
     if (chipCountAudio) chipCountAudio.textContent = audioFiles.length;
     setActiveChip(btnChipAll);
 
-    data.files.forEach(file => {
-      state.selectedItemIds.add(file.id);
+    renderInspectedFilesList(false);
+    updateModalSelectionCount();
+    inspectionModal.classList.add('open');
+  }
 
+  function renderInspectedFilesList(appendOnly = false) {
+    if (!modalFileList) return;
+
+    const filtered = getFilteredInspectedFiles();
+    const limit = state.inspectedRenderLimit || 35;
+    const existingCount = appendOnly ? modalFileList.querySelectorAll('.tree-item').length : 0;
+    const chunk = filtered.slice(existingCount, limit);
+
+    if (!appendOnly) {
+      modalFileList.innerHTML = '';
+    }
+
+    // Precompute stored files lookup in O(1)
+    const storedSet = new Set();
+    if (state.storedFiles && state.storedFiles.length > 0) {
+      state.storedFiles.forEach(sf => {
+        if (sf.name) {
+          storedSet.add(`${sf.name}___${sf.size || 0}`);
+          storedSet.add(`${sf.name}___0`);
+        }
+      });
+    }
+
+    const frag = document.createDocumentFragment();
+
+    chunk.forEach(file => {
       const isVid = isVideoFile(file);
       const isImg = isPhotoFile(file);
       const isAud = isAudioFile(file);
       const typeBadge = isVid ? '🎬 [VIDEO]' : (isImg ? '🖼️ [FOTO]' : (isAud ? '🎵 [AUDIO]' : ''));
 
-      const isAlreadyStored = state.storedFiles && state.storedFiles.some(sf => {
-        if (sf.name !== file.name) return false;
-        if (file.size > 0 && sf.size > 0) return sf.size === file.size;
-        return false;
-      });
+      const isAlreadyStored = storedSet.has(`${file.name}___${file.size || 0}`) || storedSet.has(`${file.name}___0`);
       const storedBadge = isAlreadyStored
         ? `<span style="font-size:0.68rem; padding:2px 6px; border-radius:4px; background:rgba(16,185,129,0.15); color:#10b981; font-weight:600; margin-left:6px;" title="File sudah ada di penyimpanan lokal">✓ Sudah Diunduh</span>`
         : '';
+
+      const isChecked = state.selectedItemIds.has(file.id);
 
       const itemEl = document.createElement('div');
       itemEl.className = 'tree-item';
@@ -876,7 +927,7 @@ document.addEventListener('DOMContentLoaded', () => {
       itemEl.dataset.isImg = isImg ? '1' : '0';
       itemEl.dataset.isAud = isAud ? '1' : '0';
       itemEl.innerHTML = `
-        <input type="checkbox" id="check-${escapeHtml(file.id)}" checked>
+        <input type="checkbox" class="tree-item-cb" data-file-id="${escapeHtml(file.id)}" id="check-${escapeHtml(file.id)}" ${isChecked ? 'checked' : ''}>
         <div style="color:var(--indigo-400); display:flex; align-items:center;">
           ${getFileIcon(file)}
         </div>
@@ -889,34 +940,94 @@ document.addEventListener('DOMContentLoaded', () => {
         <div class="tree-item-size">${formatBytes(file.size)}</div>
       `;
 
-      const cb = itemEl.querySelector('input[type="checkbox"]');
-      cb.addEventListener('change', () => {
-        if (cb.checked) {
-          state.selectedItemIds.add(file.id);
-        } else {
-          state.selectedItemIds.delete(file.id);
-        }
-        updateModalSelectionCount();
-      });
-
-      modalFileList.appendChild(itemEl);
+      frag.appendChild(itemEl);
     });
 
-    modalSelectAll.checked = true;
-    updateModalSelectionCount();
-    inspectionModal.classList.add('open');
+    modalFileList.appendChild(frag);
+
+    // Update Load More Bar
+    if (modalLoadMoreBar && btnModalLoadMore && modalPaginationStatus) {
+      const totalFiltered = filtered.length;
+      const currentRendered = Math.min(limit, totalFiltered);
+      if (currentRendered < totalFiltered) {
+        modalLoadMoreBar.style.display = 'block';
+        btnModalLoadMore.style.display = 'block';
+        const remaining = totalFiltered - currentRendered;
+        btnModalLoadMore.textContent = `Muat Lebih Banyak (${remaining} file lagi)`;
+        modalPaginationStatus.textContent = `Menampilkan ${currentRendered} dari ${totalFiltered} file`;
+      } else {
+        modalLoadMoreBar.style.display = totalFiltered > 35 ? 'block' : 'none';
+        btnModalLoadMore.style.display = 'none';
+        modalPaginationStatus.textContent = `Semua ${totalFiltered} file telah dimuat`;
+      }
+    }
+  }
+
+  // Delegated Event Listeners for modalFileList checkboxes and rows
+  if (modalFileList) {
+    modalFileList.addEventListener('change', (e) => {
+      const cb = e.target.closest('input[type="checkbox"]');
+      if (!cb) return;
+      const fId = cb.getAttribute('data-file-id');
+      if (fId) {
+        if (cb.checked) {
+          state.selectedItemIds.add(fId);
+        } else {
+          state.selectedItemIds.delete(fId);
+        }
+        updateModalSelectionCount();
+      }
+    });
+
+    // Row click toggle
+    modalFileList.addEventListener('click', (e) => {
+      if (e.target.matches('input[type="checkbox"]')) return;
+      const itemEl = e.target.closest('.tree-item');
+      if (!itemEl) return;
+      const cb = itemEl.querySelector('input[type="checkbox"]');
+      if (cb) {
+        cb.checked = !cb.checked;
+        cb.dispatchEvent(new Event('change', { bubbles: true }));
+      }
+    });
+  }
+
+  // Load More Button Handler
+  if (btnModalLoadMore) {
+    btnModalLoadMore.addEventListener('click', () => {
+      state.inspectedRenderLimit = (state.inspectedRenderLimit || 35) + 35;
+      renderInspectedFilesList(true);
+    });
+  }
+
+  // Auto load more on scroll
+  const modalBodyEl = document.querySelector('#inspection-modal .modal-body');
+  if (modalBodyEl) {
+    modalBodyEl.addEventListener('scroll', () => {
+      if (!state.inspectedData || !state.inspectedData.files) return;
+      const filtered = getFilteredInspectedFiles();
+      if ((state.inspectedRenderLimit || 35) >= filtered.length) return;
+
+      const scrollBottom = modalBodyEl.scrollHeight - modalBodyEl.scrollTop - modalBodyEl.clientHeight;
+      if (scrollBottom < 120) {
+        state.inspectedRenderLimit = (state.inspectedRenderLimit || 35) + 35;
+        renderInspectedFilesList(true);
+      }
+    });
   }
 
   function updateModalSelectionCount() {
     const count = state.selectedItemIds.size;
-    const total = state.inspectedData ? state.inspectedData.files.length : 0;
+    const total = state.inspectedData && state.inspectedData.files ? state.inspectedData.files.length : 0;
     let selectedBytes = 0;
     if (state.inspectedData && state.inspectedData.files) {
-      state.inspectedData.files.forEach(f => {
+      const files = state.inspectedData.files;
+      for (let i = 0; i < files.length; i++) {
+        const f = files[i];
         if (state.selectedItemIds.has(f.id)) {
           selectedBytes += (f.size || 0);
         }
-      });
+      }
     }
 
     modalSelectedSummary.textContent = `${count} dari ${total} file terpilih (${formatBytes(selectedBytes)})`;
@@ -940,14 +1051,13 @@ document.addEventListener('DOMContentLoaded', () => {
   if (btnChipAll) {
     btnChipAll.addEventListener('click', () => {
       setActiveChip(btnChipAll);
+      state.inspectedFilter = 'all';
+      state.inspectedRenderLimit = 35;
       state.selectedItemIds.clear();
       if (state.inspectedData && state.inspectedData.files) {
-        state.inspectedData.files.forEach(f => {
-          state.selectedItemIds.add(f.id);
-          const cb = document.getElementById(`check-${f.id}`);
-          if (cb) cb.checked = true;
-        });
+        state.inspectedData.files.forEach(f => state.selectedItemIds.add(f.id));
       }
+      renderInspectedFilesList(false);
       updateModalSelectionCount();
     });
   }
@@ -956,19 +1066,19 @@ document.addEventListener('DOMContentLoaded', () => {
   if (btnChipVideo) {
     btnChipVideo.addEventListener('click', () => {
       setActiveChip(btnChipVideo);
+      state.inspectedFilter = 'video';
+      state.inspectedRenderLimit = 35;
       state.selectedItemIds.clear();
       let vidCount = 0;
       if (state.inspectedData && state.inspectedData.files) {
         state.inspectedData.files.forEach(f => {
-          const isVid = isVideoFile(f);
-          const cb = document.getElementById(`check-${f.id}`);
-          if (cb) cb.checked = isVid;
-          if (isVid) {
+          if (isVideoFile(f)) {
             state.selectedItemIds.add(f.id);
             vidCount++;
           }
         });
       }
+      renderInspectedFilesList(false);
       updateModalSelectionCount();
       if (vidCount === 0) {
         showToast('Tidak ada file video di folder ini.', 'info', 2500);
@@ -982,19 +1092,19 @@ document.addEventListener('DOMContentLoaded', () => {
   if (btnChipPhoto) {
     btnChipPhoto.addEventListener('click', () => {
       setActiveChip(btnChipPhoto);
+      state.inspectedFilter = 'photo';
+      state.inspectedRenderLimit = 35;
       state.selectedItemIds.clear();
       let imgCount = 0;
       if (state.inspectedData && state.inspectedData.files) {
         state.inspectedData.files.forEach(f => {
-          const isImg = isPhotoFile(f);
-          const cb = document.getElementById(`check-${f.id}`);
-          if (cb) cb.checked = isImg;
-          if (isImg) {
+          if (isPhotoFile(f)) {
             state.selectedItemIds.add(f.id);
             imgCount++;
           }
         });
       }
+      renderInspectedFilesList(false);
       updateModalSelectionCount();
       if (imgCount === 0) {
         showToast('Tidak ada file foto di folder ini.', 'info', 2500);
@@ -1008,19 +1118,19 @@ document.addEventListener('DOMContentLoaded', () => {
   if (btnChipAudio) {
     btnChipAudio.addEventListener('click', () => {
       setActiveChip(btnChipAudio);
+      state.inspectedFilter = 'audio';
+      state.inspectedRenderLimit = 35;
       state.selectedItemIds.clear();
       let audCount = 0;
       if (state.inspectedData && state.inspectedData.files) {
         state.inspectedData.files.forEach(f => {
-          const isAud = isAudioFile(f);
-          const cb = document.getElementById(`check-${f.id}`);
-          if (cb) cb.checked = isAud;
-          if (isAud) {
+          if (isAudioFile(f)) {
             state.selectedItemIds.add(f.id);
             audCount++;
           }
         });
       }
+      renderInspectedFilesList(false);
       updateModalSelectionCount();
       if (audCount === 0) {
         showToast('Tidak ada file audio di folder ini.', 'info', 2500);
@@ -1044,20 +1154,17 @@ document.addEventListener('DOMContentLoaded', () => {
 
   modalSelectAll.addEventListener('change', () => {
     const checked = modalSelectAll.checked;
-    const checkboxes = modalFileList.querySelectorAll('input[type="checkbox"]');
-    state.selectedItemIds.clear();
-    checkboxes.forEach(cb => {
-      cb.checked = checked;
-      if (checked) {
-        const id = cb.id.replace('check-', '');
-        state.selectedItemIds.add(id);
-      }
-    });
+    const filtered = getFilteredInspectedFiles();
     if (checked) {
+      filtered.forEach(f => state.selectedItemIds.add(f.id));
       setActiveChip(btnChipAll);
     } else {
+      filtered.forEach(f => state.selectedItemIds.delete(f.id));
       setActiveChip(btnChipNone);
     }
+    modalFileList.querySelectorAll('input[type="checkbox"]').forEach(cb => {
+      cb.checked = checked;
+    });
     updateModalSelectionCount();
   });
 
@@ -1133,22 +1240,32 @@ document.addEventListener('DOMContentLoaded', () => {
     let skippedStored = 0;
     const toEnqueue = [];
 
+    const activeQueueIds = new Set(
+      state.queue
+        .filter(q => q.status === 'downloading' || q.status === 'queued')
+        .map(q => q.id)
+    );
+
+    const storedSet = new Set();
+    if (!allowAlreadyStored && state.storedFiles && state.storedFiles.length > 0) {
+      state.storedFiles.forEach(sf => {
+        if (sf.name) {
+          storedSet.add(`${sf.name}___${sf.size || 0}`);
+          storedSet.add(`${sf.name}___0`);
+        }
+      });
+    }
+
     files.forEach(file => {
       // 1. Prevent duplicate if already in active queue
-      if (state.queue.some(q => q.id === file.id && (q.status === 'downloading' || q.status === 'queued'))) {
+      if (activeQueueIds.has(file.id)) {
         skippedExisting++;
         return;
       }
 
       // 2. Anti-duplikat: periksa apakah file sudah tersimpan di memori/disk
       if (!allowAlreadyStored) {
-        const alreadyStored = state.storedFiles && state.storedFiles.some(sf => {
-          if (sf.name !== file.name) return false;
-          if (file.size > 0 && sf.size > 0) return sf.size === file.size;
-          return false;
-        });
-
-        if (alreadyStored) {
+        if (storedSet.has(`${file.name}___${file.size || 0}`) || storedSet.has(`${file.name}___0`)) {
           skippedStored++;
           return;
         }
@@ -1173,6 +1290,9 @@ document.addEventListener('DOMContentLoaded', () => {
     state.sessionBatchTotal += toEnqueue.length;
     updateHeaderDownloadIndicator();
 
+    if (queueEmptyState) queueEmptyState.style.display = 'none';
+    const fragment = document.createDocumentFragment();
+
     toEnqueue.forEach(file => {
       const queueItem = {
         id: file.id,
@@ -1189,16 +1309,19 @@ document.addEventListener('DOMContentLoaded', () => {
       };
 
       state.queue.push(queueItem);
-      renderQueueItem(queueItem);
+      const card = createQueueCard(queueItem);
+      queueItem.domElement = card;
+      fragment.appendChild(card);
     });
+
+    queueContainer.appendChild(fragment);
+    reorderQueueDom();
 
     updateQueueCounters();
     processQueue();
   }
 
-  function renderQueueItem(item) {
-    if (queueEmptyState) queueEmptyState.style.display = 'none';
-
+  function createQueueCard(item) {
     const card = document.createElement('div');
     card.className = 'queue-card';
     card.id = `qcard-${item.id}`;
@@ -1241,15 +1364,25 @@ document.addEventListener('DOMContentLoaded', () => {
     `;
 
     const cancelBtn = card.querySelector(`#btn-cancel-${item.id}`);
-    cancelBtn.addEventListener('click', () => {
-      cancelQueueItem(item.id);
-    });
+    if (cancelBtn) {
+      cancelBtn.addEventListener('click', () => {
+        cancelQueueItem(item.id);
+      });
+    }
 
     const pauseResumeBtn = card.querySelector(`#btn-pause-resume-${item.id}`);
-    pauseResumeBtn.addEventListener('click', () => {
-      togglePauseResumeItem(item.id);
-    });
+    if (pauseResumeBtn) {
+      pauseResumeBtn.addEventListener('click', () => {
+        togglePauseResumeItem(item.id);
+      });
+    }
 
+    return card;
+  }
+
+  function renderQueueItem(item) {
+    if (queueEmptyState) queueEmptyState.style.display = 'none';
+    const card = createQueueCard(item);
     item.domElement = card;
     queueContainer.appendChild(card);
     reorderQueueDom();
