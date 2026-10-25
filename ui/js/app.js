@@ -3,7 +3,7 @@
  */
 
 document.addEventListener('DOMContentLoaded', () => {
-  const CURRENT_VERSION = 'v2.2.3';
+  const CURRENT_VERSION = 'v2.2.4';
 
   // State Management
   const state = {
@@ -138,6 +138,15 @@ document.addEventListener('DOMContentLoaded', () => {
   const sortMenuItems = document.querySelectorAll('.sort-menu-item');
   const btnBatchDeleteStored = document.getElementById('btn-batch-delete-stored');
   const btnBatchDeleteText = document.getElementById('btn-batch-delete-text');
+
+  // Storage Permission Banner & Android Power Elements
+  const storagePermissionBanner = document.getElementById('storage-permission-banner');
+  const btnRequestStoragePerm = document.getElementById('btn-request-storage-perm');
+  const cardAndroidPower = document.getElementById('card-android-power');
+  const btnRequestBatteryOpt = document.getElementById('btn-request-battery-opt');
+  const btnSettingsStoragePerm = document.getElementById('btn-settings-storage-perm');
+  const batteryOptimizationStatusText = document.getElementById('battery-optimization-status-text');
+  const storagePermStatusText = document.getElementById('storage-perm-status-text');
 
   // In-App Update Engine Elements
   const updateModal = document.getElementById('update-modal');
@@ -1723,6 +1732,28 @@ document.addEventListener('DOMContentLoaded', () => {
       const nativeFiles = await ApiBridge.listDownloadedFiles(state.downloadDir);
       const mergedMap = new Map();
 
+      // Update Android permission & battery status indicators
+      const platInfo = ApiBridge.getPlatformInfo();
+      if (platInfo.isAndroid) {
+        const androidStatus = ApiBridge.androidStatus || {};
+        if (storagePermissionBanner) {
+          storagePermissionBanner.style.display = androidStatus.needsStoragePermission ? 'flex' : 'none';
+        }
+        if (storagePermStatusText) {
+          storagePermStatusText.textContent = androidStatus.needsStoragePermission
+            ? '⚠️ Izin belum lengkap. Aktifkan izin agar seluruh file lama di folder Download/GoFile terbaca.'
+            : '✅ Izin aktif. Seluruh file di folder Download/GoFile terbaca penuh.';
+        }
+        if (batteryOptimizationStatusText) {
+          batteryOptimizationStatusText.textContent = androidStatus.ignoringBatteryOptimizations
+            ? '✅ Mode Unrestricted aktif. HP tidak akan mematikan proses download saat tidur.'
+            : '⚠️ Optimasi baterai aktif. Disarankan aktifkan Unrestricted agar unduhan tidak terputus saat layar mati.';
+        }
+      } else {
+        if (cardAndroidPower) cardAndroidPower.style.display = 'none';
+        if (storagePermissionBanner) storagePermissionBanner.style.display = 'none';
+      }
+
       // 1. History records
       state.history.forEach(h => {
         mergedMap.set(h.name, {
@@ -1832,6 +1863,38 @@ document.addEventListener('DOMContentLoaded', () => {
   if (btnOpenFolderFiles) {
     btnOpenFolderFiles.addEventListener('click', openDownloadsDirectory);
   }
+
+  // Android Storage Permission & Battery Optimization Actions
+  if (btnRequestStoragePerm) {
+    btnRequestStoragePerm.addEventListener('click', async () => {
+      showToast('Membuka pengaturan izin akses penyimpanan...', 'info', 2000);
+      await ApiBridge.requestStoragePermissions();
+      setTimeout(loadStoredFiles, 1200);
+    });
+  }
+
+  if (btnSettingsStoragePerm) {
+    btnSettingsStoragePerm.addEventListener('click', async () => {
+      showToast('Membuka pengaturan izin akses file...', 'info', 2000);
+      await ApiBridge.requestStoragePermissions();
+      setTimeout(loadStoredFiles, 1200);
+    });
+  }
+
+  if (btnRequestBatteryOpt) {
+    btnRequestBatteryOpt.addEventListener('click', async () => {
+      showToast('Membuka pengaturan optimasi baterai (Unrestricted)...', 'info', 2000);
+      await ApiBridge.requestIgnoreBatteryOptimizations();
+      setTimeout(loadStoredFiles, 1200);
+    });
+  }
+
+  // Auto-refresh when app regains focus (e.g. returning from Android system settings)
+  window.addEventListener('focus', () => {
+    if (state.activeTab === 'tab-files' || state.activeTab === 'tab-settings') {
+      loadStoredFiles();
+    }
+  });
 
   function getFilteredStoredFiles() {
     const all = state.storedFiles || [];

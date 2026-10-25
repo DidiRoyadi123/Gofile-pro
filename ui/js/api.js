@@ -332,6 +332,13 @@ const ApiBridge = {
     if (androidPlugin && typeof androidPlugin.listDownloadedFiles === 'function') {
       try {
         const res = await androidPlugin.listDownloadedFiles();
+        if (res) {
+          this.androidStatus = {
+            needsStoragePermission: !!res.needsStoragePermission,
+            isAndroid11Plus: !!res.isAndroid11Plus,
+            ignoringBatteryOptimizations: !!res.ignoringBatteryOptimizations
+          };
+        }
         return (res && res.files) || [];
       } catch (e) {
         console.warn('Android listDownloadedFiles error:', e);
@@ -340,6 +347,55 @@ const ApiBridge = {
     }
 
     return [];
+  },
+
+  async checkStoragePermissions() {
+    const androidPlugin = this.getAndroidPlugin();
+    if (androidPlugin && typeof androidPlugin.checkStoragePermissions === 'function') {
+      try {
+        return await androidPlugin.checkStoragePermissions();
+      } catch (e) {
+        return { granted: false };
+      }
+    }
+    return { granted: true };
+  },
+
+  async requestStoragePermissions() {
+    const androidPlugin = this.getAndroidPlugin();
+    if (androidPlugin && typeof androidPlugin.requestStoragePermissions === 'function') {
+      try {
+        return await androidPlugin.requestStoragePermissions();
+      } catch (e) {
+        return { success: false, error: e.message };
+      }
+    }
+    return { success: true };
+  },
+
+  async isIgnoringBatteryOptimizations() {
+    const androidPlugin = this.getAndroidPlugin();
+    if (androidPlugin && typeof androidPlugin.isIgnoringBatteryOptimizations === 'function') {
+      try {
+        const res = await androidPlugin.isIgnoringBatteryOptimizations();
+        return res && res.ignoring;
+      } catch (e) {
+        return true;
+      }
+    }
+    return true;
+  },
+
+  async requestIgnoreBatteryOptimizations() {
+    const androidPlugin = this.getAndroidPlugin();
+    if (androidPlugin && typeof androidPlugin.requestIgnoreBatteryOptimizations === 'function') {
+      try {
+        return await androidPlugin.requestIgnoreBatteryOptimizations();
+      } catch (e) {
+        return { success: false, error: e.message };
+      }
+    }
+    return { success: true };
   },
 
   async deleteFile(item) {

@@ -17,7 +17,10 @@ import android.os.Handler;
 import android.os.Looper;
 import android.provider.MediaStore;
 import android.webkit.MimeTypeMap;
-
+import android.os.PowerManager;
+import android.provider.Settings;
+import android.content.pm.PackageManager;
+import android.Manifest;
 import androidx.core.content.FileProvider;
 
 import com.getcapacitor.JSArray;
@@ -1017,6 +1020,102 @@ public class AndroidDownloaderPlugin extends Plugin {
         return !failed.get() && totalDownloaded.get() >= totalBytes;
     }
 
+    private boolean isStoragePermissionGranted() {
+        Context ctx = getContext();
+        if (ctx == null) return false;
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) {
+            return Environment.isExternalStorageManager();
+        } else if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
+            return ctx.checkSelfPermission(Manifest.permission.READ_EXTERNAL_STORAGE) == PackageManager.PERMISSION_GRANTED;
+        }
+        return true;
+    }
+
+    private boolean isBatteryOptimizationIgnored() {
+        Context ctx = getContext();
+        if (ctx == null) return true;
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
+            PowerManager pm = (PowerManager) ctx.getSystemService(Context.POWER_SERVICE);
+            return pm != null && pm.isIgnoringBatteryOptimizations(ctx.getPackageName());
+        }
+        return true;
+    }
+
+    @PluginMethod
+    public void checkStoragePermissions(PluginCall call) {
+        JSObject ret = new JSObject();
+        ret.put("granted", isStoragePermissionGranted());
+        ret.put("isAndroid11Plus", Build.VERSION.SDK_INT >= Build.VERSION_CODES.R);
+        call.resolve(ret);
+    }
+
+    @PluginMethod
+    public void requestStoragePermissions(PluginCall call) {
+        Context ctx = getContext();
+        try {
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) {
+                Intent intent;
+                try {
+                    intent = new Intent(Settings.ACTION_MANAGE_APP_ALL_FILES_ACCESS_PERMISSION);
+                    intent.setData(Uri.parse("package:" + ctx.getPackageName()));
+                } catch (Exception e) {
+                    intent = new Intent(Settings.ACTION_MANAGE_ALL_FILES_ACCESS_PERMISSION);
+                }
+                intent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK);
+                ctx.startActivity(intent);
+            } else if (getActivity() != null) {
+                if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
+                    getActivity().requestPermissions(new String[]{
+                            Manifest.permission.READ_MEDIA_IMAGES,
+                            Manifest.permission.READ_MEDIA_VIDEO,
+                            Manifest.permission.READ_MEDIA_AUDIO,
+                            Manifest.permission.POST_NOTIFICATIONS
+                    }, 105);
+                } else {
+                    getActivity().requestPermissions(new String[]{
+                            Manifest.permission.READ_EXTERNAL_STORAGE,
+                            Manifest.permission.WRITE_EXTERNAL_STORAGE
+                    }, 105);
+                }
+            }
+            JSObject ret = new JSObject();
+            ret.put("success", true);
+            call.resolve(ret);
+        } catch (Exception e) {
+            call.reject("Gagal membuka pengaturan izin penyimpanan: " + e.getMessage());
+        }
+    }
+
+    @PluginMethod
+    public void isIgnoringBatteryOptimizations(PluginCall call) {
+        JSObject ret = new JSObject();
+        ret.put("ignoring", isBatteryOptimizationIgnored());
+        call.resolve(ret);
+    }
+
+    @PluginMethod
+    public void requestIgnoreBatteryOptimizations(PluginCall call) {
+        Context ctx = getContext();
+        try {
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
+                Intent intent;
+                try {
+                    intent = new Intent(Settings.ACTION_REQUEST_IGNORE_BATTERY_OPTIMIZATIONS);
+                    intent.setData(Uri.parse("package:" + ctx.getPackageName()));
+                } catch (Exception e) {
+                    intent = new Intent(Settings.ACTION_IGNORE_BATTERY_OPTIMIZATION_SETTINGS);
+                }
+                intent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK);
+                ctx.startActivity(intent);
+            }
+            JSObject ret = new JSObject();
+            ret.put("success", true);
+            call.resolve(ret);
+        } catch (Exception e) {
+            call.reject("Gagal membuka pengaturan optimasi baterai: " + e.getMessage());
+        }
+    }
+
     @PluginMethod
     public void listDownloadedFiles(PluginCall call) {
         executor.execute(() -> {
@@ -1025,14 +1124,37 @@ public class AndroidDownloaderPlugin extends Plugin {
             Context ctx = getContext();
             ContentResolver resolver = ctx.getContentResolver();
 
-            // 1. Query MediaStore on Android 10+ (Q)
-            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
-                Uri[] tables = new Uri[]{
-                        MediaStore.Downloads.EXTERNAL_CONTENT_URI,
-                        MediaStore.Video.Media.EXTERNAL_CONTENT_URI,
-                        MediaStore.Audio.Media.EXTERNAL_CONTENT_URI,
-                        MediaStore.Images.Media.EXTERNAL_CONTENT_URI
-                };
+            // 1. Direct Physical File directories scan (recovers files across uninstalls and updates)
+            try {
+                java.util.List<File> candidateDirs = new java.util.ArrayList<>();
+                File primaryDir = new File(Environment.getExternalStoragePublicDirectory(Environment.DIRECTORY_DOWNLOADS), "GoFile");
+                candidateDirs.add(primaryDir);
+                candidateDirs.add(new File("/storage/emulated/0/Download/GoFile"));
+                candidateDirs.add(new File(Environment.getExternalStorageDirectory(), "Download/GoFile"));
+                File extFiles = ctx.getExternalFilesDir(Environment.DIRECTORY_DOWNLOADS);
+                if (extFiles != null) {
+                    candidateDirs.add(new File(extFiles, "GoFile"));
+                }
+
+                for (File gofileDir : candidateDirs) {
+                    if (gofileDir != null && gofileDir.exists() && gofileDir.isDirectory()) {
+                        scanFilesRecursive(gofileDir, gofileDir, arr, seenKeys);
+                    }
+                }
+            } catch (Exception ignored) {}
+
+            // 2. Query MediaStore tables (Downloads, Files, Video, Audio, Images)
+            try {
+                java.util.List<Uri> tables = new java.util.ArrayList<>();
+                if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
+                    tables.add(MediaStore.Downloads.EXTERNAL_CONTENT_URI);
+                }
+                try {
+                    tables.add(MediaStore.Files.getContentUri("external"));
+                } catch (Exception ignored) {}
+                tables.add(MediaStore.Video.Media.EXTERNAL_CONTENT_URI);
+                tables.add(MediaStore.Audio.Media.EXTERNAL_CONTENT_URI);
+                tables.add(MediaStore.Images.Media.EXTERNAL_CONTENT_URI);
 
                 for (Uri table : tables) {
                     try {
@@ -1042,32 +1164,42 @@ public class AndroidDownloaderPlugin extends Plugin {
                                 MediaStore.MediaColumns.SIZE,
                                 MediaStore.MediaColumns.DATE_MODIFIED,
                                 MediaStore.MediaColumns.MIME_TYPE,
-                                MediaStore.MediaColumns.RELATIVE_PATH
+                                MediaStore.MediaColumns.DATA
                         };
-                        String selection = MediaStore.MediaColumns.RELATIVE_PATH + " LIKE ? AND " + MediaStore.MediaColumns.SIZE + " > 0";
-                        String[] selectionArgs = new String[]{"%GoFile%"};
 
-                        try (Cursor cursor = resolver.query(table, projection, selection, selectionArgs, MediaStore.MediaColumns.DATE_MODIFIED + " DESC")) {
+                        String selection = MediaStore.MediaColumns.SIZE + " > 0";
+                        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
+                            selection += " AND (" + MediaStore.MediaColumns.RELATIVE_PATH + " LIKE '%GoFile%' OR " + MediaStore.MediaColumns.DATA + " LIKE '%GoFile%')";
+                        } else {
+                            selection += " AND " + MediaStore.MediaColumns.DATA + " LIKE '%GoFile%'";
+                        }
+
+                        try (Cursor cursor = resolver.query(table, projection, selection, null, MediaStore.MediaColumns.DATE_MODIFIED + " DESC")) {
                             if (cursor != null) {
-                                int idCol = cursor.getColumnIndexOrThrow(MediaStore.MediaColumns._ID);
-                                int nameCol = cursor.getColumnIndexOrThrow(MediaStore.MediaColumns.DISPLAY_NAME);
-                                int sizeCol = cursor.getColumnIndexOrThrow(MediaStore.MediaColumns.SIZE);
-                                int modCol = cursor.getColumnIndexOrThrow(MediaStore.MediaColumns.DATE_MODIFIED);
-                                int mimeCol = cursor.getColumnIndexOrThrow(MediaStore.MediaColumns.MIME_TYPE);
-                                int relCol = cursor.getColumnIndexOrThrow(MediaStore.MediaColumns.RELATIVE_PATH);
+                                int idCol = cursor.getColumnIndex(MediaStore.MediaColumns._ID);
+                                int nameCol = cursor.getColumnIndex(MediaStore.MediaColumns.DISPLAY_NAME);
+                                int sizeCol = cursor.getColumnIndex(MediaStore.MediaColumns.SIZE);
+                                int modCol = cursor.getColumnIndex(MediaStore.MediaColumns.DATE_MODIFIED);
+                                int mimeCol = cursor.getColumnIndex(MediaStore.MediaColumns.MIME_TYPE);
+                                int relCol = (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) ? cursor.getColumnIndex(MediaStore.MediaColumns.RELATIVE_PATH) : -1;
+                                int dataCol = cursor.getColumnIndex(MediaStore.MediaColumns.DATA);
 
                                 while (cursor.moveToNext()) {
-                                    String name = cursor.getString(nameCol);
+                                    String name = (nameCol != -1) ? cursor.getString(nameCol) : null;
+                                    String dataPath = (dataCol != -1) ? cursor.getString(dataCol) : null;
+                                    if (name == null && dataPath != null) {
+                                        name = new File(dataPath).getName();
+                                    }
                                     if (name == null || name.endsWith(".part") || name.startsWith(".")) continue;
 
-                                    long id = cursor.getLong(idCol);
-                                    long size = cursor.getLong(sizeCol);
-                                    long mod = cursor.getLong(modCol) * 1000L;
-                                    String mime = cursor.getString(mimeCol);
-                                    String relPath = cursor.getString(relCol);
+                                    long id = (idCol != -1) ? cursor.getLong(idCol) : 0;
+                                    long size = (sizeCol != -1) ? cursor.getLong(sizeCol) : 0;
+                                    long mod = (modCol != -1) ? cursor.getLong(modCol) * 1000L : System.currentTimeMillis();
+                                    String mime = (mimeCol != -1) ? cursor.getString(mimeCol) : null;
+                                    String relPath = (relCol != -1) ? cursor.getString(relCol) : null;
 
                                     String relDir = "";
-                                    if (relPath != null) {
+                                    if (relPath != null && !relPath.isEmpty()) {
                                         String cleanRel = relPath.replace('\\', '/').trim();
                                         if (cleanRel.startsWith("Download/GoFile")) {
                                             cleanRel = cleanRel.substring("Download/GoFile".length());
@@ -1077,6 +1209,11 @@ public class AndroidDownloaderPlugin extends Plugin {
                                         while (cleanRel.startsWith("/")) cleanRel = cleanRel.substring(1);
                                         while (cleanRel.endsWith("/")) cleanRel = cleanRel.substring(0, cleanRel.length() - 1);
                                         relDir = cleanRel;
+                                    } else if (dataPath != null && dataPath.contains("/GoFile/")) {
+                                        String after = dataPath.substring(dataPath.indexOf("/GoFile/") + "/GoFile/".length());
+                                        if (after.contains("/")) {
+                                            relDir = after.substring(0, after.lastIndexOf("/"));
+                                        }
                                     }
 
                                     String dedupeKey = (relDir.isEmpty() ? "" : relDir + "/") + name;
@@ -1097,19 +1234,13 @@ public class AndroidDownloaderPlugin extends Plugin {
                         }
                     } catch (Exception ignored) {}
                 }
-            }
-
-            // 2. Query physical File directory Download/GoFile (supports Android 9 and physical storage)
-            try {
-                File downloadDir = Environment.getExternalStoragePublicDirectory(Environment.DIRECTORY_DOWNLOADS);
-                File gofileDir = new File(downloadDir, "GoFile");
-                if (gofileDir.exists() && gofileDir.isDirectory()) {
-                    scanFilesRecursive(gofileDir, gofileDir, arr, seenKeys);
-                }
             } catch (Exception ignored) {}
 
             JSObject ret = new JSObject();
             ret.put("files", arr);
+            ret.put("needsStoragePermission", !isStoragePermissionGranted());
+            ret.put("isAndroid11Plus", Build.VERSION.SDK_INT >= Build.VERSION_CODES.R);
+            ret.put("ignoringBatteryOptimizations", isBatteryOptimizationIgnored());
             call.resolve(ret);
         });
     }
@@ -1123,8 +1254,11 @@ public class AndroidDownloaderPlugin extends Plugin {
                 scanFilesRecursive(rootDir, f, out, seenKeys);
             } else if (f.isFile() && !f.getName().endsWith(".part") && !f.getName().startsWith(".")) {
                 try {
-                    String rel = rootDir.toURI().relativize(f.getParentFile().toURI()).getPath();
-                    if (rel.endsWith("/")) rel = rel.substring(0, rel.length() - 1);
+                    String rel = "";
+                    if (!rootDir.equals(currentDir)) {
+                        rel = rootDir.toURI().relativize(f.getParentFile().toURI()).getPath();
+                        if (rel.endsWith("/")) rel = rel.substring(0, rel.length() - 1);
+                    }
                     String dedupeKey = (rel.isEmpty() ? "" : rel + "/") + f.getName();
                     if (seenKeys.contains(dedupeKey)) continue;
                     seenKeys.add(dedupeKey);
@@ -1134,10 +1268,18 @@ public class AndroidDownloaderPlugin extends Plugin {
                     item.put("size", f.length());
                     item.put("modified", f.lastModified());
                     item.put("relDir", rel);
-                    Uri uri = FileProvider.getUriForFile(ctx, ctx.getPackageName() + ".fileprovider", f);
+                    Uri uri = null;
+                    try {
+                        uri = FileProvider.getUriForFile(ctx, ctx.getPackageName() + ".fileprovider", f);
+                    } catch (Exception ignored) {}
                     item.put("uri", uri != null ? uri.toString() : "");
                     item.put("mimetype", getMimeType(f.getName()));
                     out.put(item);
+
+                    // Scan file with Android MediaScanner to index into system
+                    try {
+                        MediaScannerConnection.scanFile(ctx, new String[]{f.getAbsolutePath()}, null, null);
+                    } catch (Exception ignored) {}
                 } catch (Exception ignored) {}
             }
         }

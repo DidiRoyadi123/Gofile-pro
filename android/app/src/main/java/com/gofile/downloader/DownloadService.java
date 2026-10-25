@@ -24,6 +24,7 @@ public class DownloadService extends Service {
     public static final int NOTIFICATION_ID = 9001;
 
     private static PowerManager.WakeLock wakeLock;
+    private static android.net.wifi.WifiManager.WifiLock wifiLock;
     private static NotificationCompat.Builder notificationBuilder;
     private static int activeDownloadsCount = 0;
     private static volatile boolean isServiceRunning = false;
@@ -66,12 +67,33 @@ public class DownloadService extends Service {
         if (wakeLock != null && !wakeLock.isHeld()) {
             wakeLock.acquire(12 * 60 * 60 * 1000L); // Max 12 hours timeout safety
         }
+
+        if (wifiLock == null) {
+            try {
+                android.net.wifi.WifiManager wm = (android.net.wifi.WifiManager) getApplicationContext().getSystemService(Context.WIFI_SERVICE);
+                if (wm != null) {
+                    int mode = android.net.wifi.WifiManager.WIFI_MODE_FULL_HIGH_PERF;
+                    wifiLock = wm.createWifiLock(mode, "GoFile:DownloadWifiLock");
+                    wifiLock.setReferenceCounted(false);
+                }
+            } catch (Exception ignored) {}
+        }
+        if (wifiLock != null && !wifiLock.isHeld()) {
+            try {
+                wifiLock.acquire();
+            } catch (Exception ignored) {}
+        }
     }
 
     private synchronized void releaseWakeLock() {
         if (wakeLock != null && wakeLock.isHeld()) {
             try {
                 wakeLock.release();
+            } catch (Exception ignored) {}
+        }
+        if (wifiLock != null && wifiLock.isHeld()) {
+            try {
+                wifiLock.release();
             } catch (Exception ignored) {}
         }
     }
@@ -156,7 +178,7 @@ public class DownloadService extends Service {
                 }
             }
         }
-        return START_NOT_STICKY;
+        return START_STICKY;
     }
 
     @Override
