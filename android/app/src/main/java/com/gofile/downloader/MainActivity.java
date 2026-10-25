@@ -1,7 +1,11 @@
 package com.gofile.downloader;
 
+import android.app.PictureInPictureParams;
+import android.content.res.Configuration;
 import android.graphics.Rect;
+import android.os.Build;
 import android.os.Bundle;
+import android.util.Rational;
 import android.view.View;
 import android.view.ViewTreeObserver;
 import android.webkit.ValueCallback;
@@ -11,6 +15,71 @@ import androidx.core.view.WindowInsetsCompat;
 import com.getcapacitor.BridgeActivity;
 
 public class MainActivity extends BridgeActivity {
+    private static boolean isVideoPlaying = false;
+    private static int videoWidth = 16;
+    private static int videoHeight = 9;
+
+    public static void setVideoPlaybackState(boolean playing, int width, int height) {
+        isVideoPlaying = playing;
+        if (width > 0 && height > 0) {
+            videoWidth = width;
+            videoHeight = height;
+        }
+    }
+
+    public static boolean isVideoPlaying() {
+        return isVideoPlaying;
+    }
+
+    public PictureInPictureParams buildPipParams() {
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+            PictureInPictureParams.Builder builder = new PictureInPictureParams.Builder();
+            int w = videoWidth > 0 ? videoWidth : 16;
+            int h = videoHeight > 0 ? videoHeight : 9;
+            double ratio = (double) w / (double) h;
+            if (ratio < 0.42) {
+                builder.setAspectRatio(new Rational(42, 100));
+            } else if (ratio > 2.38) {
+                builder.setAspectRatio(new Rational(238, 100));
+            } else {
+                builder.setAspectRatio(new Rational(w, h));
+            }
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
+                builder.setAutoEnterEnabled(true);
+            }
+            return builder.build();
+        }
+        return null;
+    }
+
+    @Override
+    protected void onUserLeaveHint() {
+        super.onUserLeaveHint();
+        if (isVideoPlaying && Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+            try {
+                PictureInPictureParams params = buildPipParams();
+                if (params != null) {
+                    enterPictureInPictureMode(params);
+                } else {
+                    enterPictureInPictureMode();
+                }
+            } catch (Exception ignored) {}
+        }
+    }
+
+    @Override
+    public void onPictureInPictureModeChanged(boolean isInPictureInPictureMode, Configuration newConfig) {
+        super.onPictureInPictureModeChanged(isInPictureInPictureMode, newConfig);
+        if (getBridge() != null && getBridge().getWebView() != null) {
+            getBridge().getWebView().post(() -> {
+                getBridge().getWebView().evaluateJavascript(
+                    "window.onPipModeChanged && window.onPipModeChanged(" + isInPictureInPictureMode + ");",
+                    null
+                );
+            });
+        }
+    }
+
     @Override
     public void onCreate(Bundle savedInstanceState) {
         registerPlugin(AndroidDownloaderPlugin.class);

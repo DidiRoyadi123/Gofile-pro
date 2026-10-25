@@ -3,7 +3,7 @@
  */
 
 document.addEventListener('DOMContentLoaded', () => {
-  const CURRENT_VERSION = 'v2.2.5';
+  const CURRENT_VERSION = 'v2.2.6';
 
   // State Management
   const state = {
@@ -792,6 +792,10 @@ document.addEventListener('DOMContentLoaded', () => {
     return false;
   }
 
+  function isPlayableMedia(fileOrName) {
+    return isVideoFile(fileOrName) || isPhotoFile(fileOrName) || isAudioFile(fileOrName);
+  }
+
   function isDocOrArchiveFile(fileOrName) {
     if (!fileOrName) return false;
     const name = typeof fileOrName === 'string' ? fileOrName : (fileOrName.name || fileOrName.filename || '');
@@ -1554,9 +1558,13 @@ document.addEventListener('DOMContentLoaded', () => {
 
     openFileBtn.addEventListener('click', async () => {
       const fullPath = item.relDir ? `${state.downloadDir}/${item.relDir}/${item.name}` : `${state.downloadDir}/${item.name}`;
-      const opened = await ApiBridge.openFile(fullPath, item);
-      if (!opened) {
-        showToast(`Tidak dapat membuka: ${item.name}`, 'error', 3000);
+      if (isPlayableMedia(item)) {
+        await openMediaPlayer(item);
+      } else {
+        const opened = await ApiBridge.openFile(fullPath, item);
+        if (!opened) {
+          showToast(`Tidak dapat membuka: ${item.name}`, 'error', 3000);
+        }
       }
     });
 
@@ -2202,9 +2210,13 @@ document.addEventListener('DOMContentLoaded', () => {
     // Trigger open file
     const handleOpenFile = async () => {
       const fullPath = file.path || (file.relDir ? `${state.downloadDir}/${file.relDir}/${file.name}` : `${state.downloadDir}/${file.name}`);
-      const opened = await ApiBridge.openFile(fullPath, file);
-      if (!opened) {
-        showToast(`Membuka "${file.name}"...`, 'info', 1800);
+      if (isPlayableMedia(file)) {
+        await openMediaPlayer(file);
+      } else {
+        const opened = await ApiBridge.openFile(fullPath, file);
+        if (!opened) {
+          showToast(`Membuka "${file.name}"...`, 'info', 1800);
+        }
       }
     };
 
@@ -2682,4 +2694,574 @@ document.addEventListener('DOMContentLoaded', () => {
       }
     });
   }
+
+  // ==========================================================================
+  // BUILT-IN UNIVERSAL MEDIA PLAYER ENGINE (Video, Audio & Photo Viewer with PiP)
+  // ==========================================================================
+
+  const mediaState = {
+    currentFile: null,
+    mediaType: null, // 'video' | 'audio' | 'photo'
+    mediaUrl: '',
+    isPlaying: false,
+    zoomLevel: 1.0,
+    rotateDeg: 0,
+    isPipActive: false,
+    playbackSpeeds: [0.5, 0.75, 1.0, 1.25, 1.5, 2.0],
+    speedIndex: 2, // 1.0x
+    isLooping: false,
+    isSeekingVideo: false
+  };
+
+  // Media Player DOM Elements
+  const mediaPlayerModal = document.getElementById('media-player-modal');
+  const mediaPlayerTitle = document.getElementById('media-player-title');
+  const mediaBadgeType = document.getElementById('media-badge-type');
+  const btnMediaPip = document.getElementById('btn-media-pip');
+  const btnMediaMinimize = document.getElementById('btn-media-minimize');
+  const btnMediaFullscreen = document.getElementById('btn-media-fullscreen');
+  const btnCloseMediaModal = document.getElementById('btn-close-media-modal');
+
+  // Video View Elements
+  const mediaVideoContainer = document.getElementById('media-video-container');
+  const mediaVideoEl = document.getElementById('media-video-element');
+  const videoControlsOverlay = document.getElementById('video-controls-overlay');
+  const videoSeekBar = document.getElementById('video-seek-bar');
+  const btnVideoPlayPause = document.getElementById('btn-video-play-pause');
+  const iconVideoPlay = document.getElementById('icon-video-play');
+  const iconVideoPause = document.getElementById('icon-video-pause');
+  const videoTimeDisplay = document.getElementById('video-time-display');
+  const btnVideoSpeed = document.getElementById('btn-video-speed');
+  const btnVideoPipQuick = document.getElementById('btn-video-pip-quick');
+  const btnVideoFullscreenQuick = document.getElementById('btn-video-fullscreen-quick');
+
+  // Audio View Elements
+  const mediaAudioContainer = document.getElementById('media-audio-container');
+  const mediaAudioEl = document.getElementById('media-audio-element');
+  const audioDisc = document.getElementById('audio-disc');
+  const audioTrackTitle = document.getElementById('audio-track-title');
+  const audioTrackMeta = document.getElementById('audio-track-meta');
+  const audioSeekBar = document.getElementById('audio-seek-bar');
+  const audioCurrTime = document.getElementById('audio-curr-time');
+  const audioTotalTime = document.getElementById('audio-total-time');
+  const btnAudioRewind = document.getElementById('btn-audio-rewind');
+  const btnAudioPlayPause = document.getElementById('btn-audio-play-pause');
+  const iconAudioPlay = document.getElementById('icon-audio-play');
+  const iconAudioPause = document.getElementById('icon-audio-pause');
+  const btnAudioForward = document.getElementById('btn-audio-forward');
+  const btnAudioSpeed = document.getElementById('btn-audio-speed');
+  const btnAudioLoop = document.getElementById('btn-audio-loop');
+
+  // Photo View Elements
+  const mediaPhotoContainer = document.getElementById('media-photo-container');
+  const mediaPhotoEl = document.getElementById('media-photo-element');
+  const btnPhotoZoomOut = document.getElementById('btn-photo-zoom-out');
+  const photoZoomLevel = document.getElementById('photo-zoom-level');
+  const btnPhotoZoomIn = document.getElementById('btn-photo-zoom-in');
+  const btnPhotoRotate = document.getElementById('btn-photo-rotate');
+  const btnPhotoReset = document.getElementById('btn-photo-reset');
+
+  // Floating Mini Player Elements
+  const mediaMiniPlayer = document.getElementById('media-mini-player');
+  const miniPlayerPreview = document.getElementById('mini-player-preview');
+  const miniMediaIcon = document.getElementById('mini-media-icon');
+  const miniPlayerTitle = document.getElementById('mini-player-title');
+  const miniPlayerStatus = document.getElementById('mini-player-status');
+  const btnMiniPlayPause = document.getElementById('btn-mini-play-pause');
+  const miniIconPlay = document.getElementById('mini-icon-play');
+  const miniIconPause = document.getElementById('mini-icon-pause');
+  const btnMiniExpand = document.getElementById('btn-mini-expand');
+  const btnMiniClose = document.getElementById('btn-mini-close');
+
+  function formatMediaTime(sec) {
+    if (!sec || isNaN(sec) || sec < 0) return '00:00';
+    const m = Math.floor(sec / 60);
+    const s = Math.floor(sec % 60);
+    const mStr = m < 10 ? '0' + m : m;
+    const sStr = s < 10 ? '0' + s : s;
+    return `${mStr}:${sStr}`;
+  }
+
+  function updateMiniPlayPauseIcon() {
+    if (mediaState.isPlaying) {
+      if (miniIconPlay) miniIconPlay.style.display = 'none';
+      if (miniIconPause) miniIconPause.style.display = 'inline-block';
+    } else {
+      if (miniIconPlay) miniIconPlay.style.display = 'inline-block';
+      if (miniIconPause) miniIconPause.style.display = 'none';
+    }
+  }
+
+  function showMiniPlayer() {
+    if (!mediaMiniPlayer) return;
+    const fileName = (typeof mediaState.currentFile === 'string')
+      ? mediaState.currentFile
+      : (mediaState.currentFile?.name || mediaState.currentFile?.filename || 'Media');
+    if (miniPlayerTitle) miniPlayerTitle.textContent = fileName;
+    if (miniMediaIcon) {
+      miniMediaIcon.textContent = mediaState.mediaType === 'video' ? '🎬' : (mediaState.mediaType === 'audio' ? '🎵' : '🖼️');
+    }
+    if (miniPlayerStatus) {
+      miniPlayerStatus.textContent = mediaState.mediaType === 'photo' ? 'Foto' : (mediaState.isPlaying ? 'Memutar' : 'Dijeda');
+    }
+    updateMiniPlayPauseIcon();
+    mediaMiniPlayer.style.display = 'flex';
+  }
+
+  function hideMiniPlayer() {
+    if (mediaMiniPlayer) mediaMiniPlayer.style.display = 'none';
+  }
+
+  function minimizeToMiniPlayer() {
+    if (!mediaPlayerModal || !mediaPlayerModal.classList.contains('active')) return;
+    mediaPlayerModal.classList.remove('active');
+    showMiniPlayer();
+  }
+
+  function restoreFromMiniPlayer() {
+    hideMiniPlayer();
+    if (mediaPlayerModal) mediaPlayerModal.classList.add('active');
+  }
+
+  function updatePhotoTransform() {
+    if (!mediaPhotoEl) return;
+    mediaPhotoEl.style.transform = `scale(${mediaState.zoomLevel}) rotate(${mediaState.rotateDeg}deg)`;
+    if (photoZoomLevel) photoZoomLevel.textContent = `${Math.round(mediaState.zoomLevel * 100)}%`;
+  }
+
+  async function openMediaPlayer(fileOrItem, explicitType = null) {
+    if (!fileOrItem) return false;
+    const fileName = (typeof fileOrItem === 'string') ? fileOrItem : (fileOrItem.name || fileOrItem.filename || 'Media');
+
+    let type = explicitType;
+    if (!type) {
+      if (isVideoFile(fileOrItem)) type = 'video';
+      else if (isAudioFile(fileOrItem)) type = 'audio';
+      else if (isPhotoFile(fileOrItem)) type = 'photo';
+      else return false;
+    }
+
+    // Resolve native streamable URL (Android loopback streaming server or Windows file:// URI)
+    const mediaUrl = await ApiBridge.getMediaUrl(fileOrItem);
+    if (!mediaUrl) {
+      showToast(`Gagal menyiapkan pemutar untuk: ${fileName}`, 'error', 3000);
+      return false;
+    }
+
+    mediaState.currentFile = fileOrItem;
+    mediaState.mediaType = type;
+    mediaState.mediaUrl = mediaUrl;
+    mediaState.speedIndex = 2; // 1x default
+
+    if (mediaPlayerTitle) mediaPlayerTitle.textContent = fileName;
+    if (mediaBadgeType) {
+      mediaBadgeType.textContent = type.toUpperCase();
+      mediaBadgeType.className = `media-type-badge ${type}`;
+    }
+
+    hideMiniPlayer();
+
+    // Reset all views
+    if (mediaVideoContainer) mediaVideoContainer.style.display = 'none';
+    if (mediaAudioContainer) mediaAudioContainer.style.display = 'none';
+    if (mediaPhotoContainer) mediaPhotoContainer.style.display = 'none';
+
+    // Stop current media
+    if (mediaVideoEl) {
+      mediaVideoEl.pause();
+      mediaVideoEl.removeAttribute('src');
+      mediaVideoEl.load();
+    }
+    if (mediaAudioEl) {
+      mediaAudioEl.pause();
+      mediaAudioEl.removeAttribute('src');
+      mediaAudioEl.load();
+    }
+    if (audioDisc) audioDisc.classList.remove('playing');
+
+    if (type === 'video') {
+      if (mediaVideoContainer) mediaVideoContainer.style.display = 'flex';
+      if (btnMediaPip) btnMediaPip.style.display = 'inline-flex';
+      if (mediaVideoEl) {
+        mediaVideoEl.src = mediaUrl;
+        mediaVideoEl.playbackRate = mediaState.playbackSpeeds[mediaState.speedIndex];
+        if (btnVideoSpeed) btnVideoSpeed.textContent = `${mediaState.playbackSpeeds[mediaState.speedIndex]}x`;
+        mediaVideoEl.load();
+        mediaVideoEl.play().catch(e => console.log('Video autoplay:', e));
+      }
+    } else if (type === 'audio') {
+      if (mediaAudioContainer) mediaAudioContainer.style.display = 'flex';
+      if (btnMediaPip) btnMediaPip.style.display = 'none'; // PiP not for audio
+      if (audioTrackTitle) audioTrackTitle.textContent = fileName;
+      if (audioTrackMeta) {
+        const sizeStr = (typeof fileOrItem === 'object' && fileOrItem.size) ? ` • ${formatBytes(fileOrItem.size)}` : '';
+        audioTrackMeta.textContent = `Musik / Suara${sizeStr}`;
+      }
+      if (mediaAudioEl) {
+        mediaAudioEl.src = mediaUrl;
+        mediaAudioEl.playbackRate = mediaState.playbackSpeeds[mediaState.speedIndex];
+        if (btnAudioSpeed) btnAudioSpeed.textContent = `${mediaState.playbackSpeeds[mediaState.speedIndex]}x`;
+        mediaAudioEl.load();
+        mediaAudioEl.play().catch(e => console.log('Audio autoplay:', e));
+      }
+    } else if (type === 'photo') {
+      if (mediaPhotoContainer) mediaPhotoContainer.style.display = 'flex';
+      if (btnMediaPip) btnMediaPip.style.display = 'none'; // PiP not for photo
+      mediaState.zoomLevel = 1.0;
+      mediaState.rotateDeg = 0;
+      updatePhotoTransform();
+      if (mediaPhotoEl) mediaPhotoEl.src = mediaUrl;
+    }
+
+    if (mediaPlayerModal) mediaPlayerModal.classList.add('active');
+    return true;
+  }
+
+  function closeMediaPlayer() {
+    if (mediaVideoEl) {
+      mediaVideoEl.pause();
+      mediaVideoEl.removeAttribute('src');
+      mediaVideoEl.load();
+    }
+    if (mediaAudioEl) {
+      mediaAudioEl.pause();
+      mediaAudioEl.removeAttribute('src');
+      mediaAudioEl.load();
+    }
+    if (audioDisc) audioDisc.classList.remove('playing');
+    if (mediaPlayerModal) mediaPlayerModal.classList.remove('active');
+    document.body.classList.remove('pip-mode');
+    ApiBridge.setVideoPlaybackState(false);
+    hideMiniPlayer();
+  }
+
+  async function triggerPictureInPicture() {
+    if (mediaState.mediaType !== 'video') {
+      showToast('Mode Mengambang (PiP) hanya untuk pemutaran Video', 'info', 2000);
+      return;
+    }
+    const w = mediaVideoEl?.videoWidth || 16;
+    const h = mediaVideoEl?.videoHeight || 9;
+
+    // 1. Android Native Picture-in-Picture
+    const nativeSuccess = await ApiBridge.enterPip(w, h);
+    if (nativeSuccess) return;
+
+    // 2. Desktop HTML5 Picture-in-Picture
+    if (document.pictureInPictureEnabled && mediaVideoEl?.requestPictureInPicture) {
+      try {
+        if (document.pictureInPictureElement) {
+          await document.exitPictureInPicture();
+        } else {
+          await mediaVideoEl.requestPictureInPicture();
+        }
+        return;
+      } catch (e) {
+        console.warn('HTML5 PiP failed:', e);
+      }
+    }
+
+    // 3. Fallback to in-app floating mini player
+    minimizeToMiniPlayer();
+    showToast('Memutar di jendela mengambang mini aplikasi', 'info', 2500);
+  }
+
+  function toggleMediaFullscreen() {
+    if (mediaState.mediaType === 'video' && mediaVideoEl) {
+      if (!document.fullscreenElement) {
+        if (mediaVideoContainer?.requestFullscreen) {
+          mediaVideoContainer.requestFullscreen();
+        } else if (mediaVideoEl.requestFullscreen) {
+          mediaVideoEl.requestFullscreen();
+        } else if (mediaVideoEl.webkitEnterFullscreen) {
+          mediaVideoEl.webkitEnterFullscreen();
+        }
+      } else {
+        if (document.exitFullscreen) document.exitFullscreen();
+      }
+    } else if (mediaPlayerModal) {
+      if (!document.fullscreenElement) {
+        if (mediaPlayerModal.requestFullscreen) mediaPlayerModal.requestFullscreen();
+      } else {
+        if (document.exitFullscreen) document.exitFullscreen();
+      }
+    }
+  }
+
+  // Hook Android MainActivity callback when PiP mode changes
+  window.onPipModeChanged = function(isInPip) {
+    console.log('[GoFile Pro] Native PiP Mode Changed:', isInPip);
+    mediaState.isPipActive = isInPip;
+    if (isInPip) {
+      document.body.classList.add('pip-mode');
+      if (mediaPlayerModal) mediaPlayerModal.classList.add('active');
+    } else {
+      document.body.classList.remove('pip-mode');
+    }
+  };
+
+  // Video Events
+  if (mediaVideoEl) {
+    mediaVideoEl.addEventListener('play', () => {
+      mediaState.isPlaying = true;
+      if (iconVideoPlay) iconVideoPlay.style.display = 'none';
+      if (iconVideoPause) iconVideoPause.style.display = 'inline-block';
+      if (miniPlayerStatus) miniPlayerStatus.textContent = 'Memutar video';
+      updateMiniPlayPauseIcon();
+      const w = mediaVideoEl.videoWidth || 16;
+      const h = mediaVideoEl.videoHeight || 9;
+      ApiBridge.setVideoPlaybackState(true, w, h);
+    });
+
+    mediaVideoEl.addEventListener('pause', () => {
+      mediaState.isPlaying = false;
+      if (iconVideoPlay) iconVideoPlay.style.display = 'inline-block';
+      if (iconVideoPause) iconVideoPause.style.display = 'none';
+      if (miniPlayerStatus) miniPlayerStatus.textContent = 'Dijeda';
+      updateMiniPlayPauseIcon();
+      ApiBridge.setVideoPlaybackState(false);
+    });
+
+    mediaVideoEl.addEventListener('ended', () => {
+      mediaState.isPlaying = false;
+      if (iconVideoPlay) iconVideoPlay.style.display = 'inline-block';
+      if (iconVideoPause) iconVideoPause.style.display = 'none';
+      if (miniPlayerStatus) miniPlayerStatus.textContent = 'Selesai';
+      updateMiniPlayPauseIcon();
+      ApiBridge.setVideoPlaybackState(false);
+    });
+
+    mediaVideoEl.addEventListener('timeupdate', () => {
+      if (!mediaState.isSeekingVideo && mediaVideoEl.duration) {
+        const pct = (mediaVideoEl.currentTime / mediaVideoEl.duration) * 100;
+        if (videoSeekBar) videoSeekBar.value = pct;
+        if (videoTimeDisplay) {
+          videoTimeDisplay.textContent = `${formatMediaTime(mediaVideoEl.currentTime)} / ${formatMediaTime(mediaVideoEl.duration)}`;
+        }
+      }
+    });
+
+    mediaVideoEl.addEventListener('click', () => {
+      if (mediaVideoEl.paused) mediaVideoEl.play();
+      else mediaVideoEl.pause();
+    });
+  }
+
+  if (videoSeekBar && mediaVideoEl) {
+    videoSeekBar.addEventListener('input', () => {
+      mediaState.isSeekingVideo = true;
+      if (mediaVideoEl.duration) {
+        const targetSec = (videoSeekBar.value / 100) * mediaVideoEl.duration;
+        if (videoTimeDisplay) {
+          videoTimeDisplay.textContent = `${formatMediaTime(targetSec)} / ${formatMediaTime(mediaVideoEl.duration)}`;
+        }
+      }
+    });
+    videoSeekBar.addEventListener('change', () => {
+      mediaState.isSeekingVideo = false;
+      if (mediaVideoEl.duration) {
+        mediaVideoEl.currentTime = (videoSeekBar.value / 100) * mediaVideoEl.duration;
+      }
+    });
+  }
+
+  if (btnVideoPlayPause && mediaVideoEl) {
+    btnVideoPlayPause.addEventListener('click', () => {
+      if (mediaVideoEl.paused) mediaVideoEl.play();
+      else mediaVideoEl.pause();
+    });
+  }
+
+  if (btnVideoSpeed && mediaVideoEl) {
+    btnVideoSpeed.addEventListener('click', () => {
+      mediaState.speedIndex = (mediaState.speedIndex + 1) % mediaState.playbackSpeeds.length;
+      const spd = mediaState.playbackSpeeds[mediaState.speedIndex];
+      mediaVideoEl.playbackRate = spd;
+      btnVideoSpeed.textContent = `${spd}x`;
+      showToast(`Kecepatan putar: ${spd}x`, 'info', 1200);
+    });
+  }
+
+  if (btnVideoPipQuick) btnVideoPipQuick.addEventListener('click', triggerPictureInPicture);
+  if (btnVideoFullscreenQuick) btnVideoFullscreenQuick.addEventListener('click', toggleMediaFullscreen);
+
+  // Audio Events
+  if (mediaAudioEl) {
+    mediaAudioEl.addEventListener('play', () => {
+      mediaState.isPlaying = true;
+      if (audioDisc) audioDisc.classList.add('playing');
+      if (iconAudioPlay) iconAudioPlay.style.display = 'none';
+      if (iconAudioPause) iconAudioPause.style.display = 'inline-block';
+      if (miniPlayerStatus) miniPlayerStatus.textContent = 'Memutar musik';
+      updateMiniPlayPauseIcon();
+    });
+
+    mediaAudioEl.addEventListener('pause', () => {
+      mediaState.isPlaying = false;
+      if (audioDisc) audioDisc.classList.remove('playing');
+      if (iconAudioPlay) iconAudioPlay.style.display = 'inline-block';
+      if (iconAudioPause) iconAudioPause.style.display = 'none';
+      if (miniPlayerStatus) miniPlayerStatus.textContent = 'Dijeda';
+      updateMiniPlayPauseIcon();
+    });
+
+    mediaAudioEl.addEventListener('ended', () => {
+      if (mediaState.isLooping) {
+        mediaAudioEl.currentTime = 0;
+        mediaAudioEl.play();
+      } else {
+        mediaState.isPlaying = false;
+        if (audioDisc) audioDisc.classList.remove('playing');
+        if (iconAudioPlay) iconAudioPlay.style.display = 'inline-block';
+        if (iconAudioPause) iconAudioPause.style.display = 'none';
+        if (miniPlayerStatus) miniPlayerStatus.textContent = 'Selesai';
+        updateMiniPlayPauseIcon();
+      }
+    });
+
+    mediaAudioEl.addEventListener('timeupdate', () => {
+      if (mediaAudioEl.duration) {
+        const pct = (mediaAudioEl.currentTime / mediaAudioEl.duration) * 100;
+        if (audioSeekBar) audioSeekBar.value = pct;
+        if (audioCurrTime) audioCurrTime.textContent = formatMediaTime(mediaAudioEl.currentTime);
+        if (audioTotalTime) audioTotalTime.textContent = formatMediaTime(mediaAudioEl.duration);
+      }
+    });
+  }
+
+  if (audioSeekBar && mediaAudioEl) {
+    audioSeekBar.addEventListener('input', () => {
+      if (mediaAudioEl.duration) {
+        const targetSec = (audioSeekBar.value / 100) * mediaAudioEl.duration;
+        if (audioCurrTime) audioCurrTime.textContent = formatMediaTime(targetSec);
+      }
+    });
+    audioSeekBar.addEventListener('change', () => {
+      if (mediaAudioEl.duration) {
+        mediaAudioEl.currentTime = (audioSeekBar.value / 100) * mediaAudioEl.duration;
+      }
+    });
+  }
+
+  if (btnAudioPlayPause && mediaAudioEl) {
+    btnAudioPlayPause.addEventListener('click', () => {
+      if (mediaAudioEl.paused) mediaAudioEl.play();
+      else mediaAudioEl.pause();
+    });
+  }
+
+  if (btnAudioRewind && mediaAudioEl) {
+    btnAudioRewind.addEventListener('click', () => {
+      mediaAudioEl.currentTime = Math.max(0, mediaAudioEl.currentTime - 10);
+    });
+  }
+
+  if (btnAudioForward && mediaAudioEl) {
+    btnAudioForward.addEventListener('click', () => {
+      if (mediaAudioEl.duration) {
+        mediaAudioEl.currentTime = Math.min(mediaAudioEl.duration, mediaAudioEl.currentTime + 10);
+      }
+    });
+  }
+
+  if (btnAudioSpeed && mediaAudioEl) {
+    btnAudioSpeed.addEventListener('click', () => {
+      mediaState.speedIndex = (mediaState.speedIndex + 1) % mediaState.playbackSpeeds.length;
+      const spd = mediaState.playbackSpeeds[mediaState.speedIndex];
+      mediaAudioEl.playbackRate = spd;
+      btnAudioSpeed.textContent = `${spd}x`;
+      showToast(`Kecepatan putar: ${spd}x`, 'info', 1200);
+    });
+  }
+
+  if (btnAudioLoop) {
+    btnAudioLoop.addEventListener('click', () => {
+      mediaState.isLooping = !mediaState.isLooping;
+      btnAudioLoop.classList.toggle('active', mediaState.isLooping);
+      showToast(mediaState.isLooping ? 'Pengulangan aktif (Loop)' : 'Pengulangan nonaktif', 'info', 1400);
+    });
+  }
+
+  // Photo Viewer Actions
+  if (btnPhotoZoomIn) {
+    btnPhotoZoomIn.addEventListener('click', () => {
+      mediaState.zoomLevel = Math.min(mediaState.zoomLevel + 0.25, 4.0);
+      updatePhotoTransform();
+    });
+  }
+
+  if (btnPhotoZoomOut) {
+    btnPhotoZoomOut.addEventListener('click', () => {
+      mediaState.zoomLevel = Math.max(mediaState.zoomLevel - 0.25, 0.5);
+      updatePhotoTransform();
+    });
+  }
+
+  if (btnPhotoRotate) {
+    btnPhotoRotate.addEventListener('click', () => {
+      mediaState.rotateDeg = (mediaState.rotateDeg + 90) % 360;
+      updatePhotoTransform();
+    });
+  }
+
+  if (btnPhotoReset) {
+    btnPhotoReset.addEventListener('click', () => {
+      mediaState.zoomLevel = 1.0;
+      mediaState.rotateDeg = 0;
+      updatePhotoTransform();
+    });
+  }
+
+  // Header and Modal Control Actions
+  if (btnMediaPip) btnMediaPip.addEventListener('click', triggerPictureInPicture);
+  if (btnMediaMinimize) btnMediaMinimize.addEventListener('click', minimizeToMiniPlayer);
+  if (btnMediaFullscreen) btnMediaFullscreen.addEventListener('click', toggleMediaFullscreen);
+  if (btnCloseMediaModal) btnCloseMediaModal.addEventListener('click', closeMediaPlayer);
+
+  // Floating Mini-Player Actions
+  if (btnMiniPlayPause) {
+    btnMiniPlayPause.addEventListener('click', (e) => {
+      e.stopPropagation();
+      if (mediaState.mediaType === 'video' && mediaVideoEl) {
+        if (mediaVideoEl.paused) mediaVideoEl.play();
+        else mediaVideoEl.pause();
+      } else if (mediaState.mediaType === 'audio' && mediaAudioEl) {
+        if (mediaAudioEl.paused) mediaAudioEl.play();
+        else mediaAudioEl.pause();
+      }
+    });
+  }
+
+  if (btnMiniExpand) {
+    btnMiniExpand.addEventListener('click', (e) => {
+      e.stopPropagation();
+      restoreFromMiniPlayer();
+    });
+  }
+
+  if (mediaMiniPlayer) {
+    mediaMiniPlayer.addEventListener('click', (e) => {
+      if (e.target.closest('.btn-mini-action')) return;
+      restoreFromMiniPlayer();
+    });
+  }
+
+  if (btnMiniClose) {
+    btnMiniClose.addEventListener('click', (e) => {
+      e.stopPropagation();
+      closeMediaPlayer();
+    });
+  }
+
+  // Android Hardware Backbutton handler
+  document.addEventListener('backbutton', (e) => {
+    if (mediaPlayerModal && mediaPlayerModal.classList.contains('active')) {
+      e.preventDefault();
+      closeMediaPlayer();
+    }
+  });
+
+  // Expose openMediaPlayer globally
+  window.openMediaPlayer = openMediaPlayer;
 });
+

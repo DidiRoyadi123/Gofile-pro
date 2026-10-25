@@ -1,8 +1,8 @@
-# GoFile Pro Downloader v2.2.5 Multiplatform (Android & Windows Portable UI)
+# GoFile Pro Downloader v2.2.6 Multiplatform (Android & Windows Portable UI)
 
-GoFile Pro Downloader is a high-speed, modern multi-threaded download manager designed for GoFile.io. It supports both **Android (Native .APK)** and **Windows (Portable .EXE)** platforms. Built with in-app automated update delivery, native package installation, directory tree inspection, automatic chunked resume, 16-thread concurrent queue, and strict file integrity verification to prevent duplicate downloads.
+GoFile Pro Downloader is a high-speed, modern multi-threaded download manager designed for GoFile.io. It supports both **Android (Native .APK)** and **Windows (Portable .EXE)** platforms. Built with in-app automated update delivery, native package installation, directory tree inspection, automatic chunked resume, 16-thread concurrent queue, strict file integrity verification, and a built-in media player with YouTube-like Picture-in-Picture (PiP).
 
-GoFile Pro Downloader adalah aplikasi pengunduh berkas multi-threaded modern untuk platform GoFile.io, mendukung sistem operasi **Android (.APK)** dan **Windows (.EXE)**. Dilengkapi pembaruan aplikasi otomatis (in-app updater) dan instalasi paket langsung, inspeksi direktori, auto-resume unduhan, antrean simultan hingga 16 worker, serta verifikasi integritas berkas untuk mencegah unduhan ganda.
+GoFile Pro Downloader adalah aplikasi pengunduh berkas multi-threaded modern untuk platform GoFile.io, mendukung sistem operasi **Android (.APK)** dan **Windows (.EXE)**. Dilengkapi pembaruan aplikasi otomatis (in-app updater) dan instalasi paket langsung, inspeksi direktori, auto-resume unduhan, antrean simultan hingga 16 worker, verifikasi integritas berkas untuk mencegah unduhan ganda, serta pemutar media bawaan (video/musik/foto) dengan Picture-in-Picture (PiP) mengambang layaknya YouTube.
 
 ---
 
@@ -52,7 +52,15 @@ GoFile Pro 100% gratis, open-source, dan bebas iklan. Jika aplikasi ini membantu
 
 ## Key Features / Fitur Utama
 
-1. **Multi-Language Support (Bilingual ID / EN)**
+1. **Built-in Media Player with YouTube-Style Picture-in-Picture (PiP)**
+   - Built-in player dedicated for Videos, Music/Audio, and Photos directly inside the app.
+   - Non-media files (APK, ZIP, RAR, PDF, EXE) continue to open with default external OS applications.
+   - **Floating Video (PiP)**: Video continues playing in a native floating window when leaving the app or pressing Home/Middle button, exactly like YouTube!
+   - In-app corner mini-player for seamless multitasking while continuing to browse GoFile downloads.
+   - Interactive controls: seek slider, playback speed (0.5x - 2x), fullscreen, audio vinyl spinning disc, and photo zoom/pan/rotate.
+   - *Pemutar media bawaan untuk Video, Musik, dan Foto dengan mode mengambang Picture-in-Picture (PiP) saat menekan tombol tengah/keluar aplikasi seperti YouTube, serta mini-player pojok dan kontrol lengkap.*
+
+2. **Multi-Language Support (Bilingual ID / EN)**
    - Automatically detects phone/PC system language (`navigator.language`).
    - Seamless manual override in Settings (Indonesian / English).
    - *Dukungan multi-bahasa dengan deteksi otomatis sistem HP/PC dan opsi manual di Pengaturan.*

@@ -228,6 +228,16 @@ class DesktopAPI:
         except Exception:
             return False
 
+    def get_media_url(self, file_path: str):
+        """Returns local file URI or webview-friendly path for media player."""
+        try:
+            target = Path(file_path).resolve()
+            if target.exists() and target.is_file():
+                return target.as_uri()
+            return ""
+        except Exception:
+            return ""
+
 
 def main():
     ui_index_path = CURRENT_DIR / "ui" / "index.html"

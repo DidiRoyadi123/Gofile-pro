@@ -74,6 +74,9 @@ const ApiBridge = {
         canRequestPackageInstalls: () => window.Capacitor.nativePromise('AndroidDownloader', 'canRequestPackageInstalls', {}),
         openInstallPermissionSettings: () => window.Capacitor.nativePromise('AndroidDownloader', 'openInstallPermissionSettings', {}),
         installApk: (options) => window.Capacitor.nativePromise('AndroidDownloader', 'installApk', options),
+        getMediaStreamUrl: (options) => window.Capacitor.nativePromise('AndroidDownloader', 'getMediaStreamUrl', options),
+        setVideoPlaybackState: (options) => window.Capacitor.nativePromise('AndroidDownloader', 'setVideoPlaybackState', options),
+        enterPip: (options) => window.Capacitor.nativePromise('AndroidDownloader', 'enterPip', options),
         exitApp: () => window.Capacitor.nativePromise('AndroidDownloader', 'exitApp', {}),
         addListener: (eventName, callback) => {
           if (typeof window.Capacitor.addListener === 'function') {
@@ -580,6 +583,79 @@ const ApiBridge = {
       if (filePath && filePath.startsWith('http')) {
         window.open(filePath, '_blank');
         return true;
+      }
+    }
+    return false;
+  },
+
+  async getMediaUrl(file) {
+    this.detectPlatform();
+    const filePath = (typeof file === 'string') ? file : (file.path || file.filePath || file.name || '');
+    const fileUri = (typeof file === 'object' && file.uri) ? file.uri : '';
+
+    if (this.platform === 'android') {
+      const androidPlugin = this.getAndroidPlugin();
+      if (androidPlugin && typeof androidPlugin.getMediaStreamUrl === 'function') {
+        try {
+          const res = await androidPlugin.getMediaStreamUrl({ uri: fileUri, filePath: filePath });
+          if (res && res.url) return res.url;
+        } catch (e) {
+          console.warn('Android getMediaStreamUrl error:', e);
+        }
+      }
+    } else if (this.platform === 'windows') {
+      if (window.pywebview && window.pywebview.api && typeof window.pywebview.api.get_media_url === 'function') {
+        try {
+          const res = await window.pywebview.api.get_media_url(filePath);
+          if (res) return res;
+        } catch (e) {
+          console.warn('Windows get_media_url error:', e);
+        }
+      }
+    }
+
+    if (fileUri && (fileUri.startsWith('http://') || fileUri.startsWith('https://') || fileUri.startsWith('blob:'))) {
+      return fileUri;
+    }
+    if (typeof file === 'object' && file.link) {
+      return file.link;
+    }
+    return fileUri || filePath;
+  },
+
+  async setVideoPlaybackState(isPlaying, width = 16, height = 9) {
+    this.detectPlatform();
+    if (this.platform === 'android') {
+      const androidPlugin = this.getAndroidPlugin();
+      if (androidPlugin && typeof androidPlugin.setVideoPlaybackState === 'function') {
+        try {
+          return await androidPlugin.setVideoPlaybackState({
+            isPlaying: !!isPlaying,
+            width: Math.max(1, Math.round(width || 16)),
+            height: Math.max(1, Math.round(height || 9))
+          });
+        } catch (e) {
+          console.warn('setVideoPlaybackState error:', e);
+        }
+      }
+    }
+    return false;
+  },
+
+  async enterPip(width = 16, height = 9) {
+    this.detectPlatform();
+    if (this.platform === 'android') {
+      const androidPlugin = this.getAndroidPlugin();
+      if (androidPlugin && typeof androidPlugin.enterPip === 'function') {
+        try {
+          const res = await androidPlugin.enterPip({
+            width: Math.max(1, Math.round(width || 16)),
+            height: Math.max(1, Math.round(height || 9))
+          });
+          return res && res.pip;
+        } catch (e) {
+          console.warn('enterPip error:', e);
+        }
       }
     }
     return false;

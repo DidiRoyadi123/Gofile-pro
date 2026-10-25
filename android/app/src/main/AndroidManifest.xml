@@ -19,6 +19,7 @@
             android:theme="@style/AppTheme.NoActionBarLaunch"
             android:windowSoftInputMode="adjustResize"
             android:launchMode="singleTask"
+            android:supportsPictureInPicture="true"
             android:exported="true">
 
             <intent-filter>

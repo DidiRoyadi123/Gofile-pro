@@ -61,6 +61,7 @@ public class AndroidDownloaderPlugin extends Plugin {
     private final Handler mainHandler = new Handler(Looper.getMainLooper());
     private static final String APP_USER_AGENT = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/126.0.0.0 Safari/537.36";
     private static volatile String cachedAccountToken = "";
+    private MediaStreamingServer streamingServer;
 
     private String getMimeType(String filename) {
         if (filename == null) return "*/*";
@@ -875,6 +876,71 @@ public class AndroidDownloaderPlugin extends Plugin {
                 call.resolve(ret);
             }
         });
+    }
+
+    @PluginMethod
+    public void getMediaStreamUrl(PluginCall call) {
+        String path = call.getString("path", "");
+        String uriStr = call.getString("uri", "");
+        String filename = call.getString("filename", "");
+
+        if (streamingServer == null) {
+            streamingServer = new MediaStreamingServer(getContext());
+            streamingServer.start();
+        }
+
+        if ((path == null || path.isEmpty()) && filename != null && !filename.isEmpty()) {
+            FileCandidateInfo info = queryFileInfo(filename, "");
+            if (info.exists) {
+                if (info.file != null) {
+                    path = info.file.getAbsolutePath();
+                } else if (info.uri != null) {
+                    uriStr = info.uri.toString();
+                }
+            }
+        }
+
+        String streamUrl = streamingServer.getStreamUrl(path, uriStr);
+        JSObject ret = new JSObject();
+        ret.put("url", streamUrl);
+        call.resolve(ret);
+    }
+
+    @PluginMethod
+    public void setVideoPlaybackState(PluginCall call) {
+        boolean playing = call.getBoolean("playing", false);
+        int width = call.getInt("width", 16);
+        int height = call.getInt("height", 9);
+        MainActivity.setVideoPlaybackState(playing, width, height);
+        call.resolve();
+    }
+
+    @PluginMethod
+    public void enterPip(PluginCall call) {
+        if (getActivity() != null && Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+            mainHandler.post(() -> {
+                try {
+                    int width = call.getInt("width", 16);
+                    int height = call.getInt("height", 9);
+                    MainActivity.setVideoPlaybackState(true, width, height);
+                    boolean success = false;
+                    if (getActivity() instanceof MainActivity) {
+                        MainActivity act = (MainActivity) getActivity();
+                        success = act.enterPictureInPictureMode(act.buildPipParams());
+                    } else {
+                        getActivity().enterPictureInPictureMode();
+                        success = true;
+                    }
+                    JSObject ret = new JSObject();
+                    ret.put("success", success);
+                    call.resolve(ret);
+                } catch (Exception e) {
+                    call.reject("Gagal masuk mode PiP: " + e.getMessage());
+                }
+            });
+        } else {
+            call.reject("Picture-in-Picture membutuhkan Android 8.0+");
+        }
     }
 
 
