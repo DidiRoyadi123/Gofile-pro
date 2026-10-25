@@ -63,6 +63,7 @@ public class AndroidDownloaderPlugin extends Plugin {
     private static final String APP_USER_AGENT = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/126.0.0.0 Safari/537.36";
     private static volatile String cachedAccountToken = "";
     private MediaStreamingServer streamingServer;
+    private WifiShareServer wifiShareServer;
 
     private String getMimeType(String filename) {
         if (filename == null) return "*/*";
@@ -1868,6 +1869,62 @@ public class AndroidDownloaderPlugin extends Plugin {
             call.resolve(ret);
         } catch (Exception e) {
             call.reject("Gagal memulai pemasang aplikasi: " + e.getMessage());
+        }
+    }
+
+    @PluginMethod
+    public void startWifiShareServer(PluginCall call) {
+        int port = call.getInt("port", 8080);
+        if (wifiShareServer == null) {
+            wifiShareServer = new WifiShareServer(getContext());
+        }
+        boolean ok = wifiShareServer.start(port);
+        JSObject ret = new JSObject();
+        ret.put("success", ok);
+        ret.put("isRunning", wifiShareServer.isRunning());
+        ret.put("port", wifiShareServer.getPort());
+        ret.put("ip", wifiShareServer.getHostIp());
+        ret.put("url", wifiShareServer.getShareUrl());
+        call.resolve(ret);
+    }
+
+    @PluginMethod
+    public void stopWifiShareServer(PluginCall call) {
+        if (wifiShareServer != null) {
+            wifiShareServer.stop();
+        }
+        JSObject ret = new JSObject();
+        ret.put("success", true);
+        ret.put("isRunning", false);
+        call.resolve(ret);
+    }
+
+    @PluginMethod
+    public void getWifiShareStatus(PluginCall call) {
+        JSObject ret = new JSObject();
+        boolean running = wifiShareServer != null && wifiShareServer.isRunning();
+        ret.put("isRunning", running);
+        if (running) {
+            ret.put("port", wifiShareServer.getPort());
+            ret.put("ip", wifiShareServer.getHostIp());
+            ret.put("url", wifiShareServer.getShareUrl());
+        } else {
+            String ip = WifiShareServer.resolveLocalIp(getContext());
+            ret.put("port", 8080);
+            ret.put("ip", ip);
+            ret.put("url", "http://" + ip + ":8080");
+        }
+        call.resolve(ret);
+    }
+
+    @Override
+    protected void handleOnDestroy() {
+        super.handleOnDestroy();
+        if (wifiShareServer != null) {
+            wifiShareServer.stop();
+        }
+        if (streamingServer != null) {
+            streamingServer.stop();
         }
     }
 

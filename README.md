@@ -1,8 +1,8 @@
-# GoFile Pro Downloader v2.2.10 Multiplatform (Android & Windows Portable UI)
+# GoFile Pro Downloader v2.3.0 Multiplatform (Android & Windows Portable UI)
 
-GoFile Pro Downloader is a high-speed, modern multi-threaded download manager designed for GoFile.io. It supports both **Android (Native .APK)** and **Windows (Portable .EXE)** platforms. Built with in-app automated update delivery, native package installation, directory tree inspection with virtualized lazy-chunked modal rendering for thousands of files, automatic chunked resume with HTTP Range support and persistent staging, individual pause/resume controls, 16-thread concurrent queue, strict file integrity verification, and a modern edge-to-edge media player featuring tactile center controls, +/-10s skip, double-tap gestures, auto-hiding overlay, Spotify-like audio visualizer, playlist autoplay, and proportional floating Picture-in-Picture (PiP).
+GoFile Pro Downloader is a high-speed, modern multi-threaded download manager designed for GoFile.io. It supports both **Android (Native .APK)** and **Windows (Portable .EXE)** platforms. Built with 4 major power features: **Vertical Swipe Gestures** for brightness and volume, **Smart Clipboard Auto-Detection**, **Smart Subfolder Sorting** into Videos/Photos/Music/Archives, and an embedded **Local Wi-Fi File Sharing Server** with QR code and browser streaming. Features automated in-app updates, directory tree inspection with virtualized lazy-chunked modal rendering, HTTP Range chunked resume, 16-thread queue, and modern media player with Picture-in-Picture (PiP).
 
-GoFile Pro Downloader adalah aplikasi pengunduh berkas multi-threaded modern untuk platform GoFile.io, mendukung sistem operasi **Android (.APK)** dan **Windows (.EXE)**. Dilengkapi pembaruan aplikasi otomatis (in-app updater) dan instalasi paket langsung, inspeksi direktori dengan virtualized lazy-chunked modal rendering yang tahan ribuan file tanpa lag/force close, mesin jeda dan lanjutkan unduhan tangguh berbasis stage file dan HTTP Range, tombol jeda/lanjutkan per item, antrean simultan hingga 16 worker, verifikasi integritas berkas untuk mencegah unduhan ganda, serta pemutar media modern edge-to-edge dengan kontrol sentuh tengah mengambang, lompat +/-10 detik, gestur ketuk ganda, overlay auto-hide, visualizer audio Spotify-like, autoplay playlist, dan Picture-in-Picture (PiP) mengambang proporsional penuh.
+GoFile Pro Downloader adalah aplikasi pengunduh berkas multi-threaded modern untuk platform GoFile.io, mendukung **Android (.APK)** dan **Windows (.EXE)**. Dilengkapi 4 fitur mutakhir: **Gesture Usap (Swipe Controls)** untuk volume dan kecerahan, **Deteksi Tautan Clipboard Otomatis**, **Kategori Folder Unduhan Otomatis (Smart Subfolders)** ke dalam Videos/Photos/Music/Archives, dan **Server Berbagi Berkas Wi-Fi Lokal** dengan QR Code dan streaming browser. Dilengkapi pembaruan in-app otomatis, inspeksi modal lazy-chunked virtual, resume unduhan HTTP Range, antrean 16 worker, dan pemutar media dengan Picture-in-Picture (PiP).
 
 ---
 
@@ -52,7 +52,38 @@ GoFile Pro 100% gratis, open-source, dan bebas iklan. Jika aplikasi ini membantu
 
 ## Key Features / Fitur Utama
 
-1. **Built-in Media Player with YouTube-Style Picture-in-Picture (PiP)**
+1. **Gesture Usap (Vertical Swipe Controls) untuk Volume & Kecerahan**
+   - Natural vertical swipe gesture directly on the video screen:
+     - Left 50% screen swipe: smoothly controls video brightness dimming with high-contrast HUD indicator.
+     - Right 50% screen swipe: controls volume level (0% to 100%) with dynamic speaker/mute HUD feedback.
+   - Built-in disambiguation engine prevents accidental +/-10s seeks or control overlay toggling during swipes.
+   - *Kontrol usap vertikal di layar video: usap sisi kiri untuk mengatur kecerahan dan sisi kanan untuk volume, dilengkapi HUD pill animasi modern dan proteksi salah sentuh.*
+
+2. **Deteksi Tautan Clipboard Otomatis (Smart Clipboard Auto-Detect)**
+   - Automatically monitors system clipboard upon opening the app or switching back from external apps/browsers.
+   - Detects valid GoFile links (`gofile.io/d/...`) and presents a non-intrusive floating glass banner.
+   - 1-Click "Jelajahi" automatically pastes the link, switches to Home tab, and immediately inspects file contents!
+   - *Deteksi otomatis tautan GoFile dari clipboard saat membuka/kembali ke aplikasi, menampilkan banner mengambang dengan tombol 'Jelajahi' untuk langsung memeriksa berkas.*
+
+3. **Kategori Folder Unduhan Otomatis (Smart Subfolder Sorting)**
+   - Toggleable in Settings: automatically organizes downloads into clean subdirectories:
+     - `Videos/` (MP4, MKV, WEBM, MOV, AVI, etc.)
+     - `Photos/` (JPG, PNG, GIF, WEBP, HEIC, etc.)
+     - `Music/` (MP3, WAV, FLAC, M4A, OGG, etc.)
+     - `Archives/` (ZIP, RAR, 7Z, TAR, ISO, etc.)
+     - `Documents/` (PDF, DOCX, XLSX, TXT, etc.)
+   - Fully compatible with Android MediaStore and Windows file system without losing folder structures.
+   - *Pemisahan berkas otomatis ke subfolder Videos/, Photos/, Music/, dan Archives/ di penyimpanan Anda untuk menjaga folder unduhan tetap rapi dan terstruktur.*
+
+4. **Berbagi Berkas Lokal via Wi-Fi (Local Wi-Fi File Sharing Server)**
+   - Instant wireless transfer from Android or Windows to any Laptop, PC, Mac, iPhone, or other Android phone on the same Wi-Fi or Hotspot.
+   - Zero internet connection / data quota required: transmits directly over local Wi-Fi.
+   - Embedded pure Java / Python HTTP server with HTTP Range chunked streaming support.
+   - Displays dynamic vector QR code for other mobile cameras and direct browser URL (e.g. `http://192.168.1.xxx:8080`).
+   - Receiver device can download files directly or stream videos and music in their browser without installing any app!
+   - *Transfer berkas lokal super cepat tanpa kuota internet via Wi-Fi/Hotspot, dilengkapi QR code dan streaming langsung di browser perangkat penerima.*
+
+5. **Built-in Media Player with YouTube-Style Picture-in-Picture (PiP)**
    - Built-in player dedicated for Videos, Music/Audio, and Photos directly inside the app.
    - Non-media files (APK, ZIP, RAR, PDF, EXE) continue to open with default external OS applications.
    - **Floating Video (PiP)**: Video continues playing in a native floating window when leaving the app or pressing Home/Middle button, exactly like YouTube!

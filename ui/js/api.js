@@ -78,6 +78,9 @@ const ApiBridge = {
         getMediaStreamUrl: (options) => window.Capacitor.nativePromise('AndroidDownloader', 'getMediaStreamUrl', options),
         setVideoPlaybackState: (options) => window.Capacitor.nativePromise('AndroidDownloader', 'setVideoPlaybackState', options),
         enterPip: (options) => window.Capacitor.nativePromise('AndroidDownloader', 'enterPip', options),
+        startWifiShareServer: (options) => window.Capacitor.nativePromise('AndroidDownloader', 'startWifiShareServer', options),
+        stopWifiShareServer: () => window.Capacitor.nativePromise('AndroidDownloader', 'stopWifiShareServer', {}),
+        getWifiShareStatus: () => window.Capacitor.nativePromise('AndroidDownloader', 'getWifiShareStatus', {}),
         exitApp: () => window.Capacitor.nativePromise('AndroidDownloader', 'exitApp', {}),
         addListener: (eventName, callback) => {
           if (typeof window.Capacitor.addListener === 'function') {
@@ -675,6 +678,76 @@ const ApiBridge = {
       }
     }
     return false;
+  },
+
+  async startWifiShareServer(port = 8080) {
+    this.detectPlatform();
+    if (this.platform === 'android') {
+      const androidPlugin = this.getAndroidPlugin();
+      if (androidPlugin && typeof androidPlugin.startWifiShareServer === 'function') {
+        try {
+          return await androidPlugin.startWifiShareServer({ port });
+        } catch (e) {
+          console.warn('startWifiShareServer android error:', e);
+        }
+      }
+    } else if (this.platform === 'windows' || window.pywebview) {
+      if (window.pywebview && window.pywebview.api && typeof window.pywebview.api.start_wifi_share === 'function') {
+        try {
+          const downloadDir = localStorage.getItem('gofile_download_dir') || './downloads';
+          return await window.pywebview.api.start_wifi_share(downloadDir, port);
+        } catch (e) {
+          console.warn('start_wifi_share desktop error:', e);
+        }
+      }
+    }
+    return { success: false, isRunning: false, url: '' };
+  },
+
+  async stopWifiShareServer() {
+    this.detectPlatform();
+    if (this.platform === 'android') {
+      const androidPlugin = this.getAndroidPlugin();
+      if (androidPlugin && typeof androidPlugin.stopWifiShareServer === 'function') {
+        try {
+          return await androidPlugin.stopWifiShareServer();
+        } catch (e) {
+          console.warn('stopWifiShareServer android error:', e);
+        }
+      }
+    } else if (this.platform === 'windows' || window.pywebview) {
+      if (window.pywebview && window.pywebview.api && typeof window.pywebview.api.stop_wifi_share === 'function') {
+        try {
+          return await window.pywebview.api.stop_wifi_share();
+        } catch (e) {
+          console.warn('stop_wifi_share desktop error:', e);
+        }
+      }
+    }
+    return { success: true, isRunning: false };
+  },
+
+  async getWifiShareStatus() {
+    this.detectPlatform();
+    if (this.platform === 'android') {
+      const androidPlugin = this.getAndroidPlugin();
+      if (androidPlugin && typeof androidPlugin.getWifiShareStatus === 'function') {
+        try {
+          return await androidPlugin.getWifiShareStatus();
+        } catch (e) {
+          console.warn('getWifiShareStatus android error:', e);
+        }
+      }
+    } else if (this.platform === 'windows' || window.pywebview) {
+      if (window.pywebview && window.pywebview.api && typeof window.pywebview.api.get_wifi_share_status === 'function') {
+        try {
+          return await window.pywebview.api.get_wifi_share_status();
+        } catch (e) {
+          console.warn('get_wifi_share_status desktop error:', e);
+        }
+      }
+    }
+    return { isRunning: false, port: 8080, ip: '127.0.0.1', url: 'http://127.0.0.1:8080' };
   }
 };
 

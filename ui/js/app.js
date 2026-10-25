@@ -3,7 +3,7 @@
  */
 
 document.addEventListener('DOMContentLoaded', () => {
-  const CURRENT_VERSION = 'v2.2.10';
+  const CURRENT_VERSION = 'v2.3.0';
 
   // Ensure native Android PiP is strictly disarmed until a video is played
   if (window.ApiBridge && typeof window.ApiBridge.setVideoPlaybackState === 'function') {
@@ -18,6 +18,7 @@ document.addEventListener('DOMContentLoaded', () => {
     concurrentMax: parseInt(localStorage.getItem('gf_workers') || '5', 10),
     downloadDir: localStorage.getItem('gf_download_dir') || './downloads',
     notificationMode: localStorage.getItem('gf_notif_mode') || 'summary_only',
+    autoCategorize: localStorage.getItem('gf_auto_categorize') === 'true',
     sessionBatchTotal: 0,
     sessionBatchCompleted: 0,
     activeWorkersCount: 0,
@@ -90,8 +91,28 @@ document.addEventListener('DOMContentLoaded', () => {
   const settingChunkSize = document.getElementById('setting-chunk-size');
   const settingToken = document.getElementById('setting-token');
   const settingNotifMode = document.getElementById('setting-notif-mode');
+  const settingAutoCategorize = document.getElementById('setting-auto-categorize');
   const btnSaveSettings = document.getElementById('btn-save-settings');
   const openSettingsHeaderBtn = document.getElementById('open-settings-header-btn');
+
+  // Clipboard Auto-Detect Elements
+  const clipboardDetectBanner = document.getElementById('clipboard-detect-banner');
+  const clipboardBannerUrl = document.getElementById('clipboard-banner-url');
+  const btnClipboardExplore = document.getElementById('btn-clipboard-explore');
+  const btnClipboardDismiss = document.getElementById('btn-clipboard-dismiss');
+
+  // Wi-Fi Local File Sharing Elements
+  const btnOpenWifiShare = document.getElementById('btn-open-wifi-share');
+  const wifiShareModal = document.getElementById('wifi-share-modal');
+  const btnCloseWifiShareModal = document.getElementById('btn-close-wifi-share-modal');
+  const btnCloseWifiShareBottom = document.getElementById('btn-close-wifi-share-bottom');
+  const toggleWifiServer = document.getElementById('toggle-wifi-server');
+  const wifiServerStatusTitle = document.getElementById('wifi-server-status-title');
+  const wifiServerStatusDesc = document.getElementById('wifi-server-status-desc');
+  const wifiServerDetails = document.getElementById('wifi-server-details');
+  const wifiQrContainer = document.getElementById('wifi-qr-container');
+  const wifiServerUrlText = document.getElementById('wifi-server-url-text');
+  const btnCopyWifiUrl = document.getElementById('btn-copy-wifi-url');
 
   // Modal Elements
   const inspectionModal = document.getElementById('inspection-modal');
@@ -199,6 +220,14 @@ document.addEventListener('DOMContentLoaded', () => {
   if (settingToken) settingToken.value = localStorage.getItem('gf_token') || '';
   if (settingNotifMode) {
     settingNotifMode.value = state.notificationMode;
+  }
+  if (settingAutoCategorize) {
+    settingAutoCategorize.checked = !!state.autoCategorize;
+    settingAutoCategorize.addEventListener('change', () => {
+      state.autoCategorize = settingAutoCategorize.checked;
+      localStorage.setItem('gf_auto_categorize', state.autoCategorize ? 'true' : 'false');
+      showToast(state.autoCategorize ? 'Kategori Folder Otomatis: Diaktifkan' : 'Kategori Folder Otomatis: Dinonaktifkan', 'info', 2000);
+    });
   }
 
   // ----------------------------------------------------
@@ -812,6 +841,33 @@ document.addEventListener('DOMContentLoaded', () => {
     return DOC_EXTS.has(getFileExt(name));
   }
 
+  function resolveSmartSubfolder(file, currentRelDir, isEnabled = state.autoCategorize) {
+    if (!isEnabled) return currentRelDir || '';
+    const name = (typeof file === 'string' ? file : (file?.name || file?.filename || '')).toLowerCase();
+    const ext = getFileExt(name);
+    const mime = (file?.mimetype || file?.mime_type || file?.mime || '').toLowerCase();
+
+    let category = '';
+    if (isVideoFile(file) || mime.startsWith('video/') || ['mp4', 'mkv', 'webm', 'mov', 'avi', 'flv', 'wmv', 'm4v', '3gp', 'ts'].includes(ext)) {
+      category = 'Videos';
+    } else if (isPhotoFile(file) || mime.startsWith('image/') || ['jpg', 'jpeg', 'png', 'gif', 'webp', 'bmp', 'svg', 'heic', 'tiff'].includes(ext)) {
+      category = 'Photos';
+    } else if (isAudioFile(file) || mime.startsWith('audio/') || ['mp3', 'wav', 'ogg', 'm4a', 'flac', 'aac', 'opus', 'wma', 'alac'].includes(ext)) {
+      category = 'Music';
+    } else if (['zip', 'rar', '7z', 'tar', 'gz', 'bz2', 'xz', 'iso', 'bin', 'dmg', 'tgz'].includes(ext)) {
+      category = 'Archives';
+    } else if (['pdf', 'epub', 'mobi', 'doc', 'docx', 'xls', 'xlsx', 'ppt', 'pptx', 'txt'].includes(ext)) {
+      category = 'Documents';
+    }
+
+    if (!category) return currentRelDir || '';
+    if (!currentRelDir) return category;
+    if (currentRelDir === category || currentRelDir.startsWith(category + '/')) {
+      return currentRelDir;
+    }
+    return `${category}/${currentRelDir}`;
+  }
+
   function getFileIcon(fileOrName) {
     if (isVideoFile(fileOrName)) {
       return `<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polygon points="23 7 16 12 23 17 23 7"></polygon><rect x="1" y="5" width="15" height="14" rx="2" ry="2"></rect></svg>`;
@@ -1297,7 +1353,7 @@ document.addEventListener('DOMContentLoaded', () => {
       const queueItem = {
         id: file.id,
         name: file.name,
-        relDir: file.relDir || file.rel_dir || '',
+        relDir: resolveSmartSubfolder(file, file.relDir || file.rel_dir || ''),
         size: file.size,
         link: file.link,
         mimetype: file.mimetype || '',
@@ -1968,6 +2024,10 @@ document.addEventListener('DOMContentLoaded', () => {
       state.notificationMode = settingNotifMode.value;
       localStorage.setItem('gf_notif_mode', state.notificationMode);
     }
+    if (settingAutoCategorize) {
+      state.autoCategorize = settingAutoCategorize.checked;
+      localStorage.setItem('gf_auto_categorize', state.autoCategorize ? 'true' : 'false');
+    }
 
     if (customToken) {
       localStorage.setItem('gf_token', customToken);
@@ -2121,6 +2181,102 @@ document.addEventListener('DOMContentLoaded', () => {
 
   if (btnOpenFolderFiles) {
     btnOpenFolderFiles.addEventListener('click', openDownloadsDirectory);
+  }
+
+  // ----------------------------------------------------
+  // Local Wi-Fi File Sharing Server Controller
+  // ----------------------------------------------------
+  async function syncWifiShareUI() {
+    try {
+      const status = await ApiBridge.getWifiShareStatus();
+      const isRunning = !!status.isRunning;
+      if (toggleWifiServer) {
+        toggleWifiServer.checked = isRunning;
+      }
+      if (isRunning) {
+        if (wifiServerStatusTitle) wifiServerStatusTitle.textContent = 'Server Berbagi Wi-Fi Aktif';
+        if (wifiServerStatusDesc) wifiServerStatusDesc.textContent = `Aktif di port ${status.port} • Berkas siap diakses`;
+        if (wifiServerDetails) wifiServerDetails.style.display = 'flex';
+        if (wifiServerUrlText) wifiServerUrlText.textContent = status.url;
+        if (wifiQrContainer && typeof window.generateQrSvg === 'function') {
+          wifiQrContainer.innerHTML = window.generateQrSvg(status.url, 180);
+        }
+      } else {
+        if (wifiServerStatusTitle) wifiServerStatusTitle.textContent = 'Server Berbagi Wi-Fi';
+        if (wifiServerStatusDesc) wifiServerStatusDesc.textContent = 'Server sedang tidak aktif';
+        if (wifiServerDetails) wifiServerDetails.style.display = 'none';
+        if (wifiQrContainer) wifiQrContainer.innerHTML = '';
+      }
+    } catch (e) {
+      console.warn('syncWifiShareUI error:', e);
+    }
+  }
+
+  function openWifiShareModal() {
+    if (wifiShareModal) {
+      wifiShareModal.classList.add('active');
+      syncWifiShareUI();
+    }
+  }
+
+  function closeWifiShareModal() {
+    if (wifiShareModal) {
+      wifiShareModal.classList.remove('active');
+    }
+  }
+
+  if (btnOpenWifiShare) {
+    btnOpenWifiShare.addEventListener('click', openWifiShareModal);
+  }
+
+  if (btnCloseWifiShareModal) {
+    btnCloseWifiShareModal.addEventListener('click', closeWifiShareModal);
+  }
+
+  if (btnCloseWifiShareBottom) {
+    btnCloseWifiShareBottom.addEventListener('click', closeWifiShareModal);
+  }
+
+  if (toggleWifiServer) {
+    toggleWifiServer.addEventListener('change', async () => {
+      if (toggleWifiServer.checked) {
+        showToast('Memulai server berbagi berkas lokal...', 'info', 1800);
+        const res = await ApiBridge.startWifiShareServer(8080);
+        if (res && res.success) {
+          showToast('Server Wi-Fi aktif! Pindai QR di perangkat lain.', 'success', 3000);
+          await syncWifiShareUI();
+        } else {
+          toggleWifiServer.checked = false;
+          showToast('Gagal mengaktifkan server Wi-Fi.', 'error', 3000);
+        }
+      } else {
+        await ApiBridge.stopWifiShareServer();
+        showToast('Server berbagi Wi-Fi telah dinonaktifkan.', 'info', 1800);
+        await syncWifiShareUI();
+      }
+    });
+  }
+
+  if (btnCopyWifiUrl) {
+    btnCopyWifiUrl.addEventListener('click', async () => {
+      const url = wifiServerUrlText?.textContent || '';
+      if (!url) return;
+      try {
+        if (navigator.clipboard && navigator.clipboard.writeText) {
+          await navigator.clipboard.writeText(url);
+        } else {
+          const ta = document.createElement('textarea');
+          ta.value = url;
+          document.body.appendChild(ta);
+          ta.select();
+          document.execCommand('copy');
+          document.body.removeChild(ta);
+        }
+        showToast('Tautan server berhasil disalin ke clipboard!', 'success', 2000);
+      } catch (err) {
+        showToast(`Tautan: ${url}`, 'info', 3000);
+      }
+    });
   }
 
   // Android Storage Permission & Battery Optimization Actions
@@ -2956,7 +3112,70 @@ document.addEventListener('DOMContentLoaded', () => {
   const videoTimeDisplay = document.getElementById('video-time-display');
   const btnVideoSpeed = document.getElementById('btn-video-speed');
   const btnVideoPipQuick = document.getElementById('btn-video-pip-quick');
-  const btnVideoFullscreenQuick = document.getElementById('btn-video-fullscreen-quick');
+  const videoWrapper = document.getElementById('video-wrapper');
+  const videoBrightnessOverlay = document.getElementById('video-brightness-overlay');
+  const videoHudBrightness = document.getElementById('video-hud-brightness');
+  const hudBrightnessFill = document.getElementById('hud-brightness-fill');
+  const hudBrightnessText = document.getElementById('hud-brightness-text');
+  const videoHudVolume = document.getElementById('video-hud-volume');
+  const hudVolumeFill = document.getElementById('hud-volume-fill');
+  const hudVolumeText = document.getElementById('hud-volume-text');
+  const hudVolumeIcon = document.getElementById('hud-volume-icon');
+
+  // Swipe Brightness & Volume State & Helpers
+  let currentBrightness = parseFloat(localStorage.getItem('gofile_video_brightness') || '1.0');
+  if (isNaN(currentBrightness) || currentBrightness < 0.1 || currentBrightness > 1.0) currentBrightness = 1.0;
+
+  let hudHideTimeout = null;
+  function scheduleHudHide(delay = 1200) {
+    clearTimeout(hudHideTimeout);
+    hudHideTimeout = setTimeout(() => {
+      if (videoHudBrightness) videoHudBrightness.classList.remove('visible');
+      if (videoHudVolume) videoHudVolume.classList.remove('visible');
+    }, delay);
+  }
+
+  function setVideoBrightness(val, showHud = false) {
+    currentBrightness = Math.min(1.0, Math.max(0.1, val));
+    localStorage.setItem('gofile_video_brightness', currentBrightness.toFixed(2));
+    if (videoBrightnessOverlay) {
+      const overlayOpacity = Math.max(0, Math.min(0.9, 1 - currentBrightness));
+      videoBrightnessOverlay.style.opacity = overlayOpacity.toFixed(2);
+    }
+    if (showHud && videoHudBrightness) {
+      const pct = Math.round(currentBrightness * 100);
+      if (hudBrightnessFill) hudBrightnessFill.style.height = `${pct}%`;
+      if (hudBrightnessText) hudBrightnessText.textContent = `${pct}%`;
+      videoHudBrightness.classList.add('visible');
+      if (videoHudVolume) videoHudVolume.classList.remove('visible');
+      scheduleHudHide(1200);
+    }
+  }
+
+  function setVideoVolume(val, showHud = false) {
+    val = Math.min(1.0, Math.max(0.0, val));
+    if (mediaVideoEl) {
+      mediaVideoEl.volume = val;
+      mediaVideoEl.muted = (val === 0);
+    }
+    if (showHud && videoHudVolume) {
+      const pct = Math.round(val * 100);
+      if (hudVolumeFill) hudVolumeFill.style.height = `${pct}%`;
+      if (hudVolumeText) hudVolumeText.textContent = `${pct}%`;
+      if (hudVolumeIcon) {
+        if (val === 0) {
+          hudVolumeIcon.innerHTML = `<svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><polygon points="11 5 6 9 2 9 2 15 6 15 11 19 11 5"></polygon><line x1="23" y1="9" x2="17" y2="15"></line><line x1="17" y1="9" x2="23" y2="15"></line></svg>`;
+        } else if (val < 0.5) {
+          hudVolumeIcon.innerHTML = `<svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><polygon points="11 5 6 9 2 9 2 15 6 15 11 19 11 5"></polygon><path d="M15.54 8.46a5 5 0 0 1 0 7.07"></path></svg>`;
+        } else {
+          hudVolumeIcon.innerHTML = `<svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><polygon points="11 5 6 9 2 9 2 15 6 15 11 19 11 5"></polygon><path d="M19.07 4.93a10 10 0 0 1 0 14.14M15.54 8.46a5 5 0 0 1 0 7.07"></path></svg>`;
+        }
+      }
+      videoHudVolume.classList.add('visible');
+      if (videoHudBrightness) videoHudBrightness.classList.remove('visible');
+      scheduleHudHide(1200);
+    }
+  }
 
   // Modern Center Floating Controls
   const btnVideoCenterPlay = document.getElementById('btn-video-center-play');
@@ -3234,6 +3453,7 @@ document.addEventListener('DOMContentLoaded', () => {
     if (type === 'video') {
       buildVideoPlaylist(fileOrItem);
       if (mediaVideoContainer) mediaVideoContainer.style.display = 'flex';
+      setVideoBrightness(currentBrightness, false);
       if (btnMediaPip) btnMediaPip.style.display = 'inline-flex';
       if (mediaVideoEl) {
         mediaVideoEl.src = mediaUrl;
@@ -3531,6 +3751,72 @@ document.addEventListener('DOMContentLoaded', () => {
   if (btnVideoTopClose) btnVideoTopClose.addEventListener('click', closeMediaPlayer);
   if (btnVideoTopPip) btnVideoTopPip.addEventListener('click', triggerPictureInPicture);
 
+  // Vertical Swipe Gesture Engine (Left: Brightness, Right: Volume) with Disambiguation
+  let touchSwipeState = {
+    startX: 0,
+    startY: 0,
+    isSwiping: false,
+    isLeftSide: true,
+    startBrightness: 1.0,
+    startVolume: 1.0,
+    suppressUntil: 0
+  };
+
+  if (videoWrapper) {
+    videoWrapper.addEventListener('touchstart', (e) => {
+      if (e.touches.length !== 1) return;
+      const touch = e.touches[0];
+      const rect = videoWrapper.getBoundingClientRect();
+      touchSwipeState.startX = touch.clientX;
+      touchSwipeState.startY = touch.clientY;
+      touchSwipeState.isSwiping = false;
+      touchSwipeState.isLeftSide = (touch.clientX < (rect.left + rect.width / 2));
+      touchSwipeState.startBrightness = currentBrightness;
+      touchSwipeState.startVolume = mediaVideoEl ? (mediaVideoEl.muted ? 0 : mediaVideoEl.volume) : 1.0;
+    }, { passive: true });
+
+    videoWrapper.addEventListener('touchmove', (e) => {
+      if (e.touches.length !== 1) return;
+      const touch = e.touches[0];
+      const rect = videoWrapper.getBoundingClientRect();
+      const dx = touch.clientX - touchSwipeState.startX;
+      const dy = touch.clientY - touchSwipeState.startY;
+
+      if (!touchSwipeState.isSwiping) {
+        if (Math.abs(dy) > 12 && Math.abs(dy) > Math.abs(dx) * 1.25) {
+          touchSwipeState.isSwiping = true;
+          lastTapLeft = 0;
+          lastTapRight = 0;
+        }
+      }
+
+      if (touchSwipeState.isSwiping) {
+        if (e.cancelable) e.preventDefault();
+        const deltaRatio = -dy / (rect.height * 0.55);
+        if (touchSwipeState.isLeftSide) {
+          const newB = Math.min(1.0, Math.max(0.1, touchSwipeState.startBrightness + deltaRatio));
+          setVideoBrightness(newB, true);
+        } else {
+          const newV = Math.min(1.0, Math.max(0.0, touchSwipeState.startVolume + deltaRatio));
+          setVideoVolume(newV, true);
+        }
+      }
+    }, { passive: false });
+
+    const handleTouchEnd = (e) => {
+      if (touchSwipeState.isSwiping) {
+        touchSwipeState.isSwiping = false;
+        touchSwipeState.suppressUntil = Date.now() + 450;
+        scheduleHudHide(1200);
+        if (e.cancelable) e.preventDefault();
+        e.stopPropagation();
+      }
+    };
+
+    videoWrapper.addEventListener('touchend', handleTouchEnd);
+    videoWrapper.addEventListener('touchcancel', handleTouchEnd);
+  }
+
   // Double-tap & Single-tap Gesture Zones
   let lastTapLeft = 0;
   let lastTapRight = 0;
@@ -3538,6 +3824,7 @@ document.addEventListener('DOMContentLoaded', () => {
   if (videoGestureLeft) {
     videoGestureLeft.addEventListener('click', (e) => {
       e.stopPropagation();
+      if (Date.now() < touchSwipeState.suppressUntil) return;
       const now = Date.now();
       if (now - lastTapLeft < 300) {
         if (mediaVideoEl) {
@@ -3560,6 +3847,7 @@ document.addEventListener('DOMContentLoaded', () => {
   if (videoGestureRight) {
     videoGestureRight.addEventListener('click', (e) => {
       e.stopPropagation();
+      if (Date.now() < touchSwipeState.suppressUntil) return;
       const now = Date.now();
       if (now - lastTapRight < 300) {
         if (mediaVideoEl && mediaVideoEl.duration) {
@@ -3839,6 +4127,96 @@ document.addEventListener('DOMContentLoaded', () => {
       closeMediaPlayer();
     }
   });
+
+  // ----------------------------------------------------
+  // Automatic Clipboard GoFile Link Detector Engine
+  // ----------------------------------------------------
+  const GOFILE_CLIP_REGEX = /https?:\/\/(?:www\.)?gofile\.io\/d\/([a-zA-Z0-9_-]+)/i;
+  let lastDetectedClipUrl = '';
+  let clipBannerDismissTimeout = null;
+  const dismissedClipUrls = new Set(JSON.parse(sessionStorage.getItem('gf_dismissed_clip_urls') || '[]'));
+
+  async function checkClipboardForGoFile() {
+    if (mediaPlayerModal && mediaPlayerModal.classList.contains('active')) return;
+    if (!window.ApiBridge || typeof window.ApiBridge.readClipboard !== 'function') return;
+
+    try {
+      const text = await ApiBridge.readClipboard();
+      if (!text || typeof text !== 'string') return;
+      const trimmed = text.trim();
+      const match = trimmed.match(GOFILE_CLIP_REGEX);
+      if (!match) return;
+
+      const detectedUrl = match[0];
+      if (detectedUrl === lastDetectedClipUrl) return;
+      if (dismissedClipUrls.has(detectedUrl)) return;
+      if (singleUrlInput && singleUrlInput.value.trim() === detectedUrl) return;
+
+      lastDetectedClipUrl = detectedUrl;
+      showClipboardBanner(detectedUrl);
+    } catch (err) {
+      // Non-fatal
+    }
+  }
+
+  function showClipboardBanner(url) {
+    if (!clipboardDetectBanner) return;
+    if (clipboardBannerUrl) {
+      clipboardBannerUrl.textContent = url;
+      clipboardBannerUrl.title = url;
+    }
+    clipboardDetectBanner.style.display = 'block';
+    clearTimeout(clipBannerDismissTimeout);
+    clipBannerDismissTimeout = setTimeout(() => {
+      hideClipboardBanner();
+    }, 12000);
+  }
+
+  function hideClipboardBanner() {
+    clearTimeout(clipBannerDismissTimeout);
+    if (clipboardDetectBanner) {
+      clipboardDetectBanner.style.display = 'none';
+    }
+  }
+
+  if (btnClipboardExplore) {
+    btnClipboardExplore.addEventListener('click', () => {
+      const url = lastDetectedClipUrl || clipboardBannerUrl?.textContent || '';
+      hideClipboardBanner();
+      if (url) {
+        dismissedClipUrls.add(url);
+        try { sessionStorage.setItem('gf_dismissed_clip_urls', JSON.stringify([...dismissedClipUrls])); } catch (e) {}
+        if (singleUrlInput) {
+          singleUrlInput.value = url;
+          singleUrlInput.dispatchEvent(new Event('input', { bubbles: true }));
+        }
+        const homeTabBtn = document.querySelector('[data-tab="home"]');
+        if (homeTabBtn) homeTabBtn.click();
+        if (btnInspectUrl) {
+          setTimeout(() => btnInspectUrl.click(), 100);
+        }
+      }
+    });
+  }
+
+  if (btnClipboardDismiss) {
+    btnClipboardDismiss.addEventListener('click', () => {
+      const url = lastDetectedClipUrl || clipboardBannerUrl?.textContent || '';
+      if (url) {
+        dismissedClipUrls.add(url);
+        try { sessionStorage.setItem('gf_dismissed_clip_urls', JSON.stringify([...dismissedClipUrls])); } catch (e) {}
+      }
+      hideClipboardBanner();
+    });
+  }
+
+  window.addEventListener('focus', () => setTimeout(checkClipboardForGoFile, 600));
+  document.addEventListener('visibilitychange', () => {
+    if (document.visibilityState === 'visible') {
+      setTimeout(checkClipboardForGoFile, 600);
+    }
+  });
+  setTimeout(checkClipboardForGoFile, 1200);
 
   // Expose openMediaPlayer globally
   window.openMediaPlayer = openMediaPlayer;

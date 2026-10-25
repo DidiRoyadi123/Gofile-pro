@@ -3943,3 +3943,202 @@ body.pip-mode #media-video-element {
   background: rgba(15, 23, 42, 0.1);
   color: #0f172a;
 }
+
+/* ---------------------------------------------------- */
+/* Video Player Swipe HUD & Brightness Overlay          */
+/* ---------------------------------------------------- */
+.video-brightness-overlay {
+  position: absolute;
+  inset: 0;
+  background: #000000;
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity 0.05s linear;
+  z-index: 5;
+}
+
+.video-swipe-hud {
+  position: absolute;
+  top: 50%;
+  transform: translateY(-50%) scale(0.9);
+  width: 50px;
+  height: 168px;
+  background: rgba(10, 14, 23, 0.82);
+  backdrop-filter: blur(14px);
+  -webkit-backdrop-filter: blur(14px);
+  border: 1px solid rgba(255, 255, 255, 0.15);
+  border-radius: 28px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: space-between;
+  padding: 12px 6px;
+  z-index: 25;
+  pointer-events: none;
+  opacity: 0;
+  transition: opacity 0.22s ease, transform 0.22s cubic-bezier(0.16, 1, 0.3, 1);
+  box-shadow: 0 8px 32px rgba(0, 0, 0, 0.45);
+}
+
+.video-swipe-hud.active {
+  opacity: 1;
+  transform: translateY(-50%) scale(1);
+}
+
+.video-hud-brightness {
+  left: 20px;
+}
+
+.video-hud-volume {
+  right: 20px;
+}
+
+.swipe-hud-icon {
+  color: #ffffff;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  filter: drop-shadow(0 2px 4px rgba(0, 0, 0, 0.5));
+}
+
+.swipe-hud-bar {
+  width: 6px;
+  height: 84px;
+  background: rgba(255, 255, 255, 0.22);
+  border-radius: 4px;
+  position: relative;
+  overflow: hidden;
+  display: flex;
+  align-items: flex-end;
+}
+
+.swipe-hud-fill {
+  width: 100%;
+  background: linear-gradient(180deg, #38bdf8, #6366f1);
+  border-radius: 4px;
+  transition: height 0.05s linear;
+}
+
+.video-hud-brightness .swipe-hud-fill {
+  background: linear-gradient(180deg, #fde047, #f59e0b);
+}
+
+.swipe-hud-text {
+  font-size: 0.72rem;
+  font-weight: 700;
+  color: #ffffff;
+  font-family: var(--font-mono);
+  letter-spacing: -0.02em;
+  text-shadow: 0 1px 3px rgba(0, 0, 0, 0.6);
+}
+
+/* ---------------------------------------------------- */
+/* Floating Clipboard Auto-Detect Banner                */
+/* ---------------------------------------------------- */
+.clipboard-detect-banner {
+  position: fixed;
+  bottom: 74px;
+  left: 50%;
+  transform: translateX(-50%) translateY(20px);
+  width: calc(100% - 24px);
+  max-width: 520px;
+  z-index: 95;
+  animation: slideUpClipboardBanner 0.3s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+}
+
+@keyframes slideUpClipboardBanner {
+  to {
+    transform: translateX(-50%) translateY(0);
+  }
+}
+
+.clipboard-banner-glass {
+  background: rgba(15, 23, 42, 0.9);
+  backdrop-filter: blur(16px);
+  -webkit-backdrop-filter: blur(16px);
+  border: 1px solid rgba(99, 102, 241, 0.35);
+  border-radius: 14px;
+  padding: 10px 14px;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  box-shadow: 0 12px 36px rgba(0, 0, 0, 0.5), 0 0 20px rgba(99, 102, 241, 0.15);
+}
+
+[data-theme="light"] .clipboard-banner-glass {
+  background: rgba(255, 255, 255, 0.94);
+  border-color: rgba(99, 102, 241, 0.3);
+  box-shadow: 0 12px 36px rgba(0, 0, 0, 0.12), 0 0 20px rgba(99, 102, 241, 0.15);
+}
+
+.clipboard-banner-icon {
+  width: 36px;
+  height: 36px;
+  border-radius: 10px;
+  background: rgba(99, 102, 241, 0.18);
+  color: var(--indigo-400);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+}
+
+.clipboard-banner-info {
+  flex: 1;
+  min-width: 0;
+}
+
+.clipboard-banner-title {
+  font-size: 0.84rem;
+  font-weight: 700;
+  color: var(--text-primary);
+  line-height: 1.2;
+}
+
+.clipboard-banner-url {
+  font-size: 0.74rem;
+  color: var(--text-muted);
+  font-family: var(--font-mono);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  margin-top: 2px;
+}
+
+.clipboard-banner-actions {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  flex-shrink: 0;
+}
+
+/* ---------------------------------------------------- */
+/* Switch Toggle for Wi-Fi Sharing                      */
+/* ---------------------------------------------------- */
+.switch-toggle input:checked + .slider-toggle {
+  background: var(--indigo-500);
+}
+
+.slider-toggle {
+  position: absolute;
+  inset: 0;
+  background: rgba(255, 255, 255, 0.2);
+  border-radius: 24px;
+  transition: 0.25s;
+}
+
+.slider-toggle:before {
+  position: absolute;
+  content: "";
+  height: 18px;
+  width: 18px;
+  left: 3px;
+  bottom: 3px;
+  background: #ffffff;
+  border-radius: 50%;
+  transition: 0.25s;
+}
+
+.switch-toggle input:checked + .slider-toggle:before {
+  transform: translateX(20px);
+}
