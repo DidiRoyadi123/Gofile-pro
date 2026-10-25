@@ -1,8 +1,8 @@
-# GoFile Pro Downloader v2.2.7 Multiplatform (Android & Windows Portable UI)
+# GoFile Pro Downloader v2.2.8 Multiplatform (Android & Windows Portable UI)
 
-GoFile Pro Downloader is a high-speed, modern multi-threaded download manager designed for GoFile.io. It supports both **Android (Native .APK)** and **Windows (Portable .EXE)** platforms. Built with in-app automated update delivery, native package installation, directory tree inspection, automatic chunked resume, 16-thread concurrent queue, strict file integrity verification, and a built-in media player with YouTube-like Picture-in-Picture (PiP).
+GoFile Pro Downloader is a high-speed, modern multi-threaded download manager designed for GoFile.io. It supports both **Android (Native .APK)** and **Windows (Portable .EXE)** platforms. Built with in-app automated update delivery, native package installation, directory tree inspection, automatic chunked resume, 16-thread concurrent queue, strict file integrity verification, and an enhanced built-in media player featuring video playlist auto-next, manual next/previous navigation, keyboard shortcuts, and full uncropped YouTube-like Picture-in-Picture (PiP).
 
-GoFile Pro Downloader adalah aplikasi pengunduh berkas multi-threaded modern untuk platform GoFile.io, mendukung sistem operasi **Android (.APK)** dan **Windows (.EXE)**. Dilengkapi pembaruan aplikasi otomatis (in-app updater) dan instalasi paket langsung, inspeksi direktori, auto-resume unduhan, antrean simultan hingga 16 worker, verifikasi integritas berkas untuk mencegah unduhan ganda, serta pemutar media bawaan (video/musik/foto) dengan Picture-in-Picture (PiP) mengambang layaknya YouTube.
+GoFile Pro Downloader adalah aplikasi pengunduh berkas multi-threaded modern untuk platform GoFile.io, mendukung sistem operasi **Android (.APK)** dan **Windows (.EXE)**. Dilengkapi pembaruan aplikasi otomatis (in-app updater) dan instalasi paket langsung, inspeksi direktori, auto-resume unduhan, antrean simultan hingga 16 worker, verifikasi integritas berkas untuk mencegah unduhan ganda, serta pemutar media bawaan (video/musik/foto) dengan autoplay video berikutnya, kontrol next/prev & tombol panah, serta Picture-in-Picture (PiP) mengambang proporsional penuh yang hanya aktif saat memutar video.
 
 ---
 

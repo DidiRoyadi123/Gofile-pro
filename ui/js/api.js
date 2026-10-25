@@ -632,6 +632,7 @@ const ApiBridge = {
       if (androidPlugin && typeof androidPlugin.setVideoPlaybackState === 'function') {
         try {
           return await androidPlugin.setVideoPlaybackState({
+            playing: !!isPlaying,
             isPlaying: !!isPlaying,
             width: Math.max(1, Math.round(width || 16)),
             height: Math.max(1, Math.round(height || 9))

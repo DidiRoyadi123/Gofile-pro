@@ -933,7 +933,11 @@ public class AndroidDownloaderPlugin extends Plugin {
 
     @PluginMethod
     public void setVideoPlaybackState(PluginCall call) {
-        boolean playing = call.getBoolean("playing", false);
+        Boolean playingObj = call.getBoolean("playing");
+        if (playingObj == null) {
+            playingObj = call.getBoolean("isPlaying", false);
+        }
+        boolean playing = playingObj != null && playingObj;
         int width = call.getInt("width", 16);
         int height = call.getInt("height", 9);
         MainActivity.setVideoPlaybackState(playing, width, height);

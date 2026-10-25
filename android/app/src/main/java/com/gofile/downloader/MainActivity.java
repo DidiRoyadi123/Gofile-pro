@@ -15,6 +15,7 @@ import androidx.core.view.WindowInsetsCompat;
 import com.getcapacitor.BridgeActivity;
 
 public class MainActivity extends BridgeActivity {
+    private static MainActivity instance;
     private static boolean isVideoPlaying = false;
     private static int videoWidth = 16;
     private static int videoHeight = 9;
@@ -25,10 +26,36 @@ public class MainActivity extends BridgeActivity {
             videoWidth = width;
             videoHeight = height;
         }
+        if (instance != null) {
+            instance.runOnUiThread(() -> instance.updatePipParams(playing));
+        }
     }
 
     public static boolean isVideoPlaying() {
         return isVideoPlaying;
+    }
+
+    public void updatePipParams(boolean isPlaying) {
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+            try {
+                PictureInPictureParams.Builder builder = new PictureInPictureParams.Builder();
+                int w = videoWidth > 0 ? videoWidth : 16;
+                int h = videoHeight > 0 ? videoHeight : 9;
+                double ratio = (double) w / (double) h;
+                if (ratio < 0.42) {
+                    builder.setAspectRatio(new Rational(42, 100));
+                } else if (ratio > 2.38) {
+                    builder.setAspectRatio(new Rational(238, 100));
+                } else {
+                    builder.setAspectRatio(new Rational(w, h));
+                }
+                if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
+                    // Only allow OS to auto-enter PiP if video is actively playing!
+                    builder.setAutoEnterEnabled(isPlaying);
+                }
+                setPictureInPictureParams(builder.build());
+            } catch (Exception ignored) {}
+        }
     }
 
     public PictureInPictureParams buildPipParams() {
@@ -45,7 +72,7 @@ public class MainActivity extends BridgeActivity {
                 builder.setAspectRatio(new Rational(w, h));
             }
             if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
-                builder.setAutoEnterEnabled(true);
+                builder.setAutoEnterEnabled(isVideoPlaying);
             }
             return builder.build();
         }
@@ -55,7 +82,11 @@ public class MainActivity extends BridgeActivity {
     @Override
     protected void onUserLeaveHint() {
         super.onUserLeaveHint();
-        if (isVideoPlaying && Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+        // NEVER enter PiP mode if video is not actively playing!
+        if (!isVideoPlaying) {
+            return;
+        }
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
             try {
                 PictureInPictureParams params = buildPipParams();
                 if (params != null) {
@@ -81,9 +112,35 @@ public class MainActivity extends BridgeActivity {
     }
 
     @Override
+    public void onResume() {
+        super.onResume();
+        updatePipParams(isVideoPlaying);
+    }
+
+    @Override
+    public void onStop() {
+        super.onStop();
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.N) {
+            if (!isInPictureInPictureMode() && isVideoPlaying) {
+                setVideoPlaybackState(false, videoWidth, videoHeight);
+            }
+        }
+    }
+
+    @Override
+    public void onDestroy() {
+        if (instance == this) {
+            instance = null;
+        }
+        super.onDestroy();
+    }
+
+    @Override
     public void onCreate(Bundle savedInstanceState) {
+        instance = this;
         registerPlugin(AndroidDownloaderPlugin.class);
         super.onCreate(savedInstanceState);
+        updatePipParams(false);
 
         // Hardware Back Button Controller
         getOnBackPressedDispatcher().addCallback(this, new OnBackPressedCallback(true) {

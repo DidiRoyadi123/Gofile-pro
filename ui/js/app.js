@@ -3,7 +3,12 @@
  */
 
 document.addEventListener('DOMContentLoaded', () => {
-  const CURRENT_VERSION = 'v2.2.7';
+  const CURRENT_VERSION = 'v2.2.8';
+
+  // Ensure native Android PiP is strictly disarmed until a video is played
+  if (window.ApiBridge && typeof window.ApiBridge.setVideoPlaybackState === 'function') {
+    window.ApiBridge.setVideoPlaybackState(false);
+  }
 
   // State Management
   const state = {
@@ -2712,7 +2717,10 @@ document.addEventListener('DOMContentLoaded', () => {
     playbackSpeeds: [0.5, 0.75, 1.0, 1.25, 1.5, 2.0],
     speedIndex: 2, // 1.0x
     isLooping: false,
-    isSeekingVideo: false
+    isSeekingVideo: false,
+    playlist: [],
+    playlistIndex: -1,
+    autoNext: localStorage.getItem('gofile_video_autonext') !== 'false'
   };
 
   // Media Player DOM Elements
@@ -2732,6 +2740,9 @@ document.addEventListener('DOMContentLoaded', () => {
   const btnVideoPlayPause = document.getElementById('btn-video-play-pause');
   const iconVideoPlay = document.getElementById('icon-video-play');
   const iconVideoPause = document.getElementById('icon-video-pause');
+  const btnVideoPrev = document.getElementById('btn-video-prev');
+  const btnVideoNext = document.getElementById('btn-video-next');
+  const btnVideoAutoNext = document.getElementById('btn-video-autonext');
   const videoTimeDisplay = document.getElementById('video-time-display');
   const btnVideoSpeed = document.getElementById('btn-video-speed');
   const btnVideoPipQuick = document.getElementById('btn-video-pip-quick');
@@ -2831,6 +2842,115 @@ document.addEventListener('DOMContentLoaded', () => {
     if (photoZoomLevel) photoZoomLevel.textContent = `${Math.round(mediaState.zoomLevel * 100)}%`;
   }
 
+  function buildVideoPlaylist(currentFile) {
+    const list = [];
+    const seen = new Set();
+
+    function addCandidate(f) {
+      if (!f || !isVideoFile(f)) return;
+      const key = (f.path || f.fileUri || f.name || f.filename || '').toLowerCase();
+      if (!key || seen.has(key)) return;
+      seen.add(key);
+      list.push(f);
+    }
+
+    if (Array.isArray(state.storedFiles)) {
+      for (const f of state.storedFiles) {
+        addCandidate(f);
+      }
+    }
+
+    if (Array.isArray(state.history)) {
+      for (const h of state.history) {
+        addCandidate(h);
+      }
+    }
+
+    const curKey = (currentFile?.path || currentFile?.fileUri || currentFile?.name || currentFile?.filename || (typeof currentFile === 'string' ? currentFile : '')).toLowerCase();
+    if (curKey && !seen.has(curKey) && isVideoFile(currentFile)) {
+      list.unshift(currentFile);
+    }
+
+    mediaState.playlist = list;
+    let idx = list.findIndex(item => {
+      const k = (item.path || item.fileUri || item.name || item.filename || '').toLowerCase();
+      return k === curKey;
+    });
+    if (idx === -1 && typeof currentFile === 'string') {
+      idx = list.findIndex(item => (item.name || item.filename) === currentFile);
+    }
+    mediaState.playlistIndex = idx !== -1 ? idx : 0;
+    updatePlaylistNavUI();
+  }
+
+  function updatePlaylistNavUI() {
+    const hasMultiple = mediaState.playlist && mediaState.playlist.length > 1;
+    if (btnVideoPrev) {
+      btnVideoPrev.disabled = !hasMultiple;
+      btnVideoPrev.style.opacity = hasMultiple ? '1' : '0.4';
+    }
+    if (btnVideoNext) {
+      btnVideoNext.disabled = !hasMultiple;
+      btnVideoNext.style.opacity = hasMultiple ? '1' : '0.4';
+    }
+    if (btnVideoAutoNext) {
+      btnVideoAutoNext.classList.toggle('active', !!mediaState.autoNext);
+      btnVideoAutoNext.setAttribute('title', mediaState.autoNext ? 'Putar Otomatis: AKTIF (Klik untuk menonaktifkan)' : 'Putar Otomatis: NONAKTIF (Klik untuk mengaktifkan)');
+    }
+  }
+
+  function toggleAutoplayNext() {
+    mediaState.autoNext = !mediaState.autoNext;
+    localStorage.setItem('gofile_video_autonext', mediaState.autoNext ? 'true' : 'false');
+    updatePlaylistNavUI();
+    showToast(mediaState.autoNext ? 'Putar otomatis (Autoplay): AKTIF' : 'Putar otomatis (Autoplay): NONAKTIF', 'info', 1800);
+  }
+
+  async function playNextVideo(isAuto = false) {
+    if (mediaState.mediaType !== 'video' || !mediaState.playlist || mediaState.playlist.length <= 1) {
+      if (!isAuto) showToast('Tidak ada video berikutnya dalam daftar', 'info', 1800);
+      return false;
+    }
+    let nextIdx = mediaState.playlistIndex + 1;
+    if (nextIdx >= mediaState.playlist.length) {
+      if (isAuto) {
+        showToast('Semua video dalam daftar telah selesai diputar', 'info', 2500);
+        return false;
+      }
+      nextIdx = 0; // Wrap around on manual click
+    }
+    const nextFile = mediaState.playlist[nextIdx];
+    if (!nextFile) return false;
+    mediaState.playlistIndex = nextIdx;
+    showToast(`Memutar: ${nextFile.name || nextFile.filename || 'Video berikutnya'}`, 'info', 1800);
+    return await openMediaPlayer(nextFile, 'video');
+  }
+
+  async function playPrevVideo() {
+    if (mediaState.mediaType !== 'video' || !mediaState.playlist || mediaState.playlist.length <= 1) {
+      if (mediaVideoEl && mediaVideoEl.currentTime > 0) {
+        mediaVideoEl.currentTime = 0;
+        return true;
+      }
+      showToast('Tidak ada video sebelumnya', 'info', 1800);
+      return false;
+    }
+    // If playing > 3 seconds, rewind to start first
+    if (mediaVideoEl && mediaVideoEl.currentTime > 3) {
+      mediaVideoEl.currentTime = 0;
+      return true;
+    }
+    let prevIdx = mediaState.playlistIndex - 1;
+    if (prevIdx < 0) {
+      prevIdx = mediaState.playlist.length - 1;
+    }
+    const prevFile = mediaState.playlist[prevIdx];
+    if (!prevFile) return false;
+    mediaState.playlistIndex = prevIdx;
+    showToast(`Memutar: ${prevFile.name || prevFile.filename || 'Video sebelumnya'}`, 'info', 1800);
+    return await openMediaPlayer(prevFile, 'video');
+  }
+
   async function openMediaPlayer(fileOrItem, explicitType = null) {
     if (!fileOrItem) return false;
     const fileName = (typeof fileOrItem === 'string') ? fileOrItem : (fileOrItem.name || fileOrItem.filename || 'Media');
@@ -2882,6 +3002,7 @@ document.addEventListener('DOMContentLoaded', () => {
     if (audioDisc) audioDisc.classList.remove('playing');
 
     if (type === 'video') {
+      buildVideoPlaylist(fileOrItem);
       if (mediaVideoContainer) mediaVideoContainer.style.display = 'flex';
       if (btnMediaPip) btnMediaPip.style.display = 'inline-flex';
       if (mediaVideoEl) {
@@ -2891,28 +3012,31 @@ document.addEventListener('DOMContentLoaded', () => {
         mediaVideoEl.load();
         mediaVideoEl.play().catch(e => console.log('Video autoplay:', e));
       }
-    } else if (type === 'audio') {
-      if (mediaAudioContainer) mediaAudioContainer.style.display = 'flex';
-      if (btnMediaPip) btnMediaPip.style.display = 'none'; // PiP not for audio
-      if (audioTrackTitle) audioTrackTitle.textContent = fileName;
-      if (audioTrackMeta) {
-        const sizeStr = (typeof fileOrItem === 'object' && fileOrItem.size) ? ` • ${formatBytes(fileOrItem.size)}` : '';
-        audioTrackMeta.textContent = `Musik / Suara${sizeStr}`;
+    } else {
+      ApiBridge.setVideoPlaybackState(false);
+      if (type === 'audio') {
+        if (mediaAudioContainer) mediaAudioContainer.style.display = 'flex';
+        if (btnMediaPip) btnMediaPip.style.display = 'none'; // PiP not for audio
+        if (audioTrackTitle) audioTrackTitle.textContent = fileName;
+        if (audioTrackMeta) {
+          const sizeStr = (typeof fileOrItem === 'object' && fileOrItem.size) ? ` • ${formatBytes(fileOrItem.size)}` : '';
+          audioTrackMeta.textContent = `Musik / Suara${sizeStr}`;
+        }
+        if (mediaAudioEl) {
+          mediaAudioEl.src = mediaUrl;
+          mediaAudioEl.playbackRate = mediaState.playbackSpeeds[mediaState.speedIndex];
+          if (btnAudioSpeed) btnAudioSpeed.textContent = `${mediaState.playbackSpeeds[mediaState.speedIndex]}x`;
+          mediaAudioEl.load();
+          mediaAudioEl.play().catch(e => console.log('Audio autoplay:', e));
+        }
+      } else if (type === 'photo') {
+        if (mediaPhotoContainer) mediaPhotoContainer.style.display = 'flex';
+        if (btnMediaPip) btnMediaPip.style.display = 'none'; // PiP not for photo
+        mediaState.zoomLevel = 1.0;
+        mediaState.rotateDeg = 0;
+        updatePhotoTransform();
+        if (mediaPhotoEl) mediaPhotoEl.src = mediaUrl;
       }
-      if (mediaAudioEl) {
-        mediaAudioEl.src = mediaUrl;
-        mediaAudioEl.playbackRate = mediaState.playbackSpeeds[mediaState.speedIndex];
-        if (btnAudioSpeed) btnAudioSpeed.textContent = `${mediaState.playbackSpeeds[mediaState.speedIndex]}x`;
-        mediaAudioEl.load();
-        mediaAudioEl.play().catch(e => console.log('Audio autoplay:', e));
-      }
-    } else if (type === 'photo') {
-      if (mediaPhotoContainer) mediaPhotoContainer.style.display = 'flex';
-      if (btnMediaPip) btnMediaPip.style.display = 'none'; // PiP not for photo
-      mediaState.zoomLevel = 1.0;
-      mediaState.rotateDeg = 0;
-      updatePhotoTransform();
-      if (mediaPhotoEl) mediaPhotoEl.src = mediaUrl;
     }
 
     if (mediaPlayerModal) mediaPlayerModal.classList.add('active');
@@ -2933,6 +3057,7 @@ document.addEventListener('DOMContentLoaded', () => {
     if (audioDisc) audioDisc.classList.remove('playing');
     if (mediaPlayerModal) mediaPlayerModal.classList.remove('active');
     document.body.classList.remove('pip-mode');
+    document.documentElement.classList.remove('pip-mode');
     ApiBridge.setVideoPlaybackState(false);
     hideMiniPlayer();
   }
@@ -2996,9 +3121,11 @@ document.addEventListener('DOMContentLoaded', () => {
     mediaState.isPipActive = isInPip;
     if (isInPip) {
       document.body.classList.add('pip-mode');
+      document.documentElement.classList.add('pip-mode');
       if (mediaPlayerModal) mediaPlayerModal.classList.add('active');
     } else {
       document.body.classList.remove('pip-mode');
+      document.documentElement.classList.remove('pip-mode');
     }
   };
 
@@ -3015,6 +3142,14 @@ document.addEventListener('DOMContentLoaded', () => {
       ApiBridge.setVideoPlaybackState(true, w, h);
     });
 
+    mediaVideoEl.addEventListener('loadedmetadata', () => {
+      const w = mediaVideoEl.videoWidth || 16;
+      const h = mediaVideoEl.videoHeight || 9;
+      if (mediaState.isPlaying) {
+        ApiBridge.setVideoPlaybackState(true, w, h);
+      }
+    });
+
     mediaVideoEl.addEventListener('pause', () => {
       mediaState.isPlaying = false;
       if (iconVideoPlay) iconVideoPlay.style.display = 'inline-block';
@@ -3024,13 +3159,18 @@ document.addEventListener('DOMContentLoaded', () => {
       ApiBridge.setVideoPlaybackState(false);
     });
 
-    mediaVideoEl.addEventListener('ended', () => {
+    mediaVideoEl.addEventListener('ended', async () => {
       mediaState.isPlaying = false;
       if (iconVideoPlay) iconVideoPlay.style.display = 'inline-block';
       if (iconVideoPause) iconVideoPause.style.display = 'none';
       if (miniPlayerStatus) miniPlayerStatus.textContent = 'Selesai';
       updateMiniPlayPauseIcon();
       ApiBridge.setVideoPlaybackState(false);
+
+      if (mediaState.autoNext && mediaState.playlist && mediaState.playlist.length > 1) {
+        const played = await playNextVideo(true);
+        if (played) return;
+      }
     });
 
     mediaVideoEl.addEventListener('timeupdate', () => {
@@ -3074,6 +3214,18 @@ document.addEventListener('DOMContentLoaded', () => {
     });
   }
 
+  if (btnVideoPrev) {
+    btnVideoPrev.addEventListener('click', () => playPrevVideo());
+  }
+
+  if (btnVideoNext) {
+    btnVideoNext.addEventListener('click', () => playNextVideo(false));
+  }
+
+  if (btnVideoAutoNext) {
+    btnVideoAutoNext.addEventListener('click', () => toggleAutoplayNext());
+  }
+
   if (btnVideoSpeed && mediaVideoEl) {
     btnVideoSpeed.addEventListener('click', () => {
       mediaState.speedIndex = (mediaState.speedIndex + 1) % mediaState.playbackSpeeds.length;
@@ -3086,6 +3238,53 @@ document.addEventListener('DOMContentLoaded', () => {
 
   if (btnVideoPipQuick) btnVideoPipQuick.addEventListener('click', triggerPictureInPicture);
   if (btnVideoFullscreenQuick) btnVideoFullscreenQuick.addEventListener('click', toggleMediaFullscreen);
+
+  // Keyboard navigation for video player and media modal
+  document.addEventListener('keydown', (e) => {
+    if (!mediaPlayerModal || !mediaPlayerModal.classList.contains('active')) return;
+    if (e.target && (e.target.tagName === 'INPUT' || e.target.tagName === 'TEXTAREA')) return;
+
+    if (mediaState.mediaType === 'video') {
+      if (e.key === 'ArrowRight' || e.key === 'n' || e.key === 'N') {
+        e.preventDefault();
+        playNextVideo(false);
+      } else if (e.key === 'ArrowLeft' || e.key === 'p' || e.key === 'P') {
+        e.preventDefault();
+        playPrevVideo();
+      } else if (e.key === ' ' || e.key === 'k' || e.key === 'K') {
+        e.preventDefault();
+        if (mediaVideoEl) {
+          if (mediaVideoEl.paused) mediaVideoEl.play();
+          else mediaVideoEl.pause();
+        }
+      } else if (e.key === 'f' || e.key === 'F') {
+        e.preventDefault();
+        toggleMediaFullscreen();
+      } else if (e.key === 'm' || e.key === 'M') {
+        e.preventDefault();
+        if (mediaVideoEl) mediaVideoEl.muted = !mediaVideoEl.muted;
+      } else if (e.key === 'Escape') {
+        e.preventDefault();
+        closeMediaPlayer();
+      }
+    } else if (mediaState.mediaType === 'audio') {
+      if (e.key === ' ' || e.key === 'k' || e.key === 'K') {
+        e.preventDefault();
+        if (mediaAudioEl) {
+          if (mediaAudioEl.paused) mediaAudioEl.play();
+          else mediaAudioEl.pause();
+        }
+      } else if (e.key === 'Escape') {
+        e.preventDefault();
+        closeMediaPlayer();
+      }
+    } else if (mediaState.mediaType === 'photo') {
+      if (e.key === 'Escape') {
+        e.preventDefault();
+        closeMediaPlayer();
+      }
+    }
+  });
 
   // Audio Events
   if (mediaAudioEl) {
