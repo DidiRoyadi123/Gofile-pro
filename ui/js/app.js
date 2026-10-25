@@ -107,6 +107,58 @@ document.addEventListener('DOMContentLoaded', () => {
   const chipCountPhoto = document.getElementById('chip-count-photo');
   const chipCountAudio = document.getElementById('chip-count-audio');
 
+  // Storage Manager Elements (Kelola File)
+  const filesListContainer = document.getElementById('files-list-container');
+  const filesEmptyState = document.getElementById('files-empty-state');
+  const btnRefreshFiles = document.getElementById('btn-refresh-files');
+  const btnOpenFolderFiles = document.getElementById('btn-open-folder-files');
+  const searchFilesInput = document.getElementById('search-files-input');
+  const storageTotalFilesEl = document.getElementById('storage-total-files');
+  const storageTotalSizeEl = document.getElementById('storage-total-size');
+  const storedFilesCountEl = document.getElementById('stored-files-count');
+
+  const chipFileAll = document.getElementById('chip-file-all');
+  const chipFileVideo = document.getElementById('chip-file-video');
+  const chipFilePhoto = document.getElementById('chip-file-photo');
+  const chipFileAudio = document.getElementById('chip-file-audio');
+  const chipFileOther = document.getElementById('chip-file-other');
+  const chipStoredCountAll = document.getElementById('chip-stored-count-all');
+  const chipStoredCountVideo = document.getElementById('chip-stored-count-video');
+  const chipStoredCountPhoto = document.getElementById('chip-stored-count-photo');
+  const chipStoredCountAudio = document.getElementById('chip-stored-count-audio');
+  const chipStoredCountOther = document.getElementById('chip-stored-count-other');
+  const btnClearFileSearch = document.getElementById('btn-clear-file-search');
+
+  const checkSelectAllStored = document.getElementById('check-select-all-stored');
+  const storedSelectedCountLabel = document.getElementById('stored-selected-count-label');
+  const customSortDropdown = document.getElementById('custom-sort-dropdown');
+  const btnSortTrigger = document.getElementById('btn-sort-trigger');
+  const sortTriggerIcon = document.getElementById('sort-trigger-icon');
+  const sortTriggerText = document.getElementById('sort-trigger-text');
+  const sortMenuItems = document.querySelectorAll('.sort-menu-item');
+  const btnBatchDeleteStored = document.getElementById('btn-batch-delete-stored');
+  const btnBatchDeleteText = document.getElementById('btn-batch-delete-text');
+
+  // In-App Update Engine Elements
+  const updateModal = document.getElementById('update-modal');
+  const btnCloseUpdateModal = document.getElementById('btn-close-update-modal');
+  const btnLaterUpdate = document.getElementById('btn-later-update');
+  const btnDownloadUpdate = document.getElementById('btn-download-update');
+  const btnDownloadUpdateText = document.getElementById('btn-download-update-text');
+  const updateNewVersionBadge = document.getElementById('update-new-version-badge');
+  const updateCurrVersionBadge = document.getElementById('update-curr-version-badge');
+  const updateChangelogText = document.getElementById('update-changelog-text');
+  const updatePermissionBox = document.getElementById('update-permission-box');
+  const btnOpenInstallPerm = document.getElementById('btn-open-install-perm');
+  const updateProgressContainer = document.getElementById('update-progress-container');
+  const updateProgressFill = document.getElementById('update-progress-fill');
+  const updateProgressStatus = document.getElementById('update-progress-status');
+  const updateProgressPct = document.getElementById('update-progress-pct');
+  const btnCheckUpdateSettings = document.getElementById('btn-check-update-settings');
+  const settingsUpdateStatusText = document.getElementById('settings-update-status-text');
+  const settingsCurrentVerBadge = document.getElementById('settings-current-ver-badge');
+  const updateBannerContainer = document.getElementById('update-banner-container');
+
   // Initialize Theme and Internationalization
   if (window.ThemeManager) {
     ThemeManager.init();
@@ -118,10 +170,10 @@ document.addEventListener('DOMContentLoaded', () => {
   }
 
   // Load Saved Settings into Form
-  settingDownloadDir.value = state.downloadDir;
-  settingWorkers.value = state.concurrentMax;
-  valWorkers.textContent = state.concurrentMax;
-  settingToken.value = localStorage.getItem('gf_token') || '';
+  if (settingDownloadDir) settingDownloadDir.value = state.downloadDir;
+  if (settingWorkers) settingWorkers.value = state.concurrentMax;
+  if (valWorkers) valWorkers.textContent = state.concurrentMax;
+  if (settingToken) settingToken.value = localStorage.getItem('gf_token') || '';
   if (settingNotifMode) {
     settingNotifMode.value = state.notificationMode;
   }
@@ -340,9 +392,9 @@ document.addEventListener('DOMContentLoaded', () => {
     document.getElementById('nav-settings-tab').click();
   });
 
-  if (headerDownloadIndicator) {
-    headerDownloadIndicator.style.cursor = 'pointer';
-    headerDownloadIndicator.addEventListener('click', () => {
+  if (activeDownloadStrip) {
+    activeDownloadStrip.style.cursor = 'pointer';
+    activeDownloadStrip.addEventListener('click', () => {
       showDownloadsTab('queue');
     });
   }
@@ -771,6 +823,15 @@ document.addEventListener('DOMContentLoaded', () => {
       const isAud = isAudioFile(file);
       const typeBadge = isVid ? '🎬 [VIDEO]' : (isImg ? '🖼️ [FOTO]' : (isAud ? '🎵 [AUDIO]' : ''));
 
+      const isAlreadyStored = state.storedFiles && state.storedFiles.some(sf => {
+        if (sf.name !== file.name) return false;
+        if (file.size && sf.size) return sf.size === file.size;
+        return true;
+      });
+      const storedBadge = isAlreadyStored
+        ? `<span style="font-size:0.68rem; padding:2px 6px; border-radius:4px; background:rgba(16,185,129,0.15); color:#10b981; font-weight:600; margin-left:6px;" title="File sudah ada di penyimpanan lokal">✓ Sudah Diunduh</span>`
+        : '';
+
       const itemEl = document.createElement('div');
       itemEl.className = 'tree-item';
       itemEl.dataset.fileId = file.id;
@@ -785,6 +846,7 @@ document.addEventListener('DOMContentLoaded', () => {
         <div class="tree-item-name" title="${escapeHtml(file.name)}">
           ${escapeHtml(file.name)}
           ${typeBadge ? `<span style="font-size:0.7rem; font-weight:600; color:var(--cyan-400); margin-left:6px;">${typeBadge}</span>` : ''}
+          ${storedBadge}
           ${(file.relDir || file.rel_dir) ? `<span style="font-size:0.75rem; color:var(--text-muted); display:block;">/${escapeHtml(file.relDir || file.rel_dir)}</span>` : ''}
         </div>
         <div class="tree-item-size">${formatBytes(file.size)}</div>
@@ -976,7 +1038,7 @@ document.addEventListener('DOMContentLoaded', () => {
     }
 
     const selectedFiles = state.inspectedData.files.filter(f => state.selectedItemIds.has(f.id));
-    enqueueFiles(selectedFiles);
+    enqueueFiles(selectedFiles, true);
     closeModal();
     showToast(`Berhasil menambahkan ${selectedFiles.length} file ke antrean!`, 'success');
     showDownloadsTab('queue');
@@ -1029,25 +1091,46 @@ document.addEventListener('DOMContentLoaded', () => {
   // ----------------------------------------------------
   // Queue & Download Management
   // ----------------------------------------------------
-  function enqueueFiles(files) {
+  function enqueueFiles(files, allowAlreadyStored = false) {
     let skippedExisting = 0;
+    let skippedStored = 0;
     const toEnqueue = [];
 
     files.forEach(file => {
-      // Prevent duplicate only if file is currently active or queued
+      // 1. Prevent duplicate if already in active queue
       if (state.queue.some(q => q.id === file.id && (q.status === 'downloading' || q.status === 'queued'))) {
         skippedExisting++;
         return;
+      }
+
+      // 2. Anti-duplikat: periksa apakah file sudah tersimpan di memori/disk
+      if (!allowAlreadyStored) {
+        const alreadyStored = state.storedFiles && state.storedFiles.some(sf => {
+          if (sf.name !== file.name) return false;
+          if (file.size && sf.size) return sf.size === file.size;
+          return true;
+        });
+
+        if (alreadyStored) {
+          skippedStored++;
+          return;
+        }
       }
 
       toEnqueue.push(file);
     });
 
     if (toEnqueue.length === 0) {
-      if (skippedExisting > 0) {
+      if (skippedStored > 0) {
+        showToast(`Semua (${skippedStored}) file sudah pernah diunduh (fitur anti-duplikat aktif).`, 'info', 3500);
+      } else if (skippedExisting > 0) {
         showToast('File yang dipilih sudah berada di antrean aktif.', 'info', 2500);
       }
       return;
+    }
+
+    if (skippedStored > 0) {
+      showToast(`${skippedStored} file di-skip karena sudah tersimpan di penyimpanan (anti-duplikat).`, 'info', 3500);
     }
 
     state.sessionBatchTotal += toEnqueue.length;
@@ -1600,11 +1683,7 @@ document.addEventListener('DOMContentLoaded', () => {
   const openTrakteer = (e) => {
     if (e) e.preventDefault();
     const trakteerUrl = 'https://trakteer.id/roy1304';
-    if (window.Capacitor && window.Capacitor.isNativePlatform()) {
-      window.open(trakteerUrl, '_system');
-    } else {
-      window.open(trakteerUrl, '_blank', 'noopener,noreferrer');
-    }
+    ApiBridge.openUrl(trakteerUrl);
   };
 
   if (btnHeaderTrakteer) {
@@ -1639,37 +1718,6 @@ document.addEventListener('DOMContentLoaded', () => {
   // ----------------------------------------------------
   // Kelola File (Storage Manager, Advanced Filters & Batch Deletion)
   // ----------------------------------------------------
-  const filesListContainer = document.getElementById('files-list-container');
-  const filesEmptyState = document.getElementById('files-empty-state');
-  const btnRefreshFiles = document.getElementById('btn-refresh-files');
-  const btnOpenFolderFiles = document.getElementById('btn-open-folder-files');
-  const searchFilesInput = document.getElementById('search-files-input');
-  const storageTotalFilesEl = document.getElementById('storage-total-files');
-  const storageTotalSizeEl = document.getElementById('storage-total-size');
-  const storedFilesCountEl = document.getElementById('stored-files-count');
-
-  const chipFileAll = document.getElementById('chip-file-all');
-  const chipFileVideo = document.getElementById('chip-file-video');
-  const chipFilePhoto = document.getElementById('chip-file-photo');
-  const chipFileAudio = document.getElementById('chip-file-audio');
-  const chipFileOther = document.getElementById('chip-file-other');
-  const chipStoredCountAll = document.getElementById('chip-stored-count-all');
-  const chipStoredCountVideo = document.getElementById('chip-stored-count-video');
-  const chipStoredCountPhoto = document.getElementById('chip-stored-count-photo');
-  const chipStoredCountAudio = document.getElementById('chip-stored-count-audio');
-  const chipStoredCountOther = document.getElementById('chip-stored-count-other');
-  const btnClearFileSearch = document.getElementById('btn-clear-file-search');
-
-  const checkSelectAllStored = document.getElementById('check-select-all-stored');
-  const storedSelectedCountLabel = document.getElementById('stored-selected-count-label');
-  const customSortDropdown = document.getElementById('custom-sort-dropdown');
-  const btnSortTrigger = document.getElementById('btn-sort-trigger');
-  const sortTriggerIcon = document.getElementById('sort-trigger-icon');
-  const sortTriggerText = document.getElementById('sort-trigger-text');
-  const sortMenuItems = document.querySelectorAll('.sort-menu-item');
-  const btnBatchDeleteStored = document.getElementById('btn-batch-delete-stored');
-  const btnBatchDeleteText = document.getElementById('btn-batch-delete-text');
-
   async function loadStoredFiles() {
     try {
       const nativeFiles = await ApiBridge.listDownloadedFiles(state.downloadDir);
@@ -2165,25 +2213,6 @@ document.addEventListener('DOMContentLoaded', () => {
   // ----------------------------------------------------
   // In-App Update Engine Controller
   // ----------------------------------------------------
-  const updateModal = document.getElementById('update-modal');
-  const btnCloseUpdateModal = document.getElementById('btn-close-update-modal');
-  const btnLaterUpdate = document.getElementById('btn-later-update');
-  const btnDownloadUpdate = document.getElementById('btn-download-update');
-  const btnDownloadUpdateText = document.getElementById('btn-download-update-text');
-  const updateNewVersionBadge = document.getElementById('update-new-version-badge');
-  const updateCurrVersionBadge = document.getElementById('update-curr-version-badge');
-  const updateChangelogText = document.getElementById('update-changelog-text');
-  const updatePermissionBox = document.getElementById('update-permission-box');
-  const btnOpenInstallPerm = document.getElementById('btn-open-install-perm');
-  const updateProgressContainer = document.getElementById('update-progress-container');
-  const updateProgressFill = document.getElementById('update-progress-fill');
-  const updateProgressStatus = document.getElementById('update-progress-status');
-  const updateProgressPct = document.getElementById('update-progress-pct');
-  const btnCheckUpdateSettings = document.getElementById('btn-check-update-settings');
-  const settingsUpdateStatusText = document.getElementById('settings-update-status-text');
-  const settingsCurrentVerBadge = document.getElementById('settings-current-ver-badge');
-  const updateBannerContainer = document.getElementById('update-banner-container');
-
   let activeUpdateInfo = null;
 
   if (settingsCurrentVerBadge) {
