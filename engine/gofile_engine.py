@@ -20,6 +20,7 @@ from hashlib import sha256
 from time import perf_counter, time, sleep
 from pathlib import Path
 from urllib.parse import urlparse, ParseResult
+import mimetypes
 
 # Optional curl_cffi for Chrome TLS fingerprint impersonation (bypasses GoFile edge connection resets)
 try:
@@ -288,6 +289,13 @@ class GoFileEngine:
                 filename = data.get("name", f"file_{cid}")
                 file_size = data.get("size", 0)
                 total_size += file_size
+                raw_mime = data.get("mimetype") or data.get("mimeType")
+                if not raw_mime or raw_mime == "application/octet-stream":
+                    guessed, _ = mimetypes.guess_type(filename)
+                    effective_mime = guessed or "application/octet-stream"
+                else:
+                    effective_mime = raw_mime
+
                 items.append({
                     "id": data.get("id", cid),
                     "name": filename,
@@ -295,7 +303,7 @@ class GoFileEngine:
                     "relDir": parent_dir_rel,
                     "size": file_size,
                     "link": data.get("link"),
-                    "mimetype": data.get("mimetype", "application/octet-stream"),
+                    "mimetype": effective_mime,
                     "md5": data.get("md5", "")
                 })
                 return
@@ -316,6 +324,14 @@ class GoFileEngine:
                     filename = child.get("name", "file")
                     file_size = child.get("size", 0)
                     total_size += file_size
+
+                    raw_child_mime = child.get("mimetype") or child.get("mimeType")
+                    if not raw_child_mime or raw_child_mime == "application/octet-stream":
+                        guessed, _ = mimetypes.guess_type(filename)
+                        effective_child_mime = guessed or "application/octet-stream"
+                    else:
+                        effective_child_mime = raw_child_mime
+
                     items.append({
                         "id": child.get("id"),
                         "name": filename,
@@ -323,7 +339,7 @@ class GoFileEngine:
                         "relDir": current_rel,
                         "size": file_size,
                         "link": child.get("link"),
-                        "mimetype": child.get("mimetype", "application/octet-stream"),
+                        "mimetype": effective_child_mime,
                         "md5": child.get("md5", "")
                     })
 
@@ -380,59 +396,70 @@ class GoFileEngine:
             for _ in range(3):
                 if self._stop_event.is_set() or failed:
                     return False
+                s = None
                 try:
                     s_headers = dict(base_headers)
                     current_start = seg_start + seg_written
                     s_headers["Range"] = f"bytes={current_start}-{seg_end}"
 
-                    with requests.Session() as s:
-                        if self.proxy:
-                            s.proxies = {"http": self.proxy, "https": self.proxy}
-                        r = s.get(url, headers=s_headers, stream=True, timeout=self.timeout)
-                        if r.status_code not in (200, 206):
-                            sleep(0.5)
-                            continue
+                    if _HAS_CFFI and cffi_requests is not None:
+                        s = cffi_requests.Session(impersonate="chrome")
+                    else:
+                        s = requests.Session()
+                    if self.proxy:
+                        s.proxies = {"http": self.proxy, "https": self.proxy}
 
-                        with open(part_path, "r+b") as out_f:
-                            for chunk in r.iter_content(chunk_size=262144):
-                                if self._stop_event.is_set() or failed:
-                                    return False
-                                if not chunk:
-                                    continue
-                                c_len = len(chunk)
-                                if seg_written + c_len > expected:
-                                    c_len = expected - seg_written
-                                    chunk = chunk[:c_len]
+                    r = s.get(url, headers=s_headers, stream=True, timeout=self.timeout)
+                    if r.status_code != 206 and r.status_code != 200:
+                        sleep(0.5)
+                        continue
 
-                                with file_lock:
-                                    out_f.seek(seg_start + seg_written)
-                                    out_f.write(chunk)
-                                    downloaded_bytes += c_len
-                                    now = perf_counter()
-                                    if now - last_notify_time[0] >= 0.2:
-                                        last_notify_time[0] = now
-                                        elapsed = now - start_time
-                                        speed = downloaded_bytes / elapsed if elapsed > 0 else 0
-                                        pct = (downloaded_bytes / total_size * 100) if total_size > 0 else 0
-                                        if on_progress:
-                                            on_progress({
-                                                "id": item["id"],
-                                                "filename": raw_filename,
-                                                "status": "downloading",
-                                                "progress": round(pct, 1),
-                                                "downloaded": downloaded_bytes,
-                                                "total": total_size,
-                                                "speed": speed,
-                                            })
+                    with open(part_path, "r+b") as out_f:
+                        for chunk in r.iter_content(chunk_size=262144):
+                            if self._stop_event.is_set() or failed:
+                                return False
+                            if not chunk:
+                                continue
+                            c_len = len(chunk)
+                            if seg_written + c_len > expected:
+                                c_len = expected - seg_written
+                                chunk = chunk[:c_len]
 
-                                seg_written += c_len
-                                if seg_written >= expected:
-                                    break
+                            with file_lock:
+                                out_f.seek(seg_start + seg_written)
+                                out_f.write(chunk)
+                                downloaded_bytes += c_len
+                                now = perf_counter()
+                                if now - last_notify_time[0] >= 0.2:
+                                    last_notify_time[0] = now
+                                    elapsed = now - start_time
+                                    speed = downloaded_bytes / elapsed if elapsed > 0 else 0
+                                    pct = (downloaded_bytes / total_size * 100) if total_size > 0 else 0
+                                    if on_progress:
+                                        on_progress({
+                                            "id": item["id"],
+                                            "filename": raw_filename,
+                                            "status": "downloading",
+                                            "progress": round(pct, 1),
+                                            "downloaded": downloaded_bytes,
+                                            "total": total_size,
+                                            "speed": speed,
+                                        })
+
+                            seg_written += c_len
+                            if seg_written >= expected:
+                                break
 
                     if seg_written >= expected:
                         return True
                 except Exception:
                     sleep(0.5)
+                finally:
+                    if s:
+                        try:
+                            s.close()
+                        except Exception:
+                            pass
 
             if seg_written < expected:
                 failed = True

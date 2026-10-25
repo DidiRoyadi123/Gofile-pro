@@ -7,8 +7,8 @@ echo [1/3] Syncing UI assets to Capacitor Android project...
 call npx cap copy android
 
 echo [2/3] Compiling Debug APK via Gradle...
+set ANDROID_SDK_ROOT=
 set ANDROID_HOME=C:\Users\Pongo\AppData\Local\Android\Sdk
-set ANDROID_SDK_ROOT=C:\Users\Pongo\AppData\Local\Android\Sdk
 
 cd android
 call gradlew.bat assembleDebug

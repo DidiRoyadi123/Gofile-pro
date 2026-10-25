@@ -627,8 +627,8 @@ document.addEventListener('DOMContentLoaded', () => {
   // ----------------------------------------------------
   const VIDEO_EXTS = new Set([
     'mp4', 'mkv', 'webm', 'avi', 'mov', 'flv', 'wmv', 'm4v', '3gp', '3g2',
-    'ts', 'mts', 'm2ts', 'mpg', 'mpeg', 'vob', 'ogv', 'f4v', 'rm', 'rmvb',
-    'asf', 'divx', 'h264', 'h265', 'hevc'
+    'ts', 'mts', 'm2ts', 'm2t', 'mpg', 'mpeg', 'vob', 'ogv', 'f4v', 'rm', 'rmvb',
+    'asf', 'divx', 'h264', 'h265', 'hevc', 'x264', 'x265', 'av1', 'vp9', 'iso'
   ]);
   const PHOTO_EXTS = new Set([
     'jpg', 'jpeg', 'png', 'webp', 'gif', 'bmp', 'svg', 'heic', 'heif',
@@ -643,6 +643,9 @@ document.addEventListener('DOMContentLoaded', () => {
 
   function getFileExt(filename) {
     if (!filename || typeof filename !== 'string') return '';
+    try {
+      filename = decodeURIComponent(filename);
+    } catch (e) {}
     const clean = filename.split('?')[0].split('#')[0].trim();
     const lastDot = clean.lastIndexOf('.');
     return lastDot > 0 ? clean.substring(lastDot + 1).toLowerCase() : '';
@@ -658,14 +661,14 @@ document.addEventListener('DOMContentLoaded', () => {
       name = fileOrName;
     } else if (typeof fileOrName === 'object') {
       name = fileOrName.name || fileOrName.filename || '';
-      mime = (fileOrName.mimetype || fileOrName.mime_type || '').toLowerCase();
+      mime = (fileOrName.mimetype || fileOrName.mime_type || fileOrName.mimeType || fileOrName.contentType || '').toLowerCase();
       type = (fileOrName.type || '').toLowerCase();
     }
 
-    if (type === 'video' || mime.startsWith('video/')) return true;
+    if (type === 'video' || mime.startsWith('video/') || mime.includes('video')) return true;
     const ext = getFileExt(name);
     if (VIDEO_EXTS.has(ext)) return true;
-    if (mime.includes('matroska') || mime.includes('quicktime') || mime.includes('mp4') || mime.includes('webm')) return true;
+    if (mime.includes('matroska') || mime.includes('quicktime') || mime.includes('mp4') || mime.includes('webm') || mime.includes('mpegurl')) return true;
     return false;
   }
 
@@ -821,11 +824,15 @@ document.addEventListener('DOMContentLoaded', () => {
     modalSelectAll.checked = (count === total && total > 0);
 
     if (btnConfirmDownloadModal) {
+      const isIndo = !window.I18n || window.I18n.currentLang === 'id';
+      const label = count > 0
+        ? (isIndo ? `Unduh ${count} File (${formatBytes(selectedBytes)})` : `Download ${count} Files (${formatBytes(selectedBytes)})`)
+        : (isIndo ? 'Unduh Terpilih' : 'Download Selected');
       btnConfirmDownloadModal.innerHTML = `
-        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+        <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" style="flex-shrink:0;">
           <path d="M12 5v14M5 12l7 7 7-7"/>
         </svg>
-        Download ${count > 0 ? `${count} File (${formatBytes(selectedBytes)})` : 'Selected'}
+        <span style="overflow:hidden; text-overflow:ellipsis; white-space:nowrap;">${label}</span>
       `;
     }
   }
@@ -1027,29 +1034,8 @@ document.addEventListener('DOMContentLoaded', () => {
     const toEnqueue = [];
 
     files.forEach(file => {
-      // 1. Prevent duplicate in active queue
-      if (state.queue.some(q => q.id === file.id && q.status !== 'failed')) {
-        return;
-      }
-
-      // 2. Skip file if already completed / in history or present in local storage (Strengthened Anti-Duplicate)
-      const fileNameLower = (file.name || '').trim().toLowerCase();
-      const alreadyCompleted = state.history.some(h => {
-        if (h.id && file.id && h.id === file.id) return true;
-        const hNameLower = (h.name || '').trim().toLowerCase();
-        if (hNameLower && fileNameLower && hNameLower === fileNameLower) {
-          return h.size === file.size || file.size === 0 || h.size === 0 || Math.abs((h.size || 0) - (file.size || 0)) < 1024;
-        }
-        return false;
-      }) || (state.storedFiles && state.storedFiles.some(s => {
-        const sNameLower = (s.name || '').trim().toLowerCase();
-        if (sNameLower && fileNameLower && sNameLower === fileNameLower) {
-          return s.size === file.size || file.size === 0 || s.size === 0 || Math.abs((s.size || 0) - (file.size || 0)) < 1024;
-        }
-        return false;
-      }));
-
-      if (alreadyCompleted) {
+      // Prevent duplicate only if file is currently active or queued
+      if (state.queue.some(q => q.id === file.id && (q.status === 'downloading' || q.status === 'queued'))) {
         skippedExisting++;
         return;
       }
@@ -1057,13 +1043,9 @@ document.addEventListener('DOMContentLoaded', () => {
       toEnqueue.push(file);
     });
 
-    if (skippedExisting > 0) {
-      showToast(`${skippedExisting} file dilewati karena sudah pernah selesai diunduh.`, 'info', 4000);
-    }
-
     if (toEnqueue.length === 0) {
       if (skippedExisting > 0) {
-        showToast('Semua file dalam daftar sudah pernah diunduh sebelumnya!', 'success', 3500);
+        showToast('File yang dipilih sudah berada di antrean aktif.', 'info', 2500);
       }
       return;
     }
@@ -1646,10 +1628,8 @@ document.addEventListener('DOMContentLoaded', () => {
 
     if (customToken) {
       localStorage.setItem('gf_token', customToken);
-      document.getElementById('account-tier-text').textContent = 'Account VIP';
     } else {
       localStorage.removeItem('gf_token');
-      document.getElementById('account-tier-text').textContent = 'Guest Session';
     }
 
     const savedMsg = window.I18n ? I18n.t('toast.settings_saved') : 'Pengaturan berhasil disimpan';
@@ -2057,6 +2037,19 @@ document.addEventListener('DOMContentLoaded', () => {
   // ----------------------------------------------------
   let isKeyboardOpen = false;
 
+  function isTextInputElement(el) {
+    if (!el) return false;
+    if (el.tagName === 'TEXTAREA') return true;
+    if (el.tagName === 'INPUT') {
+      const type = (el.type || 'text').toLowerCase();
+      return !['checkbox', 'radio', 'button', 'submit', 'file', 'range', 'color', 'image', 'reset'].includes(type);
+    }
+    return el.isContentEditable === true;
+  }
+
+  let maxVvHeight = window.visualViewport ? window.visualViewport.height : window.innerHeight;
+  let maxWinHeight = window.innerHeight;
+
   function setKeyboardState(open) {
     if (isKeyboardOpen === open) return;
     isKeyboardOpen = open;
@@ -2069,108 +2062,66 @@ document.addEventListener('DOMContentLoaded', () => {
 
   // Native Android Keyboard Event Callback (called directly from MainActivity)
   window.onNativeKeyboardVisible = function(isOpen) {
-    setKeyboardState(isOpen);
     if (!isOpen) {
-      const active = document.activeElement;
-      if (active && (
-        (active.tagName === 'INPUT' && !['checkbox', 'radio', 'button', 'submit'].includes(active.type)) ||
-        active.tagName === 'TEXTAREA'
-      )) {
-        active.blur();
+      if (isTextInputElement(document.activeElement)) {
+        document.activeElement.blur();
       }
+      setKeyboardState(false);
+    } else {
+      setKeyboardState(true);
     }
   };
 
   // 1. Instant focus/blur detection for text inputs & textareas
   document.addEventListener('focusin', (e) => {
-    const el = e.target;
-    if (!el) return;
-    const isTextInput = (el.tagName === 'INPUT' && !['checkbox', 'radio', 'button', 'submit', 'file', 'range'].includes(el.type)) ||
-                        el.tagName === 'TEXTAREA';
-    if (isTextInput) {
+    if (isTextInputElement(e.target)) {
       setKeyboardState(true);
     }
   });
 
   document.addEventListener('focusout', () => {
     setTimeout(() => {
-      const active = document.activeElement;
-      const isStillTextInput = active && (
-        (active.tagName === 'INPUT' && !['checkbox', 'radio', 'button', 'submit', 'file', 'range'].includes(active.type)) ||
-        active.tagName === 'TEXTAREA'
-      );
-      if (!isStillTextInput) {
+      const isStillShrunk = window.visualViewport 
+        ? (maxVvHeight - window.visualViewport.height) > 100
+        : (maxWinHeight - window.innerHeight) > 100;
+      if (!isStillShrunk && !isTextInputElement(document.activeElement)) {
         setKeyboardState(false);
       }
-    }, 60);
+    }, 120);
   });
 
-  // Tapping anywhere outside the active input or touching outside blurs input and restores navbar immediately
-  const handleOutsideDismiss = (e) => {
-    const active = document.activeElement;
-    if (active && (
-      (active.tagName === 'INPUT' && !['checkbox', 'radio', 'button', 'submit'].includes(active.type)) ||
-      active.tagName === 'TEXTAREA'
-    )) {
-      if (e.target !== active && !active.contains(e.target)) {
-        active.blur();
-        setKeyboardState(false);
-      }
-    }
-  };
-
-  document.addEventListener('pointerdown', handleOutsideDismiss, { passive: true });
-  document.addEventListener('touchstart', handleOutsideDismiss, { passive: true });
-
-  // On page scroll, automatically dismiss keyboard and restore navbar
-  window.addEventListener('scroll', () => {
-    if (isKeyboardOpen) {
-      const active = document.activeElement;
-      if (active && (active.tagName === 'INPUT' || active.tagName === 'TEXTAREA')) {
-        active.blur();
-      }
-      setKeyboardState(false);
-    }
-  }, { passive: true });
-
-  // 2. Viewport height listener (accurately detects keyboard open / closed via system gesture or soft keyboard down button)
+  // 2. Viewport height listener (accurately detects keyboard closed via soft keyboard down button)
   if (window.visualViewport) {
-    let maxVvHeight = window.visualViewport.height;
-
     const checkViewport = () => {
       const currentHeight = window.visualViewport.height;
       if (currentHeight > maxVvHeight) {
         maxVvHeight = currentHeight;
       }
 
-      // If viewport shrank by > 100px, virtual keyboard is currently open
-      if ((maxVvHeight - currentHeight) > 100) {
+      // If viewport shrank significantly, virtual keyboard is currently open
+      if ((maxVvHeight - currentHeight) > 120) {
         setKeyboardState(true);
       } else if (currentHeight >= maxVvHeight - 40) {
-        // Viewport returned to normal size: KEYBOARD IS PHYSICALLY CLOSED!
-        setKeyboardState(false);
-        const active = document.activeElement;
-        if (active && (active.tagName === 'INPUT' || active.tagName === 'TEXTAREA')) {
-          active.blur();
+        // Viewport returned to normal full height: keyboard was physically dismissed!
+        if (isTextInputElement(document.activeElement)) {
+          document.activeElement.blur();
         }
+        setKeyboardState(false);
       }
     };
 
     window.visualViewport.addEventListener('resize', checkViewport);
-    window.visualViewport.addEventListener('scroll', checkViewport);
   } else {
-    let maxWinHeight = window.innerHeight;
     window.addEventListener('resize', () => {
       const currentHeight = window.innerHeight;
       if (currentHeight > maxWinHeight) maxWinHeight = currentHeight;
-      if ((maxWinHeight - currentHeight) > 100) {
+      if ((maxWinHeight - currentHeight) > 120) {
         setKeyboardState(true);
       } else if (currentHeight >= maxWinHeight - 40) {
-        setKeyboardState(false);
-        const active = document.activeElement;
-        if (active && (active.tagName === 'INPUT' || active.tagName === 'TEXTAREA')) {
-          active.blur();
+        if (isTextInputElement(document.activeElement)) {
+          document.activeElement.blur();
         }
+        setKeyboardState(false);
       }
     });
   }
@@ -2180,10 +2131,7 @@ document.addEventListener('DOMContentLoaded', () => {
   // ----------------------------------------------------
   window.handleHardwareBack = function() {
     // If an input is focused when back is pressed, dismiss keyboard first
-    if (document.activeElement && (
-      (document.activeElement.tagName === 'INPUT' && !['checkbox', 'radio', 'button', 'submit'].includes(document.activeElement.type)) ||
-      document.activeElement.tagName === 'TEXTAREA'
-    )) {
+    if (document.activeElement && isTextInputElement(document.activeElement)) {
       document.activeElement.blur();
       setKeyboardState(false);
       return true;
@@ -2194,8 +2142,8 @@ document.addEventListener('DOMContentLoaded', () => {
       updateModal.classList.remove('open');
       return true;
     }
-    if (inspectionModal && inspectionModal.classList.contains('active')) {
-      btnCloseModal.click();
+    if (inspectionModal && (inspectionModal.classList.contains('active') || inspectionModal.classList.contains('open'))) {
+      closeModal();
       return true;
     }
     if (state.activeTab !== 'tab-home') {

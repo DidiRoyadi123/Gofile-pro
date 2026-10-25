@@ -76,6 +76,8 @@ const ThemeManager = {
     this.applyTheme(nextTheme);
     return nextTheme;
   }
+};
+
 window.ThemeManager = ThemeManager;
 
 try {

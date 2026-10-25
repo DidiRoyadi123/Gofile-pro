@@ -488,51 +488,64 @@ public class AndroidDownloaderPlugin extends Plugin {
                 long downloadedBytes = 0;
                 boolean multiConnectionSuccess = false;
 
-                // Simultaneous Connections (4 parallel segments) for files >= 6 MB supporting Range
-                if (supportsRange && totalBytes >= 6 * 1024 * 1024) {
-                    File stageFile = new File(ctx.getCacheDir(), "stage_" + taskId + ".tmp");
-                    try {
-                        multiConnectionSuccess = downloadSimultaneousSegments(
-                                currentUrl, isGofile, token, totalBytes, taskId, resolvedFilename, stageFile, ctx
-                        );
-                        if (multiConnectionSuccess && stageFile.exists() && stageFile.length() == totalBytes) {
-                            try (FileInputStream fis = new FileInputStream(stageFile)) {
-                                if (out instanceof FileOutputStream) {
-                                    java.nio.channels.FileChannel srcCh = fis.getChannel();
-                                    java.nio.channels.FileChannel dstCh = ((FileOutputStream) out).getChannel();
-                                    long pos = 0;
-                                    long remaining = srcCh.size();
-                                    while (pos < remaining) {
-                                        long transferred = srcCh.transferTo(pos, remaining - pos, dstCh);
-                                        if (transferred <= 0) break;
-                                        pos += transferred;
-                                    }
-                                } else {
+                // Simultaneous Connections (4-6 parallel Range segments) for files >= 10 MB supporting Range
+                if (supportsRange && totalBytes >= 10L * 1024 * 1024) {
+                    File cacheDir = ctx.getExternalCacheDir() != null ? ctx.getExternalCacheDir() : ctx.getCacheDir();
+                    if (cacheDir != null && cacheDir.getUsableSpace() > (totalBytes + 150L * 1024 * 1024)) {
+                        File stageFile = new File(cacheDir, "stage_" + taskId + ".tmp");
+                        try {
+                            try { conn.disconnect(); } catch (Exception ignored) {}
+
+                            multiConnectionSuccess = downloadSimultaneousSegments(
+                                    currentUrl, isGofile, token, totalBytes, taskId, resolvedFilename, stageFile, ctx
+                            );
+                            if (multiConnectionSuccess && stageFile.exists() && stageFile.length() == totalBytes) {
+                                try (FileInputStream fis = new FileInputStream(stageFile)) {
                                     byte[] copyBuf = new byte[262144];
                                     int n;
                                     while ((n = fis.read(copyBuf)) != -1) {
                                         out.write(copyBuf, 0, n);
                                     }
+                                    out.flush();
                                 }
-                                out.flush();
+                                downloadedBytes = totalBytes;
+                            } else {
+                                multiConnectionSuccess = false;
                             }
-                            downloadedBytes = totalBytes;
-                        } else {
+                        } catch (Exception mEx) {
                             multiConnectionSuccess = false;
-                        }
-                    } catch (Exception mEx) {
-                        multiConnectionSuccess = false;
-                    } finally {
-                        if (stageFile.exists()) {
-                            stageFile.delete();
+                        } finally {
+                            if (stageFile.exists()) {
+                                stageFile.delete();
+                            }
                         }
                     }
                 }
 
-                // Fallback to Single Buffered Stream if multi-connection not applicable or skipped
+                // Resilient Single Stream (Fresh Connection) if multi-connection not applicable or skipped
                 if (!multiConnectionSuccess) {
-                    in = conn.getInputStream();
-                    byte[] buffer = new byte[131072]; // 128 KB buffer for optimal throughput
+                    URL fbUrl = new URL(currentUrl);
+                    HttpURLConnection fbConn = (HttpURLConnection) fbUrl.openConnection();
+                    fbConn.setInstanceFollowRedirects(false);
+                    fbConn.setRequestProperty("User-Agent", APP_USER_AGENT);
+                    fbConn.setRequestProperty("Accept", "*/*");
+                    fbConn.setRequestProperty("Accept-Encoding", "identity");
+
+                    if (isGofile) {
+                        fbConn.setRequestProperty("Referer", "https://gofile.io/");
+                        fbConn.setRequestProperty("Origin", "https://gofile.io");
+                        if (token != null && !token.trim().isEmpty()) {
+                            fbConn.setRequestProperty("Cookie", "accountToken=" + token);
+                        }
+                    }
+
+                    fbConn.setConnectTimeout(25000);
+                    fbConn.setReadTimeout(35000);
+                    fbConn.connect();
+                    activeConnections.put(taskId, fbConn);
+
+                    in = fbConn.getInputStream();
+                    byte[] buffer = new byte[262144]; // 256 KB high-throughput buffer
                     int bytesRead;
                     downloadedBytes = 0;
                     long startTime = System.currentTimeMillis();
@@ -547,7 +560,7 @@ public class AndroidDownloaderPlugin extends Plugin {
                         downloadedBytes += bytesRead;
 
                         long now = System.currentTimeMillis();
-                        if (now - lastNotifyTime > 250) {
+                        if (now - lastNotifyTime > 200) {
                             double elapsedSec = Math.max(0.1, (now - startTime) / 1000.0);
                             double speed = downloadedBytes / elapsedSec;
                             double pct = (totalBytes > 0) ? ((double) downloadedBytes / totalBytes) * 100.0 : 0.0;
@@ -562,8 +575,6 @@ public class AndroidDownloaderPlugin extends Plugin {
                             prog.put("speed", speed);
 
                             notifyListeners("downloadProgress", prog);
-
-                            // Update Android status bar notification
                             DownloadService.update(ctx, resolvedFilename, (int) Math.round(pct), formatSpeed(speed));
                             lastNotifyTime = now;
                         }
@@ -863,19 +874,16 @@ public class AndroidDownloaderPlugin extends Plugin {
         });
     }
 
+
+
     private boolean downloadSimultaneousSegments(
             String fileUrl, boolean isGofile, String token, long totalBytes,
             String taskId, String resolvedFilename, File stageFile, Context ctx
     ) {
         if (totalBytes <= 0) return false;
-        
-        // Dynamic worker threads: 4 to 8 parallel simultaneous connections
-        int workers = 4;
-        if (totalBytes >= 200L * 1024 * 1024) {
-            workers = 8;
-        } else if (totalBytes >= 30L * 1024 * 1024) {
-            workers = 6;
-        }
+
+        // Dynamic worker count: 4 parallel connections for >= 10MB, 6 for >= 100MB
+        int workers = (totalBytes >= 100L * 1024 * 1024) ? 6 : 4;
         final int NUM_WORKERS = workers;
         final long segmentSize = (totalBytes + NUM_WORKERS - 1) / NUM_WORKERS;
 
@@ -901,11 +909,8 @@ public class AndroidDownloaderPlugin extends Plugin {
                 int retryCount = 0;
 
                 try {
-                    if (segStart > segEnd) {
-                        return;
-                    }
+                    if (segStart > segEnd) return;
 
-                    // Resilient worker loop with up to 3 automatic retries per segment
                     while (segWritten < expectedSegBytes && retryCount < 3 && !failed.get() && !Boolean.TRUE.equals(cancelFlags.get(taskId))) {
                         HttpURLConnection segConn = null;
                         InputStream segIn = null;
@@ -915,7 +920,7 @@ public class AndroidDownloaderPlugin extends Plugin {
                             long currentStart = segStart + segWritten;
                             URL u = new URL(fileUrl);
                             segConn = (HttpURLConnection) u.openConnection();
-                            segConn.setInstanceFollowRedirects(true);
+                            segConn.setInstanceFollowRedirects(false);
                             segConn.setRequestProperty("User-Agent", APP_USER_AGENT);
                             segConn.setRequestProperty("Accept", "*/*");
                             segConn.setRequestProperty("Range", "bytes=" + currentStart + "-" + segEnd);
@@ -933,7 +938,8 @@ public class AndroidDownloaderPlugin extends Plugin {
                             segConn.connect();
 
                             int code = segConn.getResponseCode();
-                            if (code != 206 && code != 200) {
+                            // Strict requirement: must return 206 Partial Content
+                            if (code != 206) {
                                 retryCount++;
                                 Thread.sleep(500);
                                 continue;
@@ -943,7 +949,7 @@ public class AndroidDownloaderPlugin extends Plugin {
                             segRaf = new RandomAccessFile(stageFile, "rw");
                             segRaf.seek(currentStart);
 
-                            byte[] segBuf = new byte[262144]; // 256 KB buffer for maximum throughput
+                            byte[] segBuf = new byte[262144];
                             int r;
 
                             while ((r = segIn.read(segBuf)) != -1) {
@@ -1559,7 +1565,7 @@ public class AndroidDownloaderPlugin extends Plugin {
 
             Intent installIntent = new Intent(Intent.ACTION_VIEW);
             installIntent.setDataAndType(contentUri, "application/vnd.android.package-archive");
-            installIntent.addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION | Intent.FLAG_GRANT_PERSISTABLE_URI_PERMISSION | Intent.FLAG_ACTIVITY_NEW_TASK);
+            installIntent.addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION | Intent.FLAG_ACTIVITY_NEW_TASK);
             ctx.startActivity(installIntent);
 
             JSObject ret = new JSObject();

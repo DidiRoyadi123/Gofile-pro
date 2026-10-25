@@ -42,7 +42,7 @@ public class MainActivity extends BridgeActivity {
             }
         });
 
-        // Virtual Keyboard Visibility Listener (Window Insets + Layout Observer)
+        // Virtual Keyboard Visibility Detection (Window Insets + Layout Observer)
         final View decorView = getWindow().getDecorView();
         final View contentView = decorView.findViewById(android.R.id.content);
         if (contentView != null) {

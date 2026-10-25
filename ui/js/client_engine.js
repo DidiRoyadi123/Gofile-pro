@@ -100,6 +100,24 @@ class GoFileClientEngine {
     return parts[parts.length - 1];
   }
 
+  guessMimeType(filename) {
+    if (!filename) return 'application/octet-stream';
+    const clean = filename.split('?')[0].split('#')[0].trim().toLowerCase();
+    const ext = clean.substring(clean.lastIndexOf('.') + 1);
+    const map = {
+      'mp4': 'video/mp4', 'm4v': 'video/mp4', 'mkv': 'video/x-matroska',
+      'webm': 'video/webm', 'avi': 'video/x-msvideo', 'mov': 'video/quicktime',
+      'flv': 'video/x-flv', 'wmv': 'video/x-ms-wmv', '3gp': 'video/3gpp',
+      'ts': 'video/mp2t', 'mts': 'video/mp2t', 'm2ts': 'video/mp2t',
+      'jpg': 'image/jpeg', 'jpeg': 'image/jpeg', 'png': 'image/png',
+      'webp': 'image/webp', 'gif': 'image/gif', 'svg': 'image/svg+xml',
+      'mp3': 'audio/mpeg', 'wav': 'audio/wav', 'flac': 'audio/flac', 'aac': 'audio/aac',
+      'zip': 'application/zip', 'rar': 'application/x-rar-compressed', '7z': 'application/x-7z-compressed',
+      'pdf': 'application/pdf'
+    };
+    return map[ext] || 'application/octet-stream';
+  }
+
   /**
    * Inspects a GoFile link and returns full content tree and files list
    */
@@ -167,13 +185,15 @@ class GoFileClientEngine {
       }
 
       if (data.type !== 'folder') {
+        const rawMime = data.mimetype || data.mimeType || '';
+        const effectiveMime = (rawMime && rawMime !== 'application/octet-stream') ? rawMime : this.guessMimeType(data.name || '');
         const fileObj = {
           id: data.id || cid,
           name: data.name || `file_${cid}`,
           relDir: parentDir,
           size: data.size || 0,
           link: data.link,
-          mimetype: data.mimetype || 'application/octet-stream',
+          mimetype: effectiveMime,
           md5: data.md5 || ''
         };
         totalSize += fileObj.size;
@@ -189,13 +209,15 @@ class GoFileClientEngine {
         if (child.type === 'folder') {
           await traverse(currentDir, child.id);
         } else {
+          const rawChildMime = child.mimetype || child.mimeType || '';
+          const effectiveChildMime = (rawChildMime && rawChildMime !== 'application/octet-stream') ? rawChildMime : this.guessMimeType(child.name || '');
           const fileObj = {
             id: child.id,
             name: child.name,
             relDir: currentDir,
             size: child.size || 0,
             link: child.link,
-            mimetype: child.mimetype || 'application/octet-stream',
+            mimetype: effectiveChildMime,
             md5: child.md5 || ''
           };
           totalSize += fileObj.size;
