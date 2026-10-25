@@ -2269,6 +2269,10 @@ body {
   border-radius: var(--radius-sm);
   transition: all var(--transition-fast);
   cursor: pointer;
+  box-sizing: border-box;
+  width: 100%;
+  max-width: 100%;
+  overflow: hidden;
 }
 
 .stored-file-card:hover {
@@ -2719,5 +2723,116 @@ body {
   background: rgba(15, 23, 42, 0.12);
   color: #0f172a;
 }
+
+/* Light Mode - File Manager & Storage Polish */
+[data-theme="light"] .storage-stat-card {
+  background: rgba(255, 255, 255, 0.95);
+  border-color: rgba(15, 23, 42, 0.08);
+  box-shadow: 0 2px 8px rgba(15, 23, 42, 0.04);
+}
+
+[data-theme="light"] .stat-num {
+  color: #0f172a;
+}
+
+[data-theme="light"] .search-input-wrapper input {
+  background: rgba(255, 255, 255, 0.95);
+  border-color: rgba(148, 163, 184, 0.35);
+  color: #0f172a;
+}
+
+[data-theme="light"] .search-input-wrapper input:focus {
+  border-color: var(--indigo-500);
+  background: #ffffff;
+}
+
+[data-theme="light"] .stored-selection-toolbar {
+  background: rgba(241, 245, 249, 0.92);
+  border-color: rgba(15, 23, 42, 0.08);
+  box-shadow: 0 1px 3px rgba(15, 23, 42, 0.04);
+}
+
+[data-theme="light"] .stored-selected-pill {
+  color: #0284c7;
+  background: rgba(2, 132, 199, 0.1);
+  border-color: rgba(2, 132, 199, 0.25);
+}
+
+[data-theme="light"] .stored-file-card {
+  background: rgba(255, 255, 255, 0.95);
+  border-color: rgba(15, 23, 42, 0.08);
+  box-shadow: 0 2px 6px rgba(15, 23, 42, 0.04);
+}
+
+[data-theme="light"] .stored-file-card:hover {
+  background: #ffffff;
+  border-color: rgba(99, 102, 241, 0.4);
+  box-shadow: 0 4px 14px rgba(99, 102, 241, 0.08);
+}
+
+[data-theme="light"] .stored-file-card.selected {
+  background: rgba(99, 102, 241, 0.08) !important;
+  border-color: var(--indigo-500) !important;
+  box-shadow: 0 0 12px rgba(99, 102, 241, 0.18);
+}
+
+[data-theme="light"] .stored-file-icon {
+  background: rgba(15, 23, 42, 0.04);
+  border-color: rgba(15, 23, 42, 0.08);
+}
+
+[data-theme="light"] .stored-file-icon.video {
+  background: rgba(2, 132, 199, 0.1);
+  border-color: rgba(2, 132, 199, 0.2);
+}
+
+[data-theme="light"] .stored-file-icon.photo {
+  background: rgba(16, 185, 129, 0.1);
+  border-color: rgba(16, 185, 129, 0.2);
+}
+
+[data-theme="light"] .stored-file-icon.audio {
+  background: rgba(168, 85, 247, 0.1);
+  border-color: rgba(168, 85, 247, 0.2);
+}
+
+[data-theme="light"] .stored-file-icon.archive {
+  background: rgba(245, 158, 11, 0.1);
+  border-color: rgba(245, 158, 11, 0.2);
+}
+
+[data-theme="light"] .stored-file-name {
+  color: #0f172a;
+}
+
+[data-theme="light"] .stored-file-meta {
+  color: #64748b;
+}
+
+[data-theme="light"] .stored-file-size-badge {
+  color: #059669;
+  background: rgba(16, 185, 129, 0.12);
+}
+
+[data-theme="light"] .integrity-strip {
+  background: rgba(16, 185, 129, 0.08);
+  border-color: rgba(16, 185, 129, 0.25);
+}
+
+[data-theme="light"] .integrity-desc {
+  color: #065f46;
+}
+
+[data-theme="light"] #files-load-more-bar button {
+  background: rgba(255, 255, 255, 0.95);
+  border-color: rgba(15, 23, 42, 0.12);
+  color: #0f172a;
+}
+
+[data-theme="light"] #files-load-more-bar button:hover {
+  background: #ffffff;
+  border-color: var(--indigo-500);
+}
+
 
 

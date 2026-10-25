@@ -592,6 +592,8 @@
               <span id="btn-batch-delete-text">Hapus (0)</span>
             </button>
           </div>
+        </div>
+
         <!-- Storage Permission Notice Banner (Android Recovery) -->
         <div class="storage-perm-banner" id="storage-permission-banner" style="display:none; margin-top:0.75rem; padding:0.85rem 1rem; border-radius:10px; background:rgba(99,102,241,0.12); border:1px solid rgba(99,102,241,0.3); align-items:center; justify-content:space-between; flex-wrap:wrap; gap:0.75rem;">
           <div style="display:flex; align-items:center; gap:0.6rem; max-width:70%;">
@@ -615,6 +617,14 @@
             <h4 data-i18n="files.empty_title">Belum ada file di folder penyimpanan</h4>
             <p data-i18n="files.empty_desc">File yang diunduh akan otomatis terdata di sini dan tersimpan di memori perangkat.</p>
           </div>
+        </div>
+
+        <!-- Files Pagination / Load More Bar -->
+        <div id="files-load-more-bar" style="display:none; text-align:center; margin: 0.85rem 0 0.5rem;">
+          <button type="button" class="btn btn-secondary btn-sm" id="btn-files-load-more" style="width:100%; max-width:320px; margin:0 auto; padding:0.6rem 1.2rem; font-weight:600; border-radius:var(--radius-sm); border: 1px solid var(--glass-border);">
+            Muat Lebih Banyak
+          </button>
+          <div id="files-pagination-status" style="font-size:0.75rem; color:var(--text-muted); margin-top:0.4rem;"></div>
         </div>
       </div>
 
@@ -808,7 +818,7 @@
 
         <div style="margin-top: 0.9rem; display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 0.75rem;">
           <div style="display: flex; align-items: center; gap: 0.6rem;">
-            <span class="badge" style="background:rgba(99,102,241,0.18); color:var(--indigo-400); border:1px solid rgba(99,102,241,0.3); font-weight:600;" id="settings-current-ver-badge">v2.2.4</span>
+            <span class="badge" style="background:rgba(99,102,241,0.18); color:var(--indigo-400); border:1px solid rgba(99,102,241,0.3); font-weight:600;" id="settings-current-ver-badge">v2.2.5</span>
             <span style="font-size: 0.85rem; color: var(--text-secondary);" id="settings-update-status-text">Aplikasi Anda sudah versi terbaru.</span>
           </div>
           <button type="button" class="btn btn-secondary btn-sm" id="btn-check-update-settings" style="display:inline-flex; align-items:center; gap:0.4rem;">
