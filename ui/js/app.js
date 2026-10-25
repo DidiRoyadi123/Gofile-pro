@@ -3,7 +3,7 @@
  */
 
 document.addEventListener('DOMContentLoaded', () => {
-  const CURRENT_VERSION = 'v2.2.2';
+  const CURRENT_VERSION = 'v2.2.3';
 
   // State Management
   const state = {
@@ -516,6 +516,9 @@ document.addEventListener('DOMContentLoaded', () => {
   // Inspect URL
   btnInspectUrl.addEventListener('click', async () => {
     if (btnInspectUrl.disabled) return;
+    singleUrlInput.blur();
+    singlePwInput.blur();
+    setKeyboardState(false);
     const url = singleUrlInput.value.trim();
     if (!url) {
       showToast('Masukkan link GoFile atau Content ID terlebih dahulu', 'error');
@@ -570,6 +573,9 @@ document.addEventListener('DOMContentLoaded', () => {
   // Quick Download All
   btnQuickDownload.addEventListener('click', async () => {
     if (btnQuickDownload.disabled) return;
+    singleUrlInput.blur();
+    singlePwInput.blur();
+    setKeyboardState(false);
     const url = singleUrlInput.value.trim();
     if (!url) {
       showToast('Masukkan link GoFile atau Content ID terlebih dahulu', 'error');
@@ -979,6 +985,8 @@ document.addEventListener('DOMContentLoaded', () => {
 
   btnStartBatch.addEventListener('click', async () => {
     if (btnStartBatch.disabled) return;
+    batchUrlsInput.blur();
+    setKeyboardState(false);
     const text = batchUrlsInput.value.trim();
     if (!text) {
       showToast('Please enter at least one link', 'error');
@@ -1175,13 +1183,15 @@ document.addEventListener('DOMContentLoaded', () => {
     if (activeTasksEl) activeTasksEl.textContent = `${state.activeWorkersCount} / ${state.concurrentMax}`;
 
     // Manage Retry All button
-    const failedCount = state.queue.filter(q => q.status === 'failed').length;
+    const failedCount = state.queue.filter(q => q.status === 'failed' || q.status === 'error').length;
     if (btnRetryAllQueue) {
+      if (retryFailedCountLabel) retryFailedCountLabel.textContent = failedCount;
       if (failedCount > 0) {
-        btnRetryAllQueue.style.display = 'inline-flex';
-        if (retryFailedCountLabel) retryFailedCountLabel.textContent = failedCount;
+        btnRetryAllQueue.classList.add('pulse-glow');
+        btnRetryAllQueue.style.opacity = '1';
       } else {
-        btnRetryAllQueue.style.display = 'none';
+        btnRetryAllQueue.classList.remove('pulse-glow');
+        btnRetryAllQueue.style.opacity = '0.7';
       }
     }
 
@@ -1480,7 +1490,7 @@ document.addEventListener('DOMContentLoaded', () => {
     debounceClick(btnRetryAllQueue, () => {
       let retried = 0;
       state.queue.forEach(q => {
-        if (q.status === 'failed') {
+        if (q.status === 'failed' || q.status === 'error' || q.status === 'paused') {
           q.status = 'queued';
           q.progress = 0;
           q.downloaded = 0;
@@ -1502,7 +1512,7 @@ document.addEventListener('DOMContentLoaded', () => {
       });
       updateQueueCounters();
       processQueue();
-      showToast(retried > 0 ? `Mencoba lagi ${retried} unduhan yang gagal...` : 'Tidak ada unduhan gagal', 'info', 2500);
+      showToast(retried > 0 ? `Mencoba lagi ${retried} unduhan...` : 'Tidak ada unduhan tertunda atau gagal', retried > 0 ? 'success' : 'info', 2500);
     });
   }
 
@@ -2057,6 +2067,20 @@ document.addEventListener('DOMContentLoaded', () => {
     }
   }
 
+  // Native Android Keyboard Event Callback (called directly from MainActivity)
+  window.onNativeKeyboardVisible = function(isOpen) {
+    setKeyboardState(isOpen);
+    if (!isOpen) {
+      const active = document.activeElement;
+      if (active && (
+        (active.tagName === 'INPUT' && !['checkbox', 'radio', 'button', 'submit'].includes(active.type)) ||
+        active.tagName === 'TEXTAREA'
+      )) {
+        active.blur();
+      }
+    }
+  };
+
   // 1. Instant focus/blur detection for text inputs & textareas
   document.addEventListener('focusin', (e) => {
     const el = e.target;
@@ -2081,19 +2105,33 @@ document.addEventListener('DOMContentLoaded', () => {
     }, 60);
   });
 
-  // Tapping anywhere outside the active input immediately blurs input and restores navbar
-  document.addEventListener('pointerdown', (e) => {
+  // Tapping anywhere outside the active input or touching outside blurs input and restores navbar immediately
+  const handleOutsideDismiss = (e) => {
     const active = document.activeElement;
     if (active && (
       (active.tagName === 'INPUT' && !['checkbox', 'radio', 'button', 'submit'].includes(active.type)) ||
       active.tagName === 'TEXTAREA'
     )) {
-      if (e.target !== active && !active.contains(e.target) && !e.target.closest('button')) {
+      if (e.target !== active && !active.contains(e.target)) {
         active.blur();
         setKeyboardState(false);
       }
     }
-  });
+  };
+
+  document.addEventListener('pointerdown', handleOutsideDismiss, { passive: true });
+  document.addEventListener('touchstart', handleOutsideDismiss, { passive: true });
+
+  // On page scroll, automatically dismiss keyboard and restore navbar
+  window.addEventListener('scroll', () => {
+    if (isKeyboardOpen) {
+      const active = document.activeElement;
+      if (active && (active.tagName === 'INPUT' || active.tagName === 'TEXTAREA')) {
+        active.blur();
+      }
+      setKeyboardState(false);
+    }
+  }, { passive: true });
 
   // 2. Viewport height listener (accurately detects keyboard open / closed via system gesture or soft keyboard down button)
   if (window.visualViewport) {
@@ -2105,12 +2143,16 @@ document.addEventListener('DOMContentLoaded', () => {
         maxVvHeight = currentHeight;
       }
 
-      // If viewport shrank by > 120px, virtual keyboard is currently open
-      if ((maxVvHeight - currentHeight) > 120) {
+      // If viewport shrank by > 100px, virtual keyboard is currently open
+      if ((maxVvHeight - currentHeight) > 100) {
         setKeyboardState(true);
-      } else if (currentHeight >= maxVvHeight - 60) {
+      } else if (currentHeight >= maxVvHeight - 40) {
         // Viewport returned to normal size: KEYBOARD IS PHYSICALLY CLOSED!
         setKeyboardState(false);
+        const active = document.activeElement;
+        if (active && (active.tagName === 'INPUT' || active.tagName === 'TEXTAREA')) {
+          active.blur();
+        }
       }
     };
 
@@ -2121,10 +2163,14 @@ document.addEventListener('DOMContentLoaded', () => {
     window.addEventListener('resize', () => {
       const currentHeight = window.innerHeight;
       if (currentHeight > maxWinHeight) maxWinHeight = currentHeight;
-      if ((maxWinHeight - currentHeight) > 120) {
+      if ((maxWinHeight - currentHeight) > 100) {
         setKeyboardState(true);
-      } else if (currentHeight >= maxWinHeight - 60) {
+      } else if (currentHeight >= maxWinHeight - 40) {
         setKeyboardState(false);
+        const active = document.activeElement;
+        if (active && (active.tagName === 'INPUT' || active.tagName === 'TEXTAREA')) {
+          active.blur();
+        }
       }
     });
   }

@@ -1,32 +1,15 @@
 <vector xmlns:android="http://schemas.android.com/apk/res/android"
-    xmlns:aapt="http://schemas.android.com/aapt"
     android:width="108dp"
     android:height="108dp"
     android:viewportWidth="108"
     android:viewportHeight="108">
 
-    <!-- Gradient squircle matching header brand-icon -->
-    <path
-        android:pathData="M 42,20 L 66,20 C 78,20 88,30 88,42 L 88,66 C 88,78 78,88 66,88 L 42,88 C 30,88 20,78 20,66 L 20,42 C 20,30 30,20 42,20 Z">
-        <aapt:attr name="android:fillColor">
-            <gradient
-                android:startX="20"
-                android:startY="20"
-                android:endX="88"
-                android:endY="88"
-                android:type="linear">
-                <item android:color="#22D3EE" android:offset="0.0"/>
-                <item android:color="#8B5CF6" android:offset="1.0"/>
-            </gradient>
-        </aapt:attr>
-    </path>
-
-    <!-- GoFile Download symbol centered inside the squircle -->
+    <!-- GoFile Download symbol centered in the adaptive safe zone -->
     <group
-        android:scaleX="1.85"
-        android:scaleY="1.85"
-        android:translateX="31.8"
-        android:translateY="31.8">
+        android:scaleX="2.2"
+        android:scaleY="2.2"
+        android:translateX="27.6"
+        android:translateY="27.6">
         <path
             android:fillColor="#FFFFFF"
             android:pathData="M12,2C6.48,2 2,6.48 2,12s4.48,10 10,10 10,-4.48 10,-10S17.52,2 12,2zm-1,14v-4H8l4,-4 4,4h-3v4h-2zm5,2H8v-1.5h8V18z" />

@@ -497,10 +497,22 @@ public class AndroidDownloaderPlugin extends Plugin {
                         );
                         if (multiConnectionSuccess && stageFile.exists() && stageFile.length() == totalBytes) {
                             try (FileInputStream fis = new FileInputStream(stageFile)) {
-                                byte[] copyBuf = new byte[131072];
-                                int n;
-                                while ((n = fis.read(copyBuf)) != -1) {
-                                    out.write(copyBuf, 0, n);
+                                if (out instanceof FileOutputStream) {
+                                    java.nio.channels.FileChannel srcCh = fis.getChannel();
+                                    java.nio.channels.FileChannel dstCh = ((FileOutputStream) out).getChannel();
+                                    long pos = 0;
+                                    long remaining = srcCh.size();
+                                    while (pos < remaining) {
+                                        long transferred = srcCh.transferTo(pos, remaining - pos, dstCh);
+                                        if (transferred <= 0) break;
+                                        pos += transferred;
+                                    }
+                                } else {
+                                    byte[] copyBuf = new byte[262144];
+                                    int n;
+                                    while ((n = fis.read(copyBuf)) != -1) {
+                                        out.write(copyBuf, 0, n);
+                                    }
                                 }
                                 out.flush();
                             }
@@ -856,7 +868,15 @@ public class AndroidDownloaderPlugin extends Plugin {
             String taskId, String resolvedFilename, File stageFile, Context ctx
     ) {
         if (totalBytes <= 0) return false;
-        final int NUM_WORKERS = 4;
+        
+        // Dynamic worker threads: 4 to 8 parallel simultaneous connections
+        int workers = 4;
+        if (totalBytes >= 200L * 1024 * 1024) {
+            workers = 8;
+        } else if (totalBytes >= 30L * 1024 * 1024) {
+            workers = 6;
+        }
+        final int NUM_WORKERS = workers;
         final long segmentSize = (totalBytes + NUM_WORKERS - 1) / NUM_WORKERS;
 
         try (RandomAccessFile rafInit = new RandomAccessFile(stageFile, "rw")) {
@@ -876,98 +896,107 @@ public class AndroidDownloaderPlugin extends Plugin {
             final long segEnd = Math.min((i + 1) * segmentSize - 1, totalBytes - 1);
 
             executor.submit(() -> {
-                HttpURLConnection segConn = null;
-                InputStream segIn = null;
-                RandomAccessFile segRaf = null;
+                long segWritten = 0;
+                long expectedSegBytes = (segEnd - segStart + 1);
+                int retryCount = 0;
 
                 try {
                     if (segStart > segEnd) {
-                        latch.countDown();
                         return;
                     }
 
-                    URL u = new URL(fileUrl);
-                    segConn = (HttpURLConnection) u.openConnection();
-                    segConn.setInstanceFollowRedirects(true);
-                    segConn.setRequestProperty("User-Agent", APP_USER_AGENT);
-                    segConn.setRequestProperty("Accept", "*/*");
-                    segConn.setRequestProperty("Range", "bytes=" + segStart + "-" + segEnd);
+                    // Resilient worker loop with up to 3 automatic retries per segment
+                    while (segWritten < expectedSegBytes && retryCount < 3 && !failed.get() && !Boolean.TRUE.equals(cancelFlags.get(taskId))) {
+                        HttpURLConnection segConn = null;
+                        InputStream segIn = null;
+                        RandomAccessFile segRaf = null;
 
-                    if (isGofile) {
-                        segConn.setRequestProperty("Referer", "https://gofile.io/");
-                        segConn.setRequestProperty("Origin", "https://gofile.io");
-                        if (token != null && !token.trim().isEmpty()) {
-                            segConn.setRequestProperty("Cookie", "accountToken=" + token);
+                        try {
+                            long currentStart = segStart + segWritten;
+                            URL u = new URL(fileUrl);
+                            segConn = (HttpURLConnection) u.openConnection();
+                            segConn.setInstanceFollowRedirects(true);
+                            segConn.setRequestProperty("User-Agent", APP_USER_AGENT);
+                            segConn.setRequestProperty("Accept", "*/*");
+                            segConn.setRequestProperty("Range", "bytes=" + currentStart + "-" + segEnd);
+
+                            if (isGofile) {
+                                segConn.setRequestProperty("Referer", "https://gofile.io/");
+                                segConn.setRequestProperty("Origin", "https://gofile.io");
+                                if (token != null && !token.trim().isEmpty()) {
+                                    segConn.setRequestProperty("Cookie", "accountToken=" + token);
+                                }
+                            }
+
+                            segConn.setConnectTimeout(20000);
+                            segConn.setReadTimeout(30000);
+                            segConn.connect();
+
+                            int code = segConn.getResponseCode();
+                            if (code != 206 && code != 200) {
+                                retryCount++;
+                                Thread.sleep(500);
+                                continue;
+                            }
+
+                            segIn = segConn.getInputStream();
+                            segRaf = new RandomAccessFile(stageFile, "rw");
+                            segRaf.seek(currentStart);
+
+                            byte[] segBuf = new byte[262144]; // 256 KB buffer for maximum throughput
+                            int r;
+
+                            while ((r = segIn.read(segBuf)) != -1) {
+                                if (Boolean.TRUE.equals(cancelFlags.get(taskId)) || failed.get()) {
+                                    failed.set(true);
+                                    return;
+                                }
+
+                                if (segWritten + r > expectedSegBytes) {
+                                    r = (int) (expectedSegBytes - segWritten);
+                                }
+                                if (r <= 0) break;
+
+                                segRaf.write(segBuf, 0, r);
+                                segWritten += r;
+                                long currentGlobal = totalDownloaded.addAndGet(r);
+
+                                long now = System.currentTimeMillis();
+                                if (now - lastNotifyTime.get() > 200) {
+                                    lastNotifyTime.set(now);
+                                    double elapsedSec = Math.max(0.1, (now - startTime) / 1000.0);
+                                    double speed = currentGlobal / elapsedSec;
+                                    double pct = Math.min(100.0, ((double) currentGlobal / totalBytes) * 100.0);
+
+                                    JSObject prog = new JSObject();
+                                    prog.put("id", taskId);
+                                    prog.put("filename", resolvedFilename);
+                                    prog.put("status", "downloading");
+                                    prog.put("progress", Math.round(pct * 10.0) / 10.0);
+                                    prog.put("downloaded", currentGlobal);
+                                    prog.put("total", totalBytes);
+                                    prog.put("speed", speed);
+
+                                    notifyListeners("downloadProgress", prog);
+                                    DownloadService.update(ctx, resolvedFilename, (int) Math.round(pct), formatSpeed(speed));
+                                }
+
+                                if (segWritten >= expectedSegBytes) break;
+                            }
+                        } catch (Exception ex) {
+                            retryCount++;
+                            try { Thread.sleep(500); } catch (Exception ignored) {}
+                        } finally {
+                            try { if (segRaf != null) segRaf.close(); } catch (Exception ignored) {}
+                            try { if (segIn != null) segIn.close(); } catch (Exception ignored) {}
+                            if (segConn != null) segConn.disconnect();
                         }
-                    }
-
-                    segConn.setConnectTimeout(20000);
-                    segConn.setReadTimeout(30000);
-                    segConn.connect();
-
-                    int code = segConn.getResponseCode();
-                    if (code != 206 && code != 200) {
-                        failed.set(true);
-                        return;
-                    }
-
-                    segIn = segConn.getInputStream();
-                    segRaf = new RandomAccessFile(stageFile, "rw");
-                    segRaf.seek(segStart);
-
-                    byte[] segBuf = new byte[65536];
-                    int r;
-                    long segWritten = 0;
-                    long expectedSegBytes = (segEnd - segStart + 1);
-
-                    while ((r = segIn.read(segBuf)) != -1) {
-                        if (Boolean.TRUE.equals(cancelFlags.get(taskId)) || failed.get()) {
-                            failed.set(true);
-                            return;
-                        }
-
-                        if (segWritten + r > expectedSegBytes) {
-                            r = (int) (expectedSegBytes - segWritten);
-                        }
-                        if (r <= 0) break;
-
-                        segRaf.write(segBuf, 0, r);
-                        segWritten += r;
-                        long currentGlobal = totalDownloaded.addAndGet(r);
-
-                        long now = System.currentTimeMillis();
-                        if (now - lastNotifyTime.get() > 250) {
-                            lastNotifyTime.set(now);
-                            double elapsedSec = Math.max(0.1, (now - startTime) / 1000.0);
-                            double speed = currentGlobal / elapsedSec;
-                            double pct = Math.min(100.0, ((double) currentGlobal / totalBytes) * 100.0);
-
-                            JSObject prog = new JSObject();
-                            prog.put("id", taskId);
-                            prog.put("filename", resolvedFilename);
-                            prog.put("status", "downloading");
-                            prog.put("progress", Math.round(pct * 10.0) / 10.0);
-                            prog.put("downloaded", currentGlobal);
-                            prog.put("total", totalBytes);
-                            prog.put("speed", speed);
-
-                            notifyListeners("downloadProgress", prog);
-                            DownloadService.update(ctx, resolvedFilename, (int) Math.round(pct), formatSpeed(speed));
-                        }
-
-                        if (segWritten >= expectedSegBytes) break;
                     }
 
                     if (segWritten < expectedSegBytes) {
                         failed.set(true);
                     }
-
-                } catch (Exception e) {
-                    failed.set(true);
                 } finally {
-                    try { if (segRaf != null) segRaf.close(); } catch (Exception ignored) {}
-                    try { if (segIn != null) segIn.close(); } catch (Exception ignored) {}
-                    if (segConn != null) segConn.disconnect();
                     latch.countDown();
                 }
             });

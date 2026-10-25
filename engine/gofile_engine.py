@@ -339,6 +339,114 @@ class GoFileEngine:
             "files": items
         }
 
+    def _download_simultaneous_file(
+        self,
+        url: str,
+        base_headers: Dict[str, str],
+        total_size: float,
+        part_path: Path,
+        item: Dict[str, Any],
+        raw_filename: str,
+        on_progress: Optional[Callable[[Dict[str, Any]], None]] = None,
+    ) -> bool:
+        """
+        Downloads a large file using multiple parallel HTTP Range connections (4 to 8 workers).
+        """
+        num_workers = 8 if total_size >= 200 * 1024 * 1024 else (6 if total_size >= 30 * 1024 * 1024 else 4)
+        chunk_segment_size = int((int(total_size) + num_workers - 1) // num_workers)
+
+        try:
+            with open(part_path, "wb") as f:
+                f.truncate(int(total_size))
+        except Exception:
+            return False
+
+        file_lock = Lock()
+        downloaded_bytes = 0
+        failed = False
+        start_time = perf_counter()
+        last_notify_time = [perf_counter()]
+
+        def worker_segment(seg_idx: int) -> bool:
+            nonlocal downloaded_bytes, failed
+            seg_start = seg_idx * chunk_segment_size
+            seg_end = min((seg_idx + 1) * chunk_segment_size - 1, int(total_size) - 1)
+            if seg_start > seg_end:
+                return True
+
+            seg_written = 0
+            expected = seg_end - seg_start + 1
+
+            for _ in range(3):
+                if self._stop_event.is_set() or failed:
+                    return False
+                try:
+                    s_headers = dict(base_headers)
+                    current_start = seg_start + seg_written
+                    s_headers["Range"] = f"bytes={current_start}-{seg_end}"
+
+                    with requests.Session() as s:
+                        if self.proxy:
+                            s.proxies = {"http": self.proxy, "https": self.proxy}
+                        r = s.get(url, headers=s_headers, stream=True, timeout=self.timeout)
+                        if r.status_code not in (200, 206):
+                            sleep(0.5)
+                            continue
+
+                        with open(part_path, "r+b") as out_f:
+                            for chunk in r.iter_content(chunk_size=262144):
+                                if self._stop_event.is_set() or failed:
+                                    return False
+                                if not chunk:
+                                    continue
+                                c_len = len(chunk)
+                                if seg_written + c_len > expected:
+                                    c_len = expected - seg_written
+                                    chunk = chunk[:c_len]
+
+                                with file_lock:
+                                    out_f.seek(seg_start + seg_written)
+                                    out_f.write(chunk)
+                                    downloaded_bytes += c_len
+                                    now = perf_counter()
+                                    if now - last_notify_time[0] >= 0.2:
+                                        last_notify_time[0] = now
+                                        elapsed = now - start_time
+                                        speed = downloaded_bytes / elapsed if elapsed > 0 else 0
+                                        pct = (downloaded_bytes / total_size * 100) if total_size > 0 else 0
+                                        if on_progress:
+                                            on_progress({
+                                                "id": item["id"],
+                                                "filename": raw_filename,
+                                                "status": "downloading",
+                                                "progress": round(pct, 1),
+                                                "downloaded": downloaded_bytes,
+                                                "total": total_size,
+                                                "speed": speed,
+                                            })
+
+                                seg_written += c_len
+                                if seg_written >= expected:
+                                    break
+
+                    if seg_written >= expected:
+                        return True
+                except Exception:
+                    sleep(0.5)
+
+            if seg_written < expected:
+                failed = True
+                return False
+            return True
+
+        with ThreadPoolExecutor(max_workers=num_workers) as executor:
+            futures = [executor.submit(worker_segment, i) for i in range(num_workers)]
+            for fut in futures:
+                if not fut.result():
+                    return False
+
+        return not failed and downloaded_bytes >= int(total_size)
+
     def download_file(
         self,
         item: Dict[str, Any],
@@ -478,6 +586,39 @@ class GoFileEngine:
 
             start_time = perf_counter()
             downloaded = part_size
+
+            # Simultaneous Connections for files >= 6 MB supporting HTTP Range
+            supports_range = (resp.headers.get("Accept-Ranges") == "bytes") or (resp.status_code == 206) or (content_range is not None)
+            if part_size == 0 and total_size >= 6 * 1024 * 1024 and supports_range:
+                try:
+                    resp.close()
+                except Exception:
+                    pass
+                simul_ok = self._download_simultaneous_file(
+                    url, headers, total_size, part_path, item, raw_filename, on_progress
+                )
+                if simul_ok and part_path.exists() and part_path.stat().st_size >= int(total_size):
+                    if final_path.exists():
+                        final_path.unlink()
+                    part_path.rename(final_path)
+                    if on_progress:
+                        on_progress({
+                            "id": item["id"],
+                            "filename": raw_filename,
+                            "status": "completed",
+                            "progress": 100.0,
+                            "downloaded": total_size,
+                            "total": total_size,
+                            "speed": 0,
+                        })
+                    return True
+                if part_path.exists():
+                    try:
+                        part_path.unlink()
+                    except Exception:
+                        pass
+                # Fallback to single stream if simultaneous download failed
+                resp = worker_session.get(url, headers=headers, stream=True, timeout=self.timeout)
 
             with open(part_path, "ab" if part_size > 0 else "wb") as f:
                 last_notify_time = perf_counter()
