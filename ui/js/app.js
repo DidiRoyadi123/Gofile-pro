@@ -1272,6 +1272,7 @@ document.addEventListener('DOMContentLoaded', () => {
     if (state.queue.length === 0 && queueEmptyState) {
       queueEmptyState.style.display = 'block';
     }
+    saveQueue();
   }
 
   async function processQueue() {
@@ -1401,6 +1402,23 @@ document.addEventListener('DOMContentLoaded', () => {
         status: 'completed'
       }));
       localStorage.setItem('gf_history', JSON.stringify(toSave));
+    } catch (e) {}
+  }
+
+  function saveQueue() {
+    try {
+      const toSave = state.queue.filter(q => q.status !== 'completed').map(q => ({
+        id: q.id,
+        name: q.name,
+        relDir: q.relDir || '',
+        size: q.size || 0,
+        link: q.link,
+        mimetype: q.mimetype || '',
+        status: (q.status === 'downloading' || q.status === 'queued') ? 'paused' : q.status,
+        progress: q.progress || 0,
+        downloaded: q.downloaded || 0
+      }));
+      localStorage.setItem('gf_queue', JSON.stringify(toSave));
     } catch (e) {}
   }
 
@@ -1631,6 +1649,7 @@ document.addEventListener('DOMContentLoaded', () => {
     });
     state.queue = [];
     state.activeWorkersCount = 0;
+    localStorage.removeItem('gf_queue');
     updateQueueCounters();
     updateGlobalMetrics();
     showToast('Queue cleared', 'info');
@@ -2139,6 +2158,42 @@ document.addEventListener('DOMContentLoaded', () => {
       }
     }
   } catch (e) {}
+
+  // Load Saved Queue from previous sessions (e.g. after app update / restart)
+  try {
+    const rawQueue = localStorage.getItem('gf_queue');
+    if (rawQueue) {
+      const parsedQ = JSON.parse(rawQueue);
+      if (Array.isArray(parsedQ) && parsedQ.length > 0) {
+        parsedQ.forEach(file => {
+          const queueItem = {
+            id: file.id,
+            name: file.name,
+            relDir: file.relDir || '',
+            size: file.size || 0,
+            link: file.link,
+            mimetype: file.mimetype || '',
+            status: 'paused',
+            progress: file.progress || 0,
+            downloaded: file.downloaded || 0,
+            speed: 0,
+            domElement: null
+          };
+          state.queue.push(queueItem);
+          renderQueueItem(queueItem);
+          const badge = document.getElementById(`badge-${queueItem.id}`);
+          if (badge) {
+            badge.className = 'status-badge queued';
+            badge.textContent = 'Paused';
+          }
+        });
+        updateQueueCounters();
+      }
+    }
+  } catch (e) {}
+
+  window.addEventListener('beforeunload', saveQueue);
+  document.addEventListener('pause', saveQueue);
 
   // Initial load of stored files
   loadStoredFiles();
