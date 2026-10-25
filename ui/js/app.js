@@ -3,7 +3,7 @@
  */
 
 document.addEventListener('DOMContentLoaded', () => {
-  const CURRENT_VERSION = 'v2.2.0';
+  const CURRENT_VERSION = 'v2.2.1';
 
   // State Management
   const state = {
@@ -18,7 +18,12 @@ document.addEventListener('DOMContentLoaded', () => {
     activeWorkersCount: 0,
     totalDownloadedBytes: 0,
     inspectedData: null,
-    selectedItemIds: new Set()
+    selectedItemIds: new Set(),
+    storedFiles: [],
+    storedFilesFilter: 'all',
+    storedFilesSort: 'recent',
+    storedFilesSearch: '',
+    selectedStoredFileNames: new Set()
   };
 
   // DOM Elements
@@ -57,9 +62,11 @@ document.addEventListener('DOMContentLoaded', () => {
   const btnClearQueue = document.getElementById('btn-clear-queue');
   const btnClearHistory = document.getElementById('btn-clear-history');
 
-  // Header Live Indicator
-  const headerDownloadIndicator = document.getElementById('header-download-indicator');
-  const headerDownloadText = document.getElementById('header-download-text');
+  // Active Download Notification Bar (Below Telemetry Strip)
+  const activeDownloadStrip = document.getElementById('active-download-strip');
+  const activeDownloadText = document.getElementById('active-download-text');
+  const activeDownloadFill = document.getElementById('active-download-fill');
+  const activeDownloadPctBadge = document.getElementById('active-download-pct-badge');
 
   // Settings Elements
   const settingLang = document.getElementById('setting-lang');
@@ -91,10 +98,12 @@ document.addEventListener('DOMContentLoaded', () => {
   const btnChipAll = document.getElementById('btn-chip-all');
   const btnChipVideo = document.getElementById('btn-chip-video');
   const btnChipPhoto = document.getElementById('btn-chip-photo');
+  const btnChipAudio = document.getElementById('btn-chip-audio');
   const btnChipNone = document.getElementById('btn-chip-none');
   const chipCountAll = document.getElementById('chip-count-all');
   const chipCountVideo = document.getElementById('chip-count-video');
   const chipCountPhoto = document.getElementById('chip-count-photo');
+  const chipCountAudio = document.getElementById('chip-count-audio');
 
   // Initialize Theme and Internationalization
   if (window.ThemeManager) {
@@ -186,32 +195,39 @@ document.addEventListener('DOMContentLoaded', () => {
   }
 
   function updateHeaderDownloadIndicator() {
-    if (!headerDownloadIndicator || !headerDownloadText) return;
+    if (!activeDownloadStrip || !activeDownloadText) return;
 
     const activeOrQueued = state.queue.filter(q => q.status === 'downloading' || q.status === 'queued').length;
     if (activeOrQueued > 0) {
-      headerDownloadIndicator.classList.add('active');
-      const label = window.I18n
-        ? I18n.t('header.downloading', { done: state.sessionBatchCompleted, total: state.sessionBatchTotal })
-        : `Unduh (${state.sessionBatchCompleted}/${state.sessionBatchTotal})`;
-      headerDownloadText.textContent = label;
+      activeDownloadStrip.style.display = 'flex';
+      const label = `Sedang Mengunduh ${state.sessionBatchCompleted}/${state.sessionBatchTotal} berkas`;
+      activeDownloadText.textContent = label;
+
+      const pct = state.sessionBatchTotal > 0 ? Math.round((state.sessionBatchCompleted / state.sessionBatchTotal) * 100) : 0;
+      if (activeDownloadPctBadge) activeDownloadPctBadge.textContent = `${pct}%`;
+      if (activeDownloadFill) activeDownloadFill.style.width = `${pct}%`;
     } else if (state.sessionBatchTotal > 0 && state.sessionBatchCompleted > 0) {
-      headerDownloadIndicator.classList.add('active');
-      const doneLabel = window.I18n
-        ? (I18n.getLanguage() === 'en' ? 'Completed ✓' : 'Selesai ✓')
-        : 'Selesai ✓';
-      headerDownloadText.textContent = doneLabel;
+      activeDownloadStrip.style.display = 'flex';
+      activeDownloadText.textContent = `Semua unduhan selesai (${state.sessionBatchCompleted} berkas) ✓`;
+      if (activeDownloadPctBadge) activeDownloadPctBadge.textContent = '100%';
+      if (activeDownloadFill) activeDownloadFill.style.width = '100%';
       setTimeout(() => {
         const stillActive = state.queue.filter(q => q.status === 'downloading' || q.status === 'queued').length;
         if (stillActive === 0) {
-          headerDownloadIndicator.classList.remove('active');
+          activeDownloadStrip.style.display = 'none';
           state.sessionBatchTotal = 0;
           state.sessionBatchCompleted = 0;
         }
-      }, 4000);
+      }, 5000);
     } else {
-      headerDownloadIndicator.classList.remove('active');
+      activeDownloadStrip.style.display = 'none';
     }
+  }
+
+  if (activeDownloadStrip) {
+    activeDownloadStrip.addEventListener('click', () => {
+      showDownloadsTab('queue');
+    });
   }
 
   function getFileIcon(filename) {
@@ -579,27 +595,116 @@ document.addEventListener('DOMContentLoaded', () => {
   });
 
   // ----------------------------------------------------
-  // File Type Helpers for Filtering
+  // File Type Helpers for Filtering (Comprehensive & Robust)
   // ----------------------------------------------------
-  const VIDEO_EXTS = new Set(['mp4', 'mkv', 'webm', 'avi', 'mov', 'flv', 'wmv', 'm4v', '3gp', 'ts', 'mpg', 'mpeg']);
-  const PHOTO_EXTS = new Set(['jpg', 'jpeg', 'png', 'webp', 'gif', 'bmp', 'svg', 'heic', 'heif', 'tiff', 'ico', 'avif']);
+  const VIDEO_EXTS = new Set([
+    'mp4', 'mkv', 'webm', 'avi', 'mov', 'flv', 'wmv', 'm4v', '3gp', '3g2',
+    'ts', 'mts', 'm2ts', 'mpg', 'mpeg', 'vob', 'ogv', 'f4v', 'rm', 'rmvb',
+    'asf', 'divx', 'h264', 'h265', 'hevc'
+  ]);
+  const PHOTO_EXTS = new Set([
+    'jpg', 'jpeg', 'png', 'webp', 'gif', 'bmp', 'svg', 'heic', 'heif',
+    'tiff', 'tif', 'ico', 'avif', 'raw', 'cr2', 'nef'
+  ]);
+  const AUDIO_EXTS = new Set([
+    'mp3', 'wav', 'flac', 'aac', 'ogg', 'm4a', 'wma', 'opus', 'alac', 'aiff'
+  ]);
+  const DOC_EXTS = new Set([
+    'zip', 'rar', '7z', 'tar', 'gz', 'bz2', 'xz', 'pdf', 'doc', 'docx', 'xls', 'xlsx', 'txt', 'epub'
+  ]);
 
   function getFileExt(filename) {
-    if (!filename) return '';
-    const lastDot = filename.lastIndexOf('.');
-    return lastDot > 0 ? filename.substring(lastDot + 1).toLowerCase() : '';
+    if (!filename || typeof filename !== 'string') return '';
+    const clean = filename.split('?')[0].split('#')[0].trim();
+    const lastDot = clean.lastIndexOf('.');
+    return lastDot > 0 ? clean.substring(lastDot + 1).toLowerCase() : '';
   }
 
-  function isVideoFile(filename) {
-    return VIDEO_EXTS.has(getFileExt(filename));
+  function isVideoFile(fileOrName) {
+    if (!fileOrName) return false;
+    let name = '';
+    let mime = '';
+    let type = '';
+
+    if (typeof fileOrName === 'string') {
+      name = fileOrName;
+    } else if (typeof fileOrName === 'object') {
+      name = fileOrName.name || fileOrName.filename || '';
+      mime = (fileOrName.mimetype || fileOrName.mime_type || '').toLowerCase();
+      type = (fileOrName.type || '').toLowerCase();
+    }
+
+    if (type === 'video' || mime.startsWith('video/')) return true;
+    const ext = getFileExt(name);
+    if (VIDEO_EXTS.has(ext)) return true;
+    if (mime.includes('matroska') || mime.includes('quicktime') || mime.includes('mp4') || mime.includes('webm')) return true;
+    return false;
   }
 
-  function isPhotoFile(filename) {
-    return PHOTO_EXTS.has(getFileExt(filename));
+  function isPhotoFile(fileOrName) {
+    if (!fileOrName) return false;
+    let name = '';
+    let mime = '';
+    let type = '';
+
+    if (typeof fileOrName === 'string') {
+      name = fileOrName;
+    } else if (typeof fileOrName === 'object') {
+      name = fileOrName.name || fileOrName.filename || '';
+      mime = (fileOrName.mimetype || fileOrName.mime_type || '').toLowerCase();
+      type = (fileOrName.type || '').toLowerCase();
+    }
+
+    if (type === 'image' || mime.startsWith('image/')) return true;
+    const ext = getFileExt(name);
+    if (PHOTO_EXTS.has(ext)) return true;
+    return false;
+  }
+
+  function isAudioFile(fileOrName) {
+    if (!fileOrName) return false;
+    let name = '';
+    let mime = '';
+    let type = '';
+
+    if (typeof fileOrName === 'string') {
+      name = fileOrName;
+    } else if (typeof fileOrName === 'object') {
+      name = fileOrName.name || fileOrName.filename || '';
+      mime = (fileOrName.mimetype || fileOrName.mime_type || '').toLowerCase();
+      type = (fileOrName.type || '').toLowerCase();
+    }
+
+    if (type === 'audio' || mime.startsWith('audio/')) return true;
+    const ext = getFileExt(name);
+    if (AUDIO_EXTS.has(ext)) return true;
+    return false;
+  }
+
+  function isDocOrArchiveFile(fileOrName) {
+    if (!fileOrName) return false;
+    const name = typeof fileOrName === 'string' ? fileOrName : (fileOrName.name || fileOrName.filename || '');
+    return DOC_EXTS.has(getFileExt(name));
+  }
+
+  function getFileIcon(fileOrName) {
+    if (isVideoFile(fileOrName)) {
+      return `<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polygon points="23 7 16 12 23 17 23 7"></polygon><rect x="1" y="5" width="15" height="14" rx="2" ry="2"></rect></svg>`;
+    }
+    if (isPhotoFile(fileOrName)) {
+      return `<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="18" height="18" rx="2" ry="2"></rect><circle cx="8.5" cy="8.5" r="1.5"></circle><polyline points="21 15 16 10 5 21"></polyline></svg>`;
+    }
+    if (isAudioFile(fileOrName)) {
+      return `<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M9 18V5l12-2v13"></path><circle cx="6" cy="18" r="3"></circle><circle cx="18" cy="16" r="3"></circle></svg>`;
+    }
+    if (isDocOrArchiveFile(fileOrName)) {
+      return `<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="21 8 21 21 3 21 3 8"></polyline><line x1="1" y1="3" x2="23" y2="3"></line><path d="M10 12h4"></path></svg>`;
+    }
+    return `<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M13 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V9z"></path><polyline points="13 2 13 9 20 9"></polyline></svg>`;
   }
 
   function setActiveChip(activeBtn) {
-    [btnChipAll, btnChipVideo, btnChipPhoto, btnChipNone].forEach(btn => {
+    [btnChipAll, btnChipVideo, btnChipPhoto, btnChipAudio, btnChipNone].forEach(btn => {
       if (btn) btn.classList.toggle('active', btn === activeBtn);
     });
   }
@@ -617,30 +722,34 @@ document.addEventListener('DOMContentLoaded', () => {
     state.selectedItemIds.clear();
 
     // Calculate category counts
-    const videoFiles = data.files.filter(f => isVideoFile(f.name));
-    const photoFiles = data.files.filter(f => isPhotoFile(f.name));
+    const videoFiles = data.files.filter(f => isVideoFile(f));
+    const photoFiles = data.files.filter(f => isPhotoFile(f));
+    const audioFiles = data.files.filter(f => isAudioFile(f));
 
     if (chipCountAll) chipCountAll.textContent = data.files.length;
     if (chipCountVideo) chipCountVideo.textContent = videoFiles.length;
     if (chipCountPhoto) chipCountPhoto.textContent = photoFiles.length;
+    if (chipCountAudio) chipCountAudio.textContent = audioFiles.length;
     setActiveChip(btnChipAll);
 
     data.files.forEach(file => {
       state.selectedItemIds.add(file.id);
 
-      const isVid = isVideoFile(file.name);
-      const isImg = isPhotoFile(file.name);
-      const typeBadge = isVid ? '🎬 [VIDEO]' : isImg ? '🖼️ [FOTO]' : '';
+      const isVid = isVideoFile(file);
+      const isImg = isPhotoFile(file);
+      const isAud = isAudioFile(file);
+      const typeBadge = isVid ? '🎬 [VIDEO]' : (isImg ? '🖼️ [FOTO]' : (isAud ? '🎵 [AUDIO]' : ''));
 
       const itemEl = document.createElement('div');
       itemEl.className = 'tree-item';
       itemEl.dataset.fileId = file.id;
       itemEl.dataset.isVid = isVid ? '1' : '0';
       itemEl.dataset.isImg = isImg ? '1' : '0';
+      itemEl.dataset.isAud = isAud ? '1' : '0';
       itemEl.innerHTML = `
         <input type="checkbox" id="check-${escapeHtml(file.id)}" checked>
         <div style="color:var(--indigo-400); display:flex; align-items:center;">
-          ${getFileIcon(file.name)}
+          ${getFileIcon(file)}
         </div>
         <div class="tree-item-name" title="${escapeHtml(file.name)}">
           ${escapeHtml(file.name)}
@@ -717,7 +826,7 @@ document.addEventListener('DOMContentLoaded', () => {
       let vidCount = 0;
       if (state.inspectedData && state.inspectedData.files) {
         state.inspectedData.files.forEach(f => {
-          const isVid = isVideoFile(f.name);
+          const isVid = isVideoFile(f);
           const cb = document.getElementById(`check-${f.id}`);
           if (cb) cb.checked = isVid;
           if (isVid) {
@@ -743,7 +852,7 @@ document.addEventListener('DOMContentLoaded', () => {
       let imgCount = 0;
       if (state.inspectedData && state.inspectedData.files) {
         state.inspectedData.files.forEach(f => {
-          const isImg = isPhotoFile(f.name);
+          const isImg = isPhotoFile(f);
           const cb = document.getElementById(`check-${f.id}`);
           if (cb) cb.checked = isImg;
           if (isImg) {
@@ -757,6 +866,32 @@ document.addEventListener('DOMContentLoaded', () => {
         showToast('Tidak ada file foto di folder ini.', 'info', 2500);
       } else {
         showToast(`Memilih ${imgCount} file foto.`, 'success', 2000);
+      }
+    });
+  }
+
+  // Chip: Pilih Hanya Audio
+  if (btnChipAudio) {
+    btnChipAudio.addEventListener('click', () => {
+      setActiveChip(btnChipAudio);
+      state.selectedItemIds.clear();
+      let audCount = 0;
+      if (state.inspectedData && state.inspectedData.files) {
+        state.inspectedData.files.forEach(f => {
+          const isAud = isAudioFile(f);
+          const cb = document.getElementById(`check-${f.id}`);
+          if (cb) cb.checked = isAud;
+          if (isAud) {
+            state.selectedItemIds.add(f.id);
+            audCount++;
+          }
+        });
+      }
+      updateModalSelectionCount();
+      if (audCount === 0) {
+        showToast('Tidak ada file audio di folder ini.', 'info', 2500);
+      } else {
+        showToast(`Memilih ${audCount} file audio.`, 'success', 2000);
       }
     });
   }
@@ -867,12 +1002,22 @@ document.addEventListener('DOMContentLoaded', () => {
         return;
       }
 
-      // 2. Skip file if already completed / in history or present in local storage
-      const alreadyCompleted = state.history.some(h => 
-        h.id === file.id || (h.name === file.name && h.size > 0 && file.size > 0 && h.size === file.size)
-      ) || (state.storedFiles && state.storedFiles.some(s => 
-        s.name === file.name && s.size > 0 && file.size > 0 && s.size === file.size
-      ));
+      // 2. Skip file if already completed / in history or present in local storage (Strengthened Anti-Duplicate)
+      const fileNameLower = (file.name || '').trim().toLowerCase();
+      const alreadyCompleted = state.history.some(h => {
+        if (h.id && file.id && h.id === file.id) return true;
+        const hNameLower = (h.name || '').trim().toLowerCase();
+        if (hNameLower && fileNameLower && hNameLower === fileNameLower) {
+          return h.size === file.size || file.size === 0 || h.size === 0 || Math.abs((h.size || 0) - (file.size || 0)) < 1024;
+        }
+        return false;
+      }) || (state.storedFiles && state.storedFiles.some(s => {
+        const sNameLower = (s.name || '').trim().toLowerCase();
+        if (sNameLower && fileNameLower && sNameLower === fileNameLower) {
+          return s.size === file.size || file.size === 0 || s.size === 0 || Math.abs((s.size || 0) - (file.size || 0)) < 1024;
+        }
+        return false;
+      }));
 
       if (alreadyCompleted) {
         skippedExisting++;
@@ -1401,7 +1546,7 @@ document.addEventListener('DOMContentLoaded', () => {
   });
 
   // ----------------------------------------------------
-  // Kelola File (Storage Manager & Duplicate Prevention Hub)
+  // Kelola File (Storage Manager, Advanced Filters & Batch Deletion)
   // ----------------------------------------------------
   const filesListContainer = document.getElementById('files-list-container');
   const filesEmptyState = document.getElementById('files-empty-state');
@@ -1415,16 +1560,20 @@ document.addEventListener('DOMContentLoaded', () => {
   const chipFileAll = document.getElementById('chip-file-all');
   const chipFileVideo = document.getElementById('chip-file-video');
   const chipFilePhoto = document.getElementById('chip-file-photo');
+  const chipFileAudio = document.getElementById('chip-file-audio');
   const chipFileOther = document.getElementById('chip-file-other');
   const chipStoredCountAll = document.getElementById('chip-stored-count-all');
   const chipStoredCountVideo = document.getElementById('chip-stored-count-video');
   const chipStoredCountPhoto = document.getElementById('chip-stored-count-photo');
+  const chipStoredCountAudio = document.getElementById('chip-stored-count-audio');
   const chipStoredCountOther = document.getElementById('chip-stored-count-other');
   const btnClearFileSearch = document.getElementById('btn-clear-file-search');
 
-  state.storedFiles = [];
-  state.storedFilesFilter = 'all';
-  state.storedFilesSearch = '';
+  const checkSelectAllStored = document.getElementById('check-select-all-stored');
+  const storedSelectedCountLabel = document.getElementById('stored-selected-count-label');
+  const selectSortFiles = document.getElementById('select-sort-files');
+  const btnBatchDeleteStored = document.getElementById('btn-batch-delete-stored');
+  const btnBatchDeleteText = document.getElementById('btn-batch-delete-text');
 
   async function loadStoredFiles() {
     try {
@@ -1459,7 +1608,7 @@ document.addEventListener('DOMContentLoaded', () => {
   }
 
   function setFileFilterChip(activeBtn, filterType) {
-    [chipFileAll, chipFileVideo, chipFilePhoto, chipFileOther].forEach(btn => {
+    [chipFileAll, chipFileVideo, chipFilePhoto, chipFileAudio, chipFileOther].forEach(btn => {
       if (btn) btn.classList.toggle('active', btn === activeBtn);
     });
     state.storedFilesFilter = filterType;
@@ -1469,7 +1618,15 @@ document.addEventListener('DOMContentLoaded', () => {
   if (chipFileAll) chipFileAll.addEventListener('click', () => setFileFilterChip(chipFileAll, 'all'));
   if (chipFileVideo) chipFileVideo.addEventListener('click', () => setFileFilterChip(chipFileVideo, 'video'));
   if (chipFilePhoto) chipFilePhoto.addEventListener('click', () => setFileFilterChip(chipFilePhoto, 'photo'));
+  if (chipFileAudio) chipFileAudio.addEventListener('click', () => setFileFilterChip(chipFileAudio, 'audio'));
   if (chipFileOther) chipFileOther.addEventListener('click', () => setFileFilterChip(chipFileOther, 'other'));
+
+  if (selectSortFiles) {
+    selectSortFiles.addEventListener('change', (e) => {
+      state.storedFilesSort = e.target.value;
+      renderStoredFiles();
+    });
+  }
 
   if (searchFilesInput) {
     searchFilesInput.addEventListener('input', (e) => {
@@ -1504,36 +1661,122 @@ document.addEventListener('DOMContentLoaded', () => {
     btnOpenFolderFiles.addEventListener('click', openDownloadsDirectory);
   }
 
-  function renderStoredFiles() {
-    if (!filesListContainer) return;
-
+  function getFilteredStoredFiles() {
     const all = state.storedFiles || [];
-
-    // Update filter counts
-    if (chipStoredCountAll) chipStoredCountAll.textContent = all.length;
-    if (chipStoredCountVideo) chipStoredCountVideo.textContent = all.filter(f => isVideoFile(f.name)).length;
-    if (chipStoredCountPhoto) chipStoredCountPhoto.textContent = all.filter(f => isPhotoFile(f.name)).length;
-    if (chipStoredCountOther) chipStoredCountOther.textContent = all.filter(f => !isVideoFile(f.name) && !isPhotoFile(f.name)).length;
-
     let filtered = all;
 
-    // Filter by type
     if (state.storedFilesFilter === 'video') {
-      filtered = filtered.filter(f => isVideoFile(f.name));
+      filtered = filtered.filter(f => isVideoFile(f));
     } else if (state.storedFilesFilter === 'photo') {
-      filtered = filtered.filter(f => isPhotoFile(f.name));
+      filtered = filtered.filter(f => isPhotoFile(f));
+    } else if (state.storedFilesFilter === 'audio') {
+      filtered = filtered.filter(f => isAudioFile(f));
     } else if (state.storedFilesFilter === 'other') {
-      filtered = filtered.filter(f => !isVideoFile(f.name) && !isPhotoFile(f.name));
+      filtered = filtered.filter(f => !isVideoFile(f) && !isPhotoFile(f) && !isAudioFile(f));
     }
 
-    // Filter by search
-    if (state.storedFilesSearch.trim()) {
+    if (state.storedFilesSearch && state.storedFilesSearch.trim()) {
       const q = state.storedFilesSearch.trim().toLowerCase();
       filtered = filtered.filter(f => f.name.toLowerCase().includes(q));
     }
 
-    // Sort by recent
-    filtered.sort((a, b) => (b.modified || 0) - (a.modified || 0));
+    const sortMode = state.storedFilesSort || 'recent';
+    if (sortMode === 'recent') {
+      filtered.sort((a, b) => (b.modified || 0) - (a.modified || 0));
+    } else if (sortMode === 'oldest') {
+      filtered.sort((a, b) => (a.modified || 0) - (b.modified || 0));
+    } else if (sortMode === 'largest') {
+      filtered.sort((a, b) => (b.size || 0) - (a.size || 0));
+    } else if (sortMode === 'smallest') {
+      filtered.sort((a, b) => (a.size || 0) - (b.size || 0));
+    } else if (sortMode === 'name_asc') {
+      filtered.sort((a, b) => a.name.localeCompare(b.name));
+    } else if (sortMode === 'name_desc') {
+      filtered.sort((a, b) => b.name.localeCompare(a.name));
+    }
+
+    return filtered;
+  }
+
+  function updateBatchSelectionUI() {
+    const selectedCount = state.selectedStoredFileNames.size;
+    if (storedSelectedCountLabel) {
+      if (selectedCount > 0) {
+        storedSelectedCountLabel.textContent = `${selectedCount} dipilih`;
+        storedSelectedCountLabel.style.display = 'inline-block';
+      } else {
+        storedSelectedCountLabel.style.display = 'none';
+      }
+    }
+
+    if (btnBatchDeleteStored) {
+      btnBatchDeleteStored.style.display = selectedCount > 0 ? 'inline-flex' : 'none';
+      if (btnBatchDeleteText) {
+        btnBatchDeleteText.textContent = `Hapus (${selectedCount})`;
+      }
+    }
+
+    if (checkSelectAllStored) {
+      const currentFiles = getFilteredStoredFiles();
+      checkSelectAllStored.checked = currentFiles.length > 0 && currentFiles.every(f => state.selectedStoredFileNames.has(f.name));
+    }
+  }
+
+  if (checkSelectAllStored) {
+    checkSelectAllStored.addEventListener('change', () => {
+      const checked = checkSelectAllStored.checked;
+      const currentFiles = getFilteredStoredFiles();
+      if (checked) {
+        currentFiles.forEach(f => state.selectedStoredFileNames.add(f.name));
+      } else {
+        currentFiles.forEach(f => state.selectedStoredFileNames.delete(f.name));
+      }
+      renderStoredFiles();
+    });
+  }
+
+  if (btnBatchDeleteStored) {
+    btnBatchDeleteStored.addEventListener('click', async () => {
+      const count = state.selectedStoredFileNames.size;
+      if (count === 0) return;
+      if (!confirm(`Hapus ${count} file yang dipilih dari penyimpanan perangkat? Tindakan ini tidak dapat dibatalkan.`)) return;
+
+      btnBatchDeleteStored.disabled = true;
+      showToast(`Menghapus ${count} file...`, 'info', 2000);
+
+      const filesToDelete = state.storedFiles.filter(f => state.selectedStoredFileNames.has(f.name));
+      for (const file of filesToDelete) {
+        try {
+          await ApiBridge.deleteFile(file);
+        } catch (e) {
+          console.warn('Batch delete error for', file.name, e);
+        }
+      }
+
+      state.storedFiles = state.storedFiles.filter(f => !state.selectedStoredFileNames.has(f.name));
+      state.history = state.history.filter(h => !state.selectedStoredFileNames.has(h.name));
+      state.selectedStoredFileNames.clear();
+
+      saveHistory();
+      renderStoredFiles();
+      updateQueueCounters();
+      btnBatchDeleteStored.disabled = false;
+      showToast(`Berhasil menghapus ${count} file terpilih.`, 'success', 3000);
+    });
+  }
+
+  function renderStoredFiles() {
+    if (!filesListContainer) return;
+
+    const all = state.storedFiles || [];
+    const filtered = getFilteredStoredFiles();
+
+    // Update filter counts
+    if (chipStoredCountAll) chipStoredCountAll.textContent = all.length;
+    if (chipStoredCountVideo) chipStoredCountVideo.textContent = all.filter(f => isVideoFile(f)).length;
+    if (chipStoredCountPhoto) chipStoredCountPhoto.textContent = all.filter(f => isPhotoFile(f)).length;
+    if (chipStoredCountAudio) chipStoredCountAudio.textContent = all.filter(f => isAudioFile(f)).length;
+    if (chipStoredCountOther) chipStoredCountOther.textContent = all.filter(f => !isVideoFile(f) && !isPhotoFile(f) && !isAudioFile(f)).length;
 
     // Stats
     const totalCount = all.length;
@@ -1541,6 +1784,8 @@ document.addEventListener('DOMContentLoaded', () => {
     if (storageTotalFilesEl) storageTotalFilesEl.textContent = `${totalCount} file`;
     if (storageTotalSizeEl) storageTotalSizeEl.textContent = formatBytes(totalBytes);
     if (storedFilesCountEl) storedFilesCountEl.textContent = totalCount;
+
+    updateBatchSelectionUI();
 
     filesListContainer.innerHTML = '';
 
@@ -1556,17 +1801,23 @@ document.addEventListener('DOMContentLoaded', () => {
 
     filtered.forEach(file => {
       const card = document.createElement('div');
-      card.className = 'stored-file-card';
-      const isVideo = isVideoFile(file.name);
-      const isPhoto = isPhotoFile(file.name);
-      const iconClass = isVideo ? 'video' : (isPhoto ? 'photo' : 'archive');
-      const iconEmoji = isVideo ? '🎬' : (isPhoto ? '🖼️' : '📦');
-      const actionLabel = isVideo ? 'Buka' : (isPhoto ? 'Lihat' : 'Buka');
+      const isSelected = state.selectedStoredFileNames.has(file.name);
+      card.className = `stored-file-card ${isSelected ? 'selected' : ''}`;
+
+      const isVideo = isVideoFile(file);
+      const isPhoto = isPhotoFile(file);
+      const isAudio = isAudioFile(file);
+      const iconClass = isVideo ? 'video' : (isPhoto ? 'photo' : (isAudio ? 'audio' : 'archive'));
+      const iconEmoji = isVideo ? '🎬' : (isPhoto ? '🖼️' : (isAudio ? '🎵' : '📦'));
+      const actionLabel = isVideo ? 'Buka' : (isPhoto ? 'Lihat' : (isAudio ? 'Putar' : 'Buka'));
 
       const dateStr = file.modified ? new Date(file.modified).toLocaleDateString(undefined, { day: 'numeric', month: 'short' }) : '';
       const subpath = file.relDir ? `/${file.relDir}` : 'GoFile';
 
       card.innerHTML = `
+        <label class="stored-checkbox-wrapper" onclick="event.stopPropagation()">
+          <input type="checkbox" class="stored-item-checkbox" ${isSelected ? 'checked' : ''}>
+        </label>
         <div class="stored-file-main">
           <div class="stored-file-icon ${iconClass}">${iconEmoji}</div>
           <div class="stored-file-info">
@@ -1584,11 +1835,24 @@ document.addEventListener('DOMContentLoaded', () => {
             <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polygon points="5 3 19 12 5 21 5 3"></polygon></svg>
             ${actionLabel}
           </button>
-          <button type="button" class="btn-delete-stored-touch" title="Hapus file dari memori">
+          <button type="button" class="btn-delete-stored-touch" title="Hapus file ini">
             <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="3 6 5 6 21 6"></polyline><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"></path></svg>
           </button>
         </div>
       `;
+
+      // Checkbox listener
+      const chk = card.querySelector('.stored-item-checkbox');
+      chk.addEventListener('change', () => {
+        if (chk.checked) {
+          state.selectedStoredFileNames.add(file.name);
+          card.classList.add('selected');
+        } else {
+          state.selectedStoredFileNames.delete(file.name);
+          card.classList.remove('selected');
+        }
+        updateBatchSelectionUI();
+      });
 
       // Trigger open file
       const handleOpenFile = async () => {
@@ -1601,7 +1865,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
       // Tapping card opens file
       card.addEventListener('click', (e) => {
-        if (e.target.closest('.btn-delete-stored-touch')) return;
+        if (e.target.closest('.btn-delete-stored-touch') || e.target.closest('.stored-checkbox-wrapper')) return;
         handleOpenFile();
       });
 
@@ -1617,6 +1881,7 @@ document.addEventListener('DOMContentLoaded', () => {
         await ApiBridge.deleteFile(file);
         state.storedFiles = state.storedFiles.filter(f => f.name !== file.name);
         state.history = state.history.filter(h => h.name !== file.name);
+        state.selectedStoredFileNames.delete(file.name);
         saveHistory();
         renderStoredFiles();
         updateQueueCounters();

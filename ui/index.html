@@ -30,19 +30,10 @@
         </div>
         <div class="brand-info">
           <h1>GoFile Pro</h1>
-          <div class="brand-status-chip" id="token-status-badge" title="GoFile Session Status">
-            <span class="pulse-dot"></span>
-            <span id="account-tier-text">Guest</span>
-          </div>
         </div>
       </div>
 
       <div class="header-actions">
-        <div class="header-download-pill" id="header-download-indicator">
-          <span class="spin-ring"></span>
-          <span id="header-download-text">Unduh 0/0</span>
-        </div>
-
         <button class="btn-header-trakteer" id="btn-header-trakteer" title="Dukung Saya di Trakteer" aria-label="Traktir Kopi">
           <span class="trakteer-cup-icon">☕</span>
           <span class="trakteer-text" data-i18n="header.trakteer">Traktir Kopi</span>
@@ -158,6 +149,25 @@
         </div>
       </div>
     </section>
+
+    <!-- Active Download Notification Bar (Directly below telemetry strip) -->
+    <div class="download-notification-strip" id="active-download-strip" style="display: none;" title="Buka Tab Unduhan">
+      <div class="download-strip-info">
+        <span class="download-strip-pulse"></span>
+        <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5">
+          <polyline points="7 10 12 15 17 10"></polyline>
+          <line x1="12" y1="15" x2="12" y2="3"></line>
+        </svg>
+        <span class="download-strip-text" id="active-download-text">Mengunduh 0/0</span>
+      </div>
+      <div class="download-strip-badge">
+        <span id="active-download-pct-badge" style="margin-right: 6px; font-weight: 700; color: var(--cyan-400);">0%</span>
+        <span>Lihat Antrean →</span>
+      </div>
+      <div class="download-strip-bar">
+        <div class="download-strip-fill" id="active-download-fill" style="width: 0%;"></div>
+      </div>
+    </div>
 
     <!-- TAB 1: Home (Single Link & Batch Mode in One Page) -->
     <main class="tab-content active" id="tab-home">
@@ -494,10 +504,53 @@
           </div>
 
           <div class="filter-chips">
-            <button type="button" class="chip active" id="chip-file-all">Semua <span id="chip-stored-count-all" class="subtab-badge">0</span></button>
-            <button type="button" class="chip" id="chip-file-video">🎬 Video <span id="chip-stored-count-video" class="subtab-badge">0</span></button>
-            <button type="button" class="chip" id="chip-file-photo">🖼️ Foto <span id="chip-stored-count-photo" class="subtab-badge">0</span></button>
-            <button type="button" class="chip" id="chip-file-other">📦 Lainnya <span id="chip-stored-count-other" class="subtab-badge">0</span></button>
+            <button type="button" class="chip active" id="chip-file-all">
+              <span>Semua</span>
+              <span id="chip-stored-count-all" class="subtab-badge">0</span>
+            </button>
+            <button type="button" class="chip" id="chip-file-video">
+              <span>🎬 Video</span>
+              <span id="chip-stored-count-video" class="subtab-badge">0</span>
+            </button>
+            <button type="button" class="chip" id="chip-file-photo">
+              <span>🖼️ Foto</span>
+              <span id="chip-stored-count-photo" class="subtab-badge">0</span>
+            </button>
+            <button type="button" class="chip" id="chip-file-audio">
+              <span>🎵 Audio</span>
+              <span id="chip-stored-count-audio" class="subtab-badge">0</span>
+            </button>
+            <button type="button" class="chip" id="chip-file-other">
+              <span>📦 Lainnya</span>
+              <span id="chip-stored-count-other" class="subtab-badge">0</span>
+            </button>
+          </div>
+        </div>
+
+        <!-- Batch Selection & Action Toolbar -->
+        <div class="stored-selection-toolbar" id="stored-selection-toolbar">
+          <div class="stored-select-all-group">
+            <label class="stored-select-all-label">
+              <input type="checkbox" id="check-select-all-stored">
+              <span>Pilih Semua</span>
+            </label>
+            <span id="stored-selected-count-label" class="stored-selected-pill" style="display:none;">0 dipilih</span>
+          </div>
+
+          <div class="stored-actions-group">
+            <select class="select-sort-files" id="select-sort-files" title="Urutkan File">
+              <option value="recent">⏱️ Terbaru</option>
+              <option value="oldest">⌛ Terlama</option>
+              <option value="largest">💾 Terbesar</option>
+              <option value="smallest">📄 Terkecil</option>
+              <option value="name_asc">🔤 Nama (A-Z)</option>
+              <option value="name_desc">🔡 Nama (Z-A)</option>
+            </select>
+
+            <button type="button" class="btn-batch-delete" id="btn-batch-delete-stored" style="display:none;" title="Hapus file terpilih">
+              <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="3 6 5 6 21 6"></polyline><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"></path></svg>
+              <span id="btn-batch-delete-text">Hapus (0)</span>
+            </button>
           </div>
         </div>
 
@@ -739,7 +792,7 @@
             <span style="font-size:0.8rem; color:var(--cyan-400); font-weight:600;" id="modal-selected-summary">0 selected</span>
           </div>
 
-          <!-- Quick Filter Buttons: All, Videos, Photos -->
+          <!-- Quick Filter Buttons: All, Videos, Photos, Audio, None -->
           <div class="modal-filter-chips" style="display:flex; gap:0.4rem; flex-wrap:wrap;">
             <button type="button" class="btn-filter-chip active" id="btn-chip-all">
               <span data-i18n="modal.chip_all">Semua</span> (<span id="chip-count-all">0</span>)
@@ -749,6 +802,9 @@
             </button>
             <button type="button" class="btn-filter-chip" id="btn-chip-photo">
               🖼️ <span data-i18n="modal.chip_photo">Foto</span> (<span id="chip-count-photo">0</span>)
+            </button>
+            <button type="button" class="btn-filter-chip" id="btn-chip-audio">
+              🎵 <span>Audio</span> (<span id="chip-count-audio">0</span>)
             </button>
             <button type="button" class="btn-filter-chip" id="btn-chip-none" data-i18n="modal.chip_none">
               Batal

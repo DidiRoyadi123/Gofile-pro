@@ -63,24 +63,49 @@ public class AndroidDownloaderPlugin extends Plugin {
                 return mime;
             }
             switch (ext) {
-                case "mp4": return "video/mp4";
+                case "mp4":
+                case "m4v": return "video/mp4";
                 case "mkv": return "video/x-matroska";
                 case "webm": return "video/webm";
                 case "avi": return "video/x-msvideo";
-                case "mov": return "video/quicktime";
+                case "mov":
+                case "qt": return "video/quicktime";
+                case "flv":
+                case "f4v": return "video/x-flv";
+                case "wmv": return "video/x-ms-wmv";
+                case "3gp":
+                case "3g2": return "video/3gpp";
+                case "ts":
+                case "mts":
+                case "m2ts": return "video/mp2t";
+                case "vob": return "video/x-ms-vob";
+                case "ogv": return "video/ogg";
+                case "mpg":
+                case "mpeg": return "video/mpeg";
+                case "rm":
+                case "rmvb": return "application/vnd.rn-realmedia";
                 case "mp3": return "audio/mpeg";
                 case "wav": return "audio/wav";
                 case "flac": return "audio/flac";
                 case "ogg": return "audio/ogg";
+                case "m4a": return "audio/mp4";
+                case "opus": return "audio/opus";
                 case "jpg":
                 case "jpeg": return "image/jpeg";
                 case "png": return "image/png";
                 case "gif": return "image/gif";
                 case "webp": return "image/webp";
+                case "heic": return "image/heic";
+                case "heif": return "image/heif";
+                case "avif": return "image/avif";
+                case "svg": return "image/svg+xml";
+                case "bmp": return "image/bmp";
                 case "pdf": return "application/pdf";
                 case "zip": return "application/zip";
                 case "rar": return "application/x-rar-compressed";
                 case "7z": return "application/x-7z-compressed";
+                case "tar": return "application/x-tar";
+                case "gz": return "application/gzip";
                 case "apk": return "application/vnd.android.package-archive";
                 case "txt": return "text/plain";
             }
@@ -225,8 +250,8 @@ public class AndroidDownloaderPlugin extends Plugin {
             return filename;
         }
 
-        // If file exists with exact matching size, it's the same file
-        if (expectedSize > 0 && baseInfo.size == expectedSize) {
+        // If file exists with exact matching size, or if size is unmeasured (>0 existing file), it's the same file
+        if (baseInfo.exists && baseInfo.size > 0 && (expectedSize <= 0 || baseInfo.size == expectedSize)) {
             return filename;
         }
 
