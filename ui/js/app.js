@@ -3,7 +3,7 @@
  */
 
 document.addEventListener('DOMContentLoaded', () => {
-  const CURRENT_VERSION = 'v2.2.1';
+  const CURRENT_VERSION = 'v2.2.2';
 
   // State Management
   const state = {
@@ -57,6 +57,8 @@ document.addEventListener('DOMContentLoaded', () => {
   const historyEmptyState = document.getElementById('history-empty-state');
   const btnStartAllQueue = document.getElementById('btn-start-all-queue');
   const btnPauseAll = document.getElementById('btn-pause-all-queue');
+  const btnRetryAllQueue = document.getElementById('btn-retry-all-queue');
+  const retryFailedCountLabel = document.getElementById('retry-failed-count');
   const btnOpenFolderQueue = document.getElementById('btn-open-folder-queue');
   const btnOpenFolderHistory = document.getElementById('btn-open-folder-history');
   const btnClearQueue = document.getElementById('btn-clear-queue');
@@ -108,7 +110,7 @@ document.addEventListener('DOMContentLoaded', () => {
   // Initialize Theme and Internationalization
   if (window.ThemeManager) {
     ThemeManager.init();
-    if (settingTheme) settingTheme.value = ThemeManager.currentTheme;
+    if (settingTheme) settingTheme.value = ThemeManager.themeSetting;
   }
   if (window.I18n) {
     I18n.init();
@@ -447,6 +449,26 @@ document.addEventListener('DOMContentLoaded', () => {
       singleUrlInput.value = '';
       singleUrlInput.focus();
       showToast('Input link berhasil dibersihkan.', 'info', 1500);
+    });
+  }
+
+  if (singleUrlInput) {
+    singleUrlInput.addEventListener('keydown', (e) => {
+      if (e.key === 'Enter') {
+        singleUrlInput.blur();
+        setKeyboardState(false);
+        if (btnInspectUrl) btnInspectUrl.click();
+      }
+    });
+  }
+
+  if (singlePwInput) {
+    singlePwInput.addEventListener('keydown', (e) => {
+      if (e.key === 'Enter') {
+        singlePwInput.blur();
+        setKeyboardState(false);
+        if (btnInspectUrl) btnInspectUrl.click();
+      }
     });
   }
 
@@ -1152,6 +1174,17 @@ document.addEventListener('DOMContentLoaded', () => {
     if (storedFilesCountEl) storedFilesCountEl.textContent = state.storedFiles ? state.storedFiles.length : state.history.length;
     if (activeTasksEl) activeTasksEl.textContent = `${state.activeWorkersCount} / ${state.concurrentMax}`;
 
+    // Manage Retry All button
+    const failedCount = state.queue.filter(q => q.status === 'failed').length;
+    if (btnRetryAllQueue) {
+      if (failedCount > 0) {
+        btnRetryAllQueue.style.display = 'inline-flex';
+        if (retryFailedCountLabel) retryFailedCountLabel.textContent = failedCount;
+      } else {
+        btnRetryAllQueue.style.display = 'none';
+      }
+    }
+
     if (state.queue.length === 0 && queueEmptyState) {
       queueEmptyState.style.display = 'block';
     }
@@ -1322,7 +1355,7 @@ document.addEventListener('DOMContentLoaded', () => {
     item.status = 'failed';
     item.speed = 0;
     updateGlobalMetrics();
-    const card = item.domElement;
+    const card = item.domElement || document.getElementById(`qcard-${item.id}`);
     if (card) {
       card.classList.remove('active-download');
       const badge = card.querySelector(`#badge-${item.id}`);
@@ -1332,9 +1365,38 @@ document.addEventListener('DOMContentLoaded', () => {
       }
       const speedEl = card.querySelector(`#speed-${item.id}`);
       if (speedEl) speedEl.textContent = msg || 'Error';
+
+      // Add single retry button on card actions if not already present
+      const actionsEl = card.querySelector('.queue-actions');
+      if (actionsEl && !actionsEl.querySelector(`.btn-single-retry-${item.id}`)) {
+        const retryBtn = document.createElement('button');
+        retryBtn.className = `btn btn-warning btn-sm btn-single-retry-${item.id}`;
+        retryBtn.style.padding = '0.2rem 0.5rem';
+        retryBtn.style.fontSize = '0.75rem';
+        retryBtn.title = 'Coba lagi unduhan file ini';
+        retryBtn.innerHTML = `
+          <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="23 4 23 10 17 10"></polyline><path d="M20.49 15a9 9 0 1 1-2.12-9.36L23 10"></path></svg>
+          <span>Retry</span>
+        `;
+        retryBtn.addEventListener('click', (e) => {
+          e.stopPropagation();
+          item.status = 'queued';
+          item.progress = 0;
+          item.downloaded = 0;
+          item.speed = 0;
+          badge.className = 'status-badge queued';
+          badge.textContent = 'Queued';
+          if (speedEl) speedEl.textContent = '0.0 B/s';
+          retryBtn.remove();
+          updateQueueCounters();
+          processQueue();
+          showToast(`Mencoba lagi unduhan: ${item.name}`, 'info', 2000);
+        });
+        actionsEl.insertBefore(retryBtn, actionsEl.firstChild);
+      }
       reorderQueueDom();
     }
-    // Failure notifications are always helpful but kept discreet
+    updateQueueCounters();
     showToast(`Gagal: ${item.name}`, 'error', 3000);
   }
 
@@ -1395,16 +1457,52 @@ document.addEventListener('DOMContentLoaded', () => {
         if (q.status === 'paused' || q.status === 'failed') {
           q.status = 'queued';
           resumed++;
-          const badge = document.getElementById(`badge-${q.id}`);
-          if (badge) {
-            badge.className = 'status-badge queued';
-            badge.textContent = 'Queued';
+          const card = q.domElement || document.getElementById(`qcard-${q.id}`);
+          if (card) {
+            const badge = card.querySelector(`#badge-${q.id}`);
+            if (badge) {
+              badge.className = 'status-badge queued';
+              badge.textContent = 'Queued';
+            }
+            const btnSingleRetry = card.querySelector(`.btn-single-retry-${q.id}`);
+            if (btnSingleRetry) btnSingleRetry.remove();
           }
         }
       });
       updateQueueCounters();
       processQueue();
       showToast(resumed > 0 ? `Melanjutkan ${resumed} unduhan...` : 'Semua unduhan aktif', 'info', 2000);
+    });
+  }
+
+  // Retry All Failed Downloads
+  if (btnRetryAllQueue) {
+    debounceClick(btnRetryAllQueue, () => {
+      let retried = 0;
+      state.queue.forEach(q => {
+        if (q.status === 'failed') {
+          q.status = 'queued';
+          q.progress = 0;
+          q.downloaded = 0;
+          q.speed = 0;
+          retried++;
+          const card = q.domElement || document.getElementById(`qcard-${q.id}`);
+          if (card) {
+            const badge = card.querySelector(`#badge-${q.id}`);
+            if (badge) {
+              badge.className = 'status-badge queued';
+              badge.textContent = 'Queued';
+            }
+            const speedEl = card.querySelector(`#speed-${q.id}`);
+            if (speedEl) speedEl.textContent = '0.0 B/s';
+            const btnSingleRetry = card.querySelector(`.btn-single-retry-${q.id}`);
+            if (btnSingleRetry) btnSingleRetry.remove();
+          }
+        }
+      });
+      updateQueueCounters();
+      processQueue();
+      showToast(retried > 0 ? `Mencoba lagi ${retried} unduhan yang gagal...` : 'Tidak ada unduhan gagal', 'info', 2500);
     });
   }
 
@@ -1483,9 +1581,12 @@ document.addEventListener('DOMContentLoaded', () => {
 
   // Theme Toggle Listener
   if (btnThemeToggle && window.ThemeManager) {
-    btnThemeToggle.addEventListener('click', () => {
+    btnThemeToggle.addEventListener('click', (e) => {
+      e.preventDefault();
+      e.stopPropagation();
       const nextTheme = ThemeManager.toggleTheme();
       if (settingTheme) settingTheme.value = nextTheme;
+      showToast(nextTheme === 'dark' ? 'Mode Gelap Aktif 🌙' : 'Mode Terang Aktif ☀️', 'info', 1500);
     });
   }
 
@@ -1571,7 +1672,11 @@ document.addEventListener('DOMContentLoaded', () => {
 
   const checkSelectAllStored = document.getElementById('check-select-all-stored');
   const storedSelectedCountLabel = document.getElementById('stored-selected-count-label');
-  const selectSortFiles = document.getElementById('select-sort-files');
+  const customSortDropdown = document.getElementById('custom-sort-dropdown');
+  const btnSortTrigger = document.getElementById('btn-sort-trigger');
+  const sortTriggerIcon = document.getElementById('sort-trigger-icon');
+  const sortTriggerText = document.getElementById('sort-trigger-text');
+  const sortMenuItems = document.querySelectorAll('.sort-menu-item');
   const btnBatchDeleteStored = document.getElementById('btn-batch-delete-stored');
   const btnBatchDeleteText = document.getElementById('btn-batch-delete-text');
 
@@ -1621,10 +1726,39 @@ document.addEventListener('DOMContentLoaded', () => {
   if (chipFileAudio) chipFileAudio.addEventListener('click', () => setFileFilterChip(chipFileAudio, 'audio'));
   if (chipFileOther) chipFileOther.addEventListener('click', () => setFileFilterChip(chipFileOther, 'other'));
 
-  if (selectSortFiles) {
-    selectSortFiles.addEventListener('change', (e) => {
-      state.storedFilesSort = e.target.value;
-      renderStoredFiles();
+  // Custom Glassmorphic Sort Dropdown Controller
+  if (btnSortTrigger && customSortDropdown) {
+    btnSortTrigger.addEventListener('click', (e) => {
+      e.stopPropagation();
+      const isOpen = customSortDropdown.classList.toggle('open');
+      btnSortTrigger.setAttribute('aria-expanded', isOpen);
+    });
+
+    sortMenuItems.forEach(item => {
+      item.addEventListener('click', (e) => {
+        e.stopPropagation();
+        const sortVal = item.getAttribute('data-value');
+        state.storedFilesSort = sortVal;
+
+        sortMenuItems.forEach(mi => mi.classList.remove('active'));
+        item.classList.add('active');
+
+        const icon = item.querySelector('.sort-item-icon')?.textContent || '';
+        const label = item.querySelector('.sort-item-label')?.textContent || '';
+        if (sortTriggerIcon) sortTriggerIcon.textContent = icon;
+        if (sortTriggerText) sortTriggerText.textContent = label;
+
+        customSortDropdown.classList.remove('open');
+        btnSortTrigger.setAttribute('aria-expanded', 'false');
+        renderStoredFiles();
+      });
+    });
+
+    document.addEventListener('click', (e) => {
+      if (!customSortDropdown.contains(e.target)) {
+        customSortDropdown.classList.remove('open');
+        btnSortTrigger.setAttribute('aria-expanded', 'false');
+      }
     });
   }
 
@@ -1934,7 +2068,7 @@ document.addEventListener('DOMContentLoaded', () => {
     }
   });
 
-  document.addEventListener('focusout', (e) => {
+  document.addEventListener('focusout', () => {
     setTimeout(() => {
       const active = document.activeElement;
       const isStillTextInput = active && (
@@ -1942,42 +2076,54 @@ document.addEventListener('DOMContentLoaded', () => {
         active.tagName === 'TEXTAREA'
       );
       if (!isStillTextInput) {
-        if (window.visualViewport) {
-          const ratio = window.visualViewport.height / window.innerHeight;
-          if (ratio > 0.85) {
-            setKeyboardState(false);
-          }
-        } else {
-          setKeyboardState(false);
-        }
+        setKeyboardState(false);
       }
-    }, 120);
+    }, 60);
   });
 
-  // 2. Viewport height listener (handles keyboard dismissed via system gesture)
-  if (window.visualViewport) {
-    let initialVvHeight = window.visualViewport.height;
-    window.visualViewport.addEventListener('resize', () => {
-      const currentHeight = window.visualViewport.height;
-      if ((initialVvHeight - currentHeight) > 120) {
-        setKeyboardState(true);
-      } else if (currentHeight >= initialVvHeight - 40) {
-        const active = document.activeElement;
-        const isStillTextInput = active && (
-          (active.tagName === 'INPUT' && !['checkbox', 'radio', 'button', 'submit', 'file', 'range'].includes(active.type)) ||
-          active.tagName === 'TEXTAREA'
-        );
-        if (!isStillTextInput) {
-          setKeyboardState(false);
-        }
+  // Tapping anywhere outside the active input immediately blurs input and restores navbar
+  document.addEventListener('pointerdown', (e) => {
+    const active = document.activeElement;
+    if (active && (
+      (active.tagName === 'INPUT' && !['checkbox', 'radio', 'button', 'submit'].includes(active.type)) ||
+      active.tagName === 'TEXTAREA'
+    )) {
+      if (e.target !== active && !active.contains(e.target) && !e.target.closest('button')) {
+        active.blur();
+        setKeyboardState(false);
       }
-    });
-  } else {
-    let initialWinHeight = window.innerHeight;
-    window.addEventListener('resize', () => {
-      if ((initialWinHeight - window.innerHeight) > 120) {
+    }
+  });
+
+  // 2. Viewport height listener (accurately detects keyboard open / closed via system gesture or soft keyboard down button)
+  if (window.visualViewport) {
+    let maxVvHeight = window.visualViewport.height;
+
+    const checkViewport = () => {
+      const currentHeight = window.visualViewport.height;
+      if (currentHeight > maxVvHeight) {
+        maxVvHeight = currentHeight;
+      }
+
+      // If viewport shrank by > 120px, virtual keyboard is currently open
+      if ((maxVvHeight - currentHeight) > 120) {
         setKeyboardState(true);
-      } else if (window.innerHeight >= initialWinHeight - 40) {
+      } else if (currentHeight >= maxVvHeight - 60) {
+        // Viewport returned to normal size: KEYBOARD IS PHYSICALLY CLOSED!
+        setKeyboardState(false);
+      }
+    };
+
+    window.visualViewport.addEventListener('resize', checkViewport);
+    window.visualViewport.addEventListener('scroll', checkViewport);
+  } else {
+    let maxWinHeight = window.innerHeight;
+    window.addEventListener('resize', () => {
+      const currentHeight = window.innerHeight;
+      if (currentHeight > maxWinHeight) maxWinHeight = currentHeight;
+      if ((maxWinHeight - currentHeight) > 120) {
+        setKeyboardState(true);
+      } else if (currentHeight >= maxWinHeight - 60) {
         setKeyboardState(false);
       }
     });
@@ -1997,8 +2143,9 @@ document.addEventListener('DOMContentLoaded', () => {
       return true;
     }
 
-    if (updateModal && updateModal.classList.contains('active')) {
+    if (updateModal && (updateModal.classList.contains('active') || updateModal.classList.contains('open'))) {
       updateModal.classList.remove('active');
+      updateModal.classList.remove('open');
       return true;
     }
     if (inspectionModal && inspectionModal.classList.contains('active')) {
@@ -2054,27 +2201,18 @@ document.addEventListener('DOMContentLoaded', () => {
     updateBannerContainer.innerHTML = `
       <div class="update-banner">
         <div class="update-banner-info">
-          <div class="update-banner-icon">
-            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5">
-              <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path>
-              <polyline points="7 10 12 15 17 10"></polyline>
-              <line x1="12" y1="15" x2="12" y2="3"></line>
-            </svg>
-          </div>
+          <div class="update-banner-icon">🚀</div>
           <div class="update-banner-text">
-            <h4>Pembaruan ${escapeHtml(info.latestVersion)} Tersedia!</h4>
-            <p>${escapeHtml(info.releaseName || 'Versi baru dengan perbaikan dan peningkatan performa.')}</p>
+            <h4>Update ${escapeHtml(info.latestVersion)}</h4>
+            <p>${escapeHtml(info.releaseName || 'Versi baru tersedia')}</p>
           </div>
         </div>
         <div class="update-banner-actions">
-          <button type="button" class="btn btn-primary btn-sm" id="btn-banner-view-update" style="padding:0.4rem 0.85rem; font-weight:700;">
-            Lihat & Pasang
+          <button type="button" class="btn-banner-view" id="btn-banner-view-update">
+            Lihat
           </button>
-          <button type="button" class="btn-icon" id="btn-banner-dismiss" style="width:28px; height:28px;" title="Tutup banner">
-            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-              <line x1="18" y1="6" x2="6" y2="18"></line>
-              <line x1="6" y1="6" x2="18" y2="18"></line>
-            </svg>
+          <button type="button" class="btn-banner-close" id="btn-banner-dismiss" title="Tutup">
+            ✕
           </button>
         </div>
       </div>
@@ -2103,7 +2241,7 @@ document.addEventListener('DOMContentLoaded', () => {
       updateCurrVersionBadge.textContent = `Versi Saat Ini: ${CURRENT_VERSION}`;
     }
     if (updateChangelogText) {
-      updateChangelogText.textContent = info.releaseNotes || 'Pembaruan stabilitas, performa multi-worker, dan perbaikan antarmuka.';
+      updateChangelogText.textContent = info.releaseNotes || 'Pembaruan stabilitas, performa simultaneous connection, dan perbaikan antarmuka.';
     }
 
     // Check Android installation permission if on Android
@@ -2125,18 +2263,25 @@ document.addEventListener('DOMContentLoaded', () => {
       }
     }
 
+    updateModal.classList.add('open');
     updateModal.classList.add('active');
   }
 
   if (btnCloseUpdateModal) {
     btnCloseUpdateModal.addEventListener('click', () => {
-      if (updateModal) updateModal.classList.remove('active');
+      if (updateModal) {
+        updateModal.classList.remove('open');
+        updateModal.classList.remove('active');
+      }
     });
   }
 
   if (btnLaterUpdate) {
     btnLaterUpdate.addEventListener('click', () => {
-      if (updateModal) updateModal.classList.remove('active');
+      if (updateModal) {
+        updateModal.classList.remove('open');
+        updateModal.classList.remove('active');
+      }
     });
   }
 
@@ -2161,6 +2306,9 @@ document.addEventListener('DOMContentLoaded', () => {
         if (settingsUpdateStatusText) {
           settingsUpdateStatusText.innerHTML = `<strong style="color:var(--cyan-400);">Versi baru ${escapeHtml(updateInfo.latestVersion)} tersedia!</strong>`;
         }
+        if (openSettingsHeaderBtn) {
+          openSettingsHeaderBtn.classList.add('has-update-dot');
+        }
         renderUpdateBanner(updateInfo);
         if (!silent) {
           showUpdateModal(updateInfo);
@@ -2170,6 +2318,9 @@ document.addEventListener('DOMContentLoaded', () => {
       } else {
         if (settingsUpdateStatusText) {
           settingsUpdateStatusText.textContent = `Aplikasi Anda sudah versi terbaru (${CURRENT_VERSION}).`;
+        }
+        if (openSettingsHeaderBtn) {
+          openSettingsHeaderBtn.classList.remove('has-update-dot');
         }
         if (!silent) {
           showToast(`Aplikasi Anda sudah menggunakan versi terbaru (${CURRENT_VERSION}).`, 'success', 2500);

@@ -34,14 +34,20 @@ import java.nio.charset.StandardCharsets;
 import java.security.MessageDigest;
 
 import java.io.File;
+import java.io.FileInputStream;
 import java.io.FileOutputStream;
 import java.io.InputStream;
 import java.io.OutputStream;
+import java.io.RandomAccessFile;
 import java.net.HttpURLConnection;
 import java.net.URL;
 import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
+import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.concurrent.atomic.AtomicLong;
+import java.util.concurrent.atomic.AtomicReference;
 
 @CapacitorPlugin(name = "AndroidDownloader")
 public class AndroidDownloaderPlugin extends Plugin {
@@ -373,32 +379,39 @@ public class AndroidDownloaderPlugin extends Plugin {
             File targetFile = null;
 
             try {
-                String token = (inputToken != null && !inputToken.trim().isEmpty())
-                        ? inputToken.trim()
-                        : (!cachedAccountToken.isEmpty() ? cachedAccountToken : ensureAccountToken(""));
-                if (token.isEmpty() && !cachedAccountToken.isEmpty()) {
-                    token = cachedAccountToken;
-                }
-                if (token.isEmpty()) {
-                    token = ensureAccountToken("");
+                boolean isGofile = urlStr.contains("gofile.io") || urlStr.contains("api.gofile.io");
+                String token = "";
+                if (isGofile) {
+                    token = (inputToken != null && !inputToken.trim().isEmpty())
+                            ? inputToken.trim()
+                            : (!cachedAccountToken.isEmpty() ? cachedAccountToken : ensureAccountToken(""));
+                    if (token.isEmpty() && !cachedAccountToken.isEmpty()) {
+                        token = cachedAccountToken;
+                    }
+                    if (token.isEmpty()) {
+                        token = ensureAccountToken("");
+                    }
                 }
 
                 String currentUrl = urlStr;
                 int redirects = 0;
 
-                while (redirects < 5) {
+                while (redirects < 8) {
                     URL u = new URL(currentUrl);
                     conn = (HttpURLConnection) u.openConnection();
                     conn.setInstanceFollowRedirects(false);
                     conn.setRequestProperty("User-Agent", APP_USER_AGENT);
-                    conn.setRequestProperty("Referer", "https://gofile.io/");
-                    conn.setRequestProperty("Origin", "https://gofile.io");
                     conn.setRequestProperty("Accept", "*/*");
                     conn.setRequestProperty("Accept-Encoding", "identity");
 
-                    if (token != null && !token.trim().isEmpty()) {
-                        conn.setRequestProperty("Cookie", "accountToken=" + token);
+                    if (isGofile) {
+                        conn.setRequestProperty("Referer", "https://gofile.io/");
+                        conn.setRequestProperty("Origin", "https://gofile.io");
+                        if (token != null && !token.trim().isEmpty()) {
+                            conn.setRequestProperty("Cookie", "accountToken=" + token);
+                        }
                     }
+
                     conn.setConnectTimeout(25000);
                     conn.setReadTimeout(35000);
                     conn.connect();
@@ -421,16 +434,17 @@ public class AndroidDownloaderPlugin extends Plugin {
 
                 int statusCode = conn.getResponseCode();
                 if (statusCode < 200 || statusCode >= 300) {
-                    throw new Exception("HTTP error " + statusCode + " dari server GoFile");
+                    throw new Exception("HTTP error " + statusCode + " dari server unduhan");
                 }
 
                 String contentType = conn.getContentType();
-                if (contentType != null && contentType.toLowerCase().contains("text/html")) {
+                if (isGofile && contentType != null && contentType.toLowerCase().contains("text/html")) {
                     throw new Exception("Autentikasi gagal: server GoFile mengembalikan respons HTML. Pastikan token akun valid.");
                 }
 
                 long totalBytes = conn.getContentLengthLong();
-                in = conn.getInputStream();
+                String acceptRanges = conn.getHeaderField("Accept-Ranges");
+                boolean supportsRange = "bytes".equalsIgnoreCase(acceptRanges) || statusCode == 206;
 
                 Context ctx = getContext();
                 ContentResolver resolver = ctx.getContentResolver();
@@ -471,40 +485,76 @@ public class AndroidDownloaderPlugin extends Plugin {
                     throw new Exception("Gagal membuka stream penulisan file");
                 }
 
-                byte[] buffer = new byte[131072]; // 128 KB buffer for optimal throughput
-                int bytesRead;
                 long downloadedBytes = 0;
-                long startTime = System.currentTimeMillis();
-                long lastNotifyTime = 0;
+                boolean multiConnectionSuccess = false;
 
-                while ((bytesRead = in.read(buffer)) != -1) {
-                    if (Boolean.TRUE.equals(cancelFlags.get(taskId))) {
-                        throw new Exception("Download dibatalkan");
+                // Simultaneous Connections (4 parallel segments) for files >= 6 MB supporting Range
+                if (supportsRange && totalBytes >= 6 * 1024 * 1024) {
+                    File stageFile = new File(ctx.getCacheDir(), "stage_" + taskId + ".tmp");
+                    try {
+                        multiConnectionSuccess = downloadSimultaneousSegments(
+                                currentUrl, isGofile, token, totalBytes, taskId, resolvedFilename, stageFile, ctx
+                        );
+                        if (multiConnectionSuccess && stageFile.exists() && stageFile.length() == totalBytes) {
+                            try (FileInputStream fis = new FileInputStream(stageFile)) {
+                                byte[] copyBuf = new byte[131072];
+                                int n;
+                                while ((n = fis.read(copyBuf)) != -1) {
+                                    out.write(copyBuf, 0, n);
+                                }
+                                out.flush();
+                            }
+                            downloadedBytes = totalBytes;
+                        } else {
+                            multiConnectionSuccess = false;
+                        }
+                    } catch (Exception mEx) {
+                        multiConnectionSuccess = false;
+                    } finally {
+                        if (stageFile.exists()) {
+                            stageFile.delete();
+                        }
                     }
+                }
 
-                    out.write(buffer, 0, bytesRead);
-                    downloadedBytes += bytesRead;
+                // Fallback to Single Buffered Stream if multi-connection not applicable or skipped
+                if (!multiConnectionSuccess) {
+                    in = conn.getInputStream();
+                    byte[] buffer = new byte[131072]; // 128 KB buffer for optimal throughput
+                    int bytesRead;
+                    downloadedBytes = 0;
+                    long startTime = System.currentTimeMillis();
+                    long lastNotifyTime = 0;
 
-                    long now = System.currentTimeMillis();
-                    if (now - lastNotifyTime > 250) {
-                        double elapsedSec = Math.max(0.1, (now - startTime) / 1000.0);
-                        double speed = downloadedBytes / elapsedSec;
-                        double pct = (totalBytes > 0) ? ((double) downloadedBytes / totalBytes) * 100.0 : 0.0;
+                    while ((bytesRead = in.read(buffer)) != -1) {
+                        if (Boolean.TRUE.equals(cancelFlags.get(taskId))) {
+                            throw new Exception("Download dibatalkan");
+                        }
 
-                        JSObject prog = new JSObject();
-                        prog.put("id", taskId);
-                        prog.put("filename", resolvedFilename);
-                        prog.put("status", "downloading");
-                        prog.put("progress", Math.min(100.0, Math.round(pct * 10.0) / 10.0));
-                        prog.put("downloaded", downloadedBytes);
-                        prog.put("total", totalBytes > 0 ? totalBytes : downloadedBytes);
-                        prog.put("speed", speed);
+                        out.write(buffer, 0, bytesRead);
+                        downloadedBytes += bytesRead;
 
-                        notifyListeners("downloadProgress", prog);
+                        long now = System.currentTimeMillis();
+                        if (now - lastNotifyTime > 250) {
+                            double elapsedSec = Math.max(0.1, (now - startTime) / 1000.0);
+                            double speed = downloadedBytes / elapsedSec;
+                            double pct = (totalBytes > 0) ? ((double) downloadedBytes / totalBytes) * 100.0 : 0.0;
 
-                        // Update Android status bar notification
-                        DownloadService.update(ctx, resolvedFilename, (int) Math.round(pct), formatSpeed(speed));
-                        lastNotifyTime = now;
+                            JSObject prog = new JSObject();
+                            prog.put("id", taskId);
+                            prog.put("filename", resolvedFilename);
+                            prog.put("status", "downloading");
+                            prog.put("progress", Math.min(100.0, Math.round(pct * 10.0) / 10.0));
+                            prog.put("downloaded", downloadedBytes);
+                            prog.put("total", totalBytes > 0 ? totalBytes : downloadedBytes);
+                            prog.put("speed", speed);
+
+                            notifyListeners("downloadProgress", prog);
+
+                            // Update Android status bar notification
+                            DownloadService.update(ctx, resolvedFilename, (int) Math.round(pct), formatSpeed(speed));
+                            lastNotifyTime = now;
+                        }
                     }
                 }
 
@@ -801,15 +851,225 @@ public class AndroidDownloaderPlugin extends Plugin {
         });
     }
 
+    private boolean downloadSimultaneousSegments(
+            String fileUrl, boolean isGofile, String token, long totalBytes,
+            String taskId, String resolvedFilename, File stageFile, Context ctx
+    ) {
+        if (totalBytes <= 0) return false;
+        final int NUM_WORKERS = 4;
+        final long segmentSize = (totalBytes + NUM_WORKERS - 1) / NUM_WORKERS;
+
+        try (RandomAccessFile rafInit = new RandomAccessFile(stageFile, "rw")) {
+            rafInit.setLength(totalBytes);
+        } catch (Exception e) {
+            return false;
+        }
+
+        final CountDownLatch latch = new CountDownLatch(NUM_WORKERS);
+        final AtomicBoolean failed = new AtomicBoolean(false);
+        final AtomicLong totalDownloaded = new AtomicLong(0);
+        final long startTime = System.currentTimeMillis();
+        final AtomicLong lastNotifyTime = new AtomicLong(0);
+
+        for (int i = 0; i < NUM_WORKERS; i++) {
+            final long segStart = i * segmentSize;
+            final long segEnd = Math.min((i + 1) * segmentSize - 1, totalBytes - 1);
+
+            executor.submit(() -> {
+                HttpURLConnection segConn = null;
+                InputStream segIn = null;
+                RandomAccessFile segRaf = null;
+
+                try {
+                    if (segStart > segEnd) {
+                        latch.countDown();
+                        return;
+                    }
+
+                    URL u = new URL(fileUrl);
+                    segConn = (HttpURLConnection) u.openConnection();
+                    segConn.setInstanceFollowRedirects(true);
+                    segConn.setRequestProperty("User-Agent", APP_USER_AGENT);
+                    segConn.setRequestProperty("Accept", "*/*");
+                    segConn.setRequestProperty("Range", "bytes=" + segStart + "-" + segEnd);
+
+                    if (isGofile) {
+                        segConn.setRequestProperty("Referer", "https://gofile.io/");
+                        segConn.setRequestProperty("Origin", "https://gofile.io");
+                        if (token != null && !token.trim().isEmpty()) {
+                            segConn.setRequestProperty("Cookie", "accountToken=" + token);
+                        }
+                    }
+
+                    segConn.setConnectTimeout(20000);
+                    segConn.setReadTimeout(30000);
+                    segConn.connect();
+
+                    int code = segConn.getResponseCode();
+                    if (code != 206 && code != 200) {
+                        failed.set(true);
+                        return;
+                    }
+
+                    segIn = segConn.getInputStream();
+                    segRaf = new RandomAccessFile(stageFile, "rw");
+                    segRaf.seek(segStart);
+
+                    byte[] segBuf = new byte[65536];
+                    int r;
+                    long segWritten = 0;
+                    long expectedSegBytes = (segEnd - segStart + 1);
+
+                    while ((r = segIn.read(segBuf)) != -1) {
+                        if (Boolean.TRUE.equals(cancelFlags.get(taskId)) || failed.get()) {
+                            failed.set(true);
+                            return;
+                        }
+
+                        if (segWritten + r > expectedSegBytes) {
+                            r = (int) (expectedSegBytes - segWritten);
+                        }
+                        if (r <= 0) break;
+
+                        segRaf.write(segBuf, 0, r);
+                        segWritten += r;
+                        long currentGlobal = totalDownloaded.addAndGet(r);
+
+                        long now = System.currentTimeMillis();
+                        if (now - lastNotifyTime.get() > 250) {
+                            lastNotifyTime.set(now);
+                            double elapsedSec = Math.max(0.1, (now - startTime) / 1000.0);
+                            double speed = currentGlobal / elapsedSec;
+                            double pct = Math.min(100.0, ((double) currentGlobal / totalBytes) * 100.0);
+
+                            JSObject prog = new JSObject();
+                            prog.put("id", taskId);
+                            prog.put("filename", resolvedFilename);
+                            prog.put("status", "downloading");
+                            prog.put("progress", Math.round(pct * 10.0) / 10.0);
+                            prog.put("downloaded", currentGlobal);
+                            prog.put("total", totalBytes);
+                            prog.put("speed", speed);
+
+                            notifyListeners("downloadProgress", prog);
+                            DownloadService.update(ctx, resolvedFilename, (int) Math.round(pct), formatSpeed(speed));
+                        }
+
+                        if (segWritten >= expectedSegBytes) break;
+                    }
+
+                    if (segWritten < expectedSegBytes) {
+                        failed.set(true);
+                    }
+
+                } catch (Exception e) {
+                    failed.set(true);
+                } finally {
+                    try { if (segRaf != null) segRaf.close(); } catch (Exception ignored) {}
+                    try { if (segIn != null) segIn.close(); } catch (Exception ignored) {}
+                    if (segConn != null) segConn.disconnect();
+                    latch.countDown();
+                }
+            });
+        }
+
+        try {
+            latch.await();
+        } catch (InterruptedException e) {
+            return false;
+        }
+
+        return !failed.get() && totalDownloaded.get() >= totalBytes;
+    }
+
     @PluginMethod
     public void listDownloadedFiles(PluginCall call) {
         executor.execute(() -> {
             JSArray arr = new JSArray();
+            java.util.HashSet<String> seenKeys = new java.util.HashSet<>();
+            Context ctx = getContext();
+            ContentResolver resolver = ctx.getContentResolver();
+
+            // 1. Query MediaStore on Android 10+ (Q)
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
+                Uri[] tables = new Uri[]{
+                        MediaStore.Downloads.EXTERNAL_CONTENT_URI,
+                        MediaStore.Video.Media.EXTERNAL_CONTENT_URI,
+                        MediaStore.Audio.Media.EXTERNAL_CONTENT_URI,
+                        MediaStore.Images.Media.EXTERNAL_CONTENT_URI
+                };
+
+                for (Uri table : tables) {
+                    try {
+                        String[] projection = new String[]{
+                                MediaStore.MediaColumns._ID,
+                                MediaStore.MediaColumns.DISPLAY_NAME,
+                                MediaStore.MediaColumns.SIZE,
+                                MediaStore.MediaColumns.DATE_MODIFIED,
+                                MediaStore.MediaColumns.MIME_TYPE,
+                                MediaStore.MediaColumns.RELATIVE_PATH
+                        };
+                        String selection = MediaStore.MediaColumns.RELATIVE_PATH + " LIKE ? AND " + MediaStore.MediaColumns.SIZE + " > 0";
+                        String[] selectionArgs = new String[]{"%GoFile%"};
+
+                        try (Cursor cursor = resolver.query(table, projection, selection, selectionArgs, MediaStore.MediaColumns.DATE_MODIFIED + " DESC")) {
+                            if (cursor != null) {
+                                int idCol = cursor.getColumnIndexOrThrow(MediaStore.MediaColumns._ID);
+                                int nameCol = cursor.getColumnIndexOrThrow(MediaStore.MediaColumns.DISPLAY_NAME);
+                                int sizeCol = cursor.getColumnIndexOrThrow(MediaStore.MediaColumns.SIZE);
+                                int modCol = cursor.getColumnIndexOrThrow(MediaStore.MediaColumns.DATE_MODIFIED);
+                                int mimeCol = cursor.getColumnIndexOrThrow(MediaStore.MediaColumns.MIME_TYPE);
+                                int relCol = cursor.getColumnIndexOrThrow(MediaStore.MediaColumns.RELATIVE_PATH);
+
+                                while (cursor.moveToNext()) {
+                                    String name = cursor.getString(nameCol);
+                                    if (name == null || name.endsWith(".part") || name.startsWith(".")) continue;
+
+                                    long id = cursor.getLong(idCol);
+                                    long size = cursor.getLong(sizeCol);
+                                    long mod = cursor.getLong(modCol) * 1000L;
+                                    String mime = cursor.getString(mimeCol);
+                                    String relPath = cursor.getString(relCol);
+
+                                    String relDir = "";
+                                    if (relPath != null) {
+                                        String cleanRel = relPath.replace('\\', '/').trim();
+                                        if (cleanRel.startsWith("Download/GoFile")) {
+                                            cleanRel = cleanRel.substring("Download/GoFile".length());
+                                        } else if (cleanRel.startsWith("GoFile")) {
+                                            cleanRel = cleanRel.substring("GoFile".length());
+                                        }
+                                        while (cleanRel.startsWith("/")) cleanRel = cleanRel.substring(1);
+                                        while (cleanRel.endsWith("/")) cleanRel = cleanRel.substring(0, cleanRel.length() - 1);
+                                        relDir = cleanRel;
+                                    }
+
+                                    String dedupeKey = (relDir.isEmpty() ? "" : relDir + "/") + name;
+                                    if (seenKeys.contains(dedupeKey)) continue;
+                                    seenKeys.add(dedupeKey);
+
+                                    Uri fileUri = ContentUris.withAppendedId(table, id);
+                                    JSObject item = new JSObject();
+                                    item.put("name", name);
+                                    item.put("size", size);
+                                    item.put("modified", mod);
+                                    item.put("relDir", relDir);
+                                    item.put("uri", fileUri.toString());
+                                    item.put("mimetype", (mime != null && !mime.isEmpty()) ? mime : getMimeType(name));
+                                    arr.put(item);
+                                }
+                            }
+                        }
+                    } catch (Exception ignored) {}
+                }
+            }
+
+            // 2. Query physical File directory Download/GoFile (supports Android 9 and physical storage)
             try {
                 File downloadDir = Environment.getExternalStoragePublicDirectory(Environment.DIRECTORY_DOWNLOADS);
                 File gofileDir = new File(downloadDir, "GoFile");
                 if (gofileDir.exists() && gofileDir.isDirectory()) {
-                    scanFilesRecursive(gofileDir, gofileDir, arr);
+                    scanFilesRecursive(gofileDir, gofileDir, arr, seenKeys);
                 }
             } catch (Exception ignored) {}
 
@@ -819,21 +1079,25 @@ public class AndroidDownloaderPlugin extends Plugin {
         });
     }
 
-    private void scanFilesRecursive(File rootDir, File currentDir, JSArray out) {
+    private void scanFilesRecursive(File rootDir, File currentDir, JSArray out, java.util.HashSet<String> seenKeys) {
         File[] files = currentDir.listFiles();
         if (files == null) return;
         Context ctx = getContext();
         for (File f : files) {
             if (f.isDirectory()) {
-                scanFilesRecursive(rootDir, f, out);
+                scanFilesRecursive(rootDir, f, out, seenKeys);
             } else if (f.isFile() && !f.getName().endsWith(".part") && !f.getName().startsWith(".")) {
                 try {
+                    String rel = rootDir.toURI().relativize(f.getParentFile().toURI()).getPath();
+                    if (rel.endsWith("/")) rel = rel.substring(0, rel.length() - 1);
+                    String dedupeKey = (rel.isEmpty() ? "" : rel + "/") + f.getName();
+                    if (seenKeys.contains(dedupeKey)) continue;
+                    seenKeys.add(dedupeKey);
+
                     JSObject item = new JSObject();
                     item.put("name", f.getName());
                     item.put("size", f.length());
                     item.put("modified", f.lastModified());
-                    String rel = rootDir.toURI().relativize(f.getParentFile().toURI()).getPath();
-                    if (rel.endsWith("/")) rel = rel.substring(0, rel.length() - 1);
                     item.put("relDir", rel);
                     Uri uri = FileProvider.getUriForFile(ctx, ctx.getPackageName() + ".fileprovider", f);
                     item.put("uri", uri != null ? uri.toString() : "");
@@ -1205,40 +1469,68 @@ public class AndroidDownloaderPlugin extends Plugin {
         String uriStr = call.getString("uri");
 
         Context ctx = getContext();
-        Uri contentUri = null;
+        File tempApkFile = null;
 
         try {
+            // 1. If physical file exists at filePath, use it
             if (filePath != null && !filePath.isEmpty()) {
                 File file = new File(filePath);
-                if (file.exists()) {
-                    contentUri = FileProvider.getUriForFile(ctx, ctx.getPackageName() + ".fileprovider", file);
+                if (file.exists() && file.isFile() && file.length() > 0) {
+                    tempApkFile = file;
                 }
             }
 
-            if (contentUri == null && uriStr != null && !uriStr.isEmpty()) {
-                contentUri = Uri.parse(uriStr);
+            // 2. If content uri provided (e.g. MediaStore URI or FileProvider URI)
+            if (tempApkFile == null && uriStr != null && !uriStr.isEmpty()) {
+                Uri parsedUri = Uri.parse(uriStr);
+                if ("content".equalsIgnoreCase(parsedUri.getScheme())) {
+                    // Copy to app's cache directory so FileProvider can grant permission directly to system package installer
+                    File cacheDir = ctx.getExternalCacheDir() != null ? ctx.getExternalCacheDir() : ctx.getCacheDir();
+                    File copiedApk = new File(cacheDir, "update_installer.apk");
+                    try (InputStream inStream = ctx.getContentResolver().openInputStream(parsedUri);
+                         FileOutputStream outStream = new FileOutputStream(copiedApk)) {
+                        if (inStream != null) {
+                            byte[] buffer = new byte[65536];
+                            int read;
+                            while ((read = inStream.read(buffer)) != -1) {
+                                outStream.write(buffer, 0, read);
+                            }
+                            outStream.flush();
+                            if (copiedApk.length() > 0) {
+                                tempApkFile = copiedApk;
+                            }
+                        }
+                    } catch (Exception ignored) {}
+                } else if ("file".equalsIgnoreCase(parsedUri.getScheme())) {
+                    File file = new File(parsedUri.getPath());
+                    if (file.exists() && file.isFile() && file.length() > 0) {
+                        tempApkFile = file;
+                    }
+                }
             }
 
-            if (contentUri == null) {
-                // Fallback check standard download directory
+            // 3. Fallback: check Download/GoFile/GoFile-Pro.apk or Download/GoFile-Pro.apk
+            if (tempApkFile == null) {
                 File downloadDir = Environment.getExternalStoragePublicDirectory(Environment.DIRECTORY_DOWNLOADS);
                 File candidate = new File(downloadDir, "GoFile/GoFile-Pro.apk");
-                if (!candidate.exists()) {
+                if (!candidate.exists() || !candidate.isFile()) {
                     candidate = new File(downloadDir, "GoFile-Pro.apk");
                 }
-                if (candidate.exists()) {
-                    contentUri = FileProvider.getUriForFile(ctx, ctx.getPackageName() + ".fileprovider", candidate);
+                if (candidate.exists() && candidate.isFile() && candidate.length() > 0) {
+                    tempApkFile = candidate;
                 }
             }
 
-            if (contentUri == null) {
+            if (tempApkFile == null || !tempApkFile.exists() || tempApkFile.length() == 0) {
                 call.reject("Berkas APK pembaruan tidak ditemukan");
                 return;
             }
 
+            Uri contentUri = FileProvider.getUriForFile(ctx, ctx.getPackageName() + ".fileprovider", tempApkFile);
+
             Intent installIntent = new Intent(Intent.ACTION_VIEW);
             installIntent.setDataAndType(contentUri, "application/vnd.android.package-archive");
-            installIntent.addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION | Intent.FLAG_ACTIVITY_NEW_TASK);
+            installIntent.addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION | Intent.FLAG_GRANT_PERSISTABLE_URI_PERMISSION | Intent.FLAG_ACTIVITY_NEW_TASK);
             ctx.startActivity(installIntent);
 
             JSObject ret = new JSObject();

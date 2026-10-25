@@ -357,6 +357,10 @@
                 <svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor"><rect x="6" y="4" width="4" height="16"></rect><rect x="14" y="4" width="4" height="16"></rect></svg>
                 <span data-i18n="downloads.pause_all">Pause All</span>
               </button>
+              <button class="btn btn-warning btn-sm" id="btn-retry-all-queue" title="Coba lagi semua unduhan yang gagal" style="display:none;">
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="23 4 23 10 17 10"></polyline><path d="M20.49 15a9 9 0 1 1-2.12-9.36L23 10"></path></svg>
+                <span data-i18n="downloads.retry_all">Retry All</span> (<span id="retry-failed-count">0</span>)
+              </button>
               <button class="btn btn-secondary btn-sm" id="btn-open-folder-queue" title="Buka Folder Penyimpanan">
                 <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z"></path></svg>
                 <span data-i18n="downloads.open_folder">Buka Folder</span>
@@ -538,14 +542,41 @@
           </div>
 
           <div class="stored-actions-group">
-            <select class="select-sort-files" id="select-sort-files" title="Urutkan File">
-              <option value="recent">⏱️ Terbaru</option>
-              <option value="oldest">⌛ Terlama</option>
-              <option value="largest">💾 Terbesar</option>
-              <option value="smallest">📄 Terkecil</option>
-              <option value="name_asc">🔤 Nama (A-Z)</option>
-              <option value="name_desc">🔡 Nama (Z-A)</option>
-            </select>
+            <div class="custom-sort-dropdown" id="custom-sort-dropdown">
+              <button type="button" class="btn-sort-trigger" id="btn-sort-trigger" aria-haspopup="listbox" aria-expanded="false" title="Urutkan File">
+                <span class="sort-trigger-icon" id="sort-trigger-icon">⏱️</span>
+                <span class="sort-trigger-text" id="sort-trigger-text">Terbaru</span>
+                <svg class="sort-trigger-arrow" width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5">
+                  <polyline points="6 9 12 15 18 9"></polyline>
+                </svg>
+              </button>
+              <div class="sort-menu-popup" id="sort-menu-popup" role="listbox">
+                <button type="button" class="sort-menu-item active" data-value="recent">
+                  <span class="sort-item-icon">⏱️</span>
+                  <span class="sort-item-label">Terbaru</span>
+                </button>
+                <button type="button" class="sort-menu-item" data-value="oldest">
+                  <span class="sort-item-icon">⌛</span>
+                  <span class="sort-item-label">Terlama</span>
+                </button>
+                <button type="button" class="sort-menu-item" data-value="largest">
+                  <span class="sort-item-icon">💾</span>
+                  <span class="sort-item-label">Terbesar</span>
+                </button>
+                <button type="button" class="sort-menu-item" data-value="smallest">
+                  <span class="sort-item-icon">📄</span>
+                  <span class="sort-item-label">Terkecil</span>
+                </button>
+                <button type="button" class="sort-menu-item" data-value="name_asc">
+                  <span class="sort-item-icon">🔤</span>
+                  <span class="sort-item-label">Nama (A-Z)</span>
+                </button>
+                <button type="button" class="sort-menu-item" data-value="name_desc">
+                  <span class="sort-item-icon">🔡</span>
+                  <span class="sort-item-label">Nama (Z-A)</span>
+                </button>
+              </div>
+            </div>
 
             <button type="button" class="btn-batch-delete" id="btn-batch-delete-stored" style="display:none;" title="Hapus file terpilih">
               <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="3 6 5 6 21 6"></polyline><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"></path></svg>

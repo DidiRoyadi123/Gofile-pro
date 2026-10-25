@@ -46,6 +46,9 @@ const ThemeManager = {
     this.activeTheme = resolved;
 
     document.documentElement.setAttribute('data-theme', resolved);
+    if (document.body) {
+      document.body.setAttribute('data-theme', resolved);
+    }
 
     // Update Header Toggle Icon
     const darkIcon = document.querySelector('.theme-icon-dark');
@@ -71,7 +74,10 @@ const ThemeManager = {
     // If currently dark, switch to light; if currently light, switch to dark
     const nextTheme = this.activeTheme === 'dark' ? 'light' : 'dark';
     this.applyTheme(nextTheme);
+    return nextTheme;
   }
-};
-
 window.ThemeManager = ThemeManager;
+
+try {
+  ThemeManager.init();
+} catch (e) {}

@@ -129,7 +129,11 @@ const ApiBridge = {
 
     // 1. Windows Native (PyWebView Python API)
     if (window.pywebview && window.pywebview.api && typeof window.pywebview.api.download_file === 'function') {
-      return await window.pywebview.api.download_file(item, downloadDir);
+      const res = await window.pywebview.api.download_file(item, downloadDir);
+      if (res) {
+        item.savedUri = `${downloadDir}/${item.name}`;
+      }
+      return res;
     }
 
     // 2. Android Native (Capacitor Java Plugin)
@@ -161,6 +165,10 @@ const ApiBridge = {
       return await this.clientEngine.downloadFile(item, onProgress);
     }
     throw new Error('Tidak ada mesin pengunduh yang aktif');
+  },
+
+  downloadFile(item, downloadDir, onProgress) {
+    return this.downloadItem(item, downloadDir, onProgress);
   },
 
   async checkFileExists(filename, relDir = '', size = 0) {
@@ -218,7 +226,7 @@ const ApiBridge = {
     const androidPlugin = this.getAndroidPlugin();
     if (androidPlugin && typeof androidPlugin.openFile === 'function') {
       try {
-        const uri = (item && item.savedUri) || '';
+        const uri = (item && (item.savedUri || item.uri)) || '';
         const filename = (item && item.name) || (filePath ? filePath.split('/').pop() : '');
         const mimetype = (item && item.mimetype) || '';
 
@@ -509,7 +517,8 @@ const ApiBridge = {
       }
     } else if (this.platform === 'windows') {
       if (window.pywebview && window.pywebview.api && typeof window.pywebview.api.install_update === 'function') {
-        return await window.pywebview.api.install_update(filePath);
+        const fullPath = (filePath && (filePath.includes('/') || filePath.includes('\\'))) ? filePath : `./downloads/${filePath}`;
+        return await window.pywebview.api.install_update(fullPath);
       }
     } else {
       if (filePath && filePath.startsWith('http')) {
