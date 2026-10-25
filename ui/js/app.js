@@ -1644,9 +1644,94 @@ document.addEventListener('DOMContentLoaded', () => {
   loadStoredFiles();
 
   // ----------------------------------------------------
+  // Virtual Keyboard & Mobile Footer Navigation Manager
+  // ----------------------------------------------------
+  let isKeyboardOpen = false;
+
+  function setKeyboardState(open) {
+    if (isKeyboardOpen === open) return;
+    isKeyboardOpen = open;
+    if (open) {
+      document.body.classList.add('keyboard-open');
+    } else {
+      document.body.classList.remove('keyboard-open');
+    }
+  }
+
+  // 1. Instant focus/blur detection for text inputs & textareas
+  document.addEventListener('focusin', (e) => {
+    const el = e.target;
+    if (!el) return;
+    const isTextInput = (el.tagName === 'INPUT' && !['checkbox', 'radio', 'button', 'submit', 'file', 'range'].includes(el.type)) ||
+                        el.tagName === 'TEXTAREA';
+    if (isTextInput) {
+      setKeyboardState(true);
+    }
+  });
+
+  document.addEventListener('focusout', (e) => {
+    setTimeout(() => {
+      const active = document.activeElement;
+      const isStillTextInput = active && (
+        (active.tagName === 'INPUT' && !['checkbox', 'radio', 'button', 'submit', 'file', 'range'].includes(active.type)) ||
+        active.tagName === 'TEXTAREA'
+      );
+      if (!isStillTextInput) {
+        if (window.visualViewport) {
+          const ratio = window.visualViewport.height / window.innerHeight;
+          if (ratio > 0.85) {
+            setKeyboardState(false);
+          }
+        } else {
+          setKeyboardState(false);
+        }
+      }
+    }, 120);
+  });
+
+  // 2. Viewport height listener (handles keyboard dismissed via system gesture)
+  if (window.visualViewport) {
+    let initialVvHeight = window.visualViewport.height;
+    window.visualViewport.addEventListener('resize', () => {
+      const currentHeight = window.visualViewport.height;
+      if ((initialVvHeight - currentHeight) > 120) {
+        setKeyboardState(true);
+      } else if (currentHeight >= initialVvHeight - 40) {
+        const active = document.activeElement;
+        const isStillTextInput = active && (
+          (active.tagName === 'INPUT' && !['checkbox', 'radio', 'button', 'submit', 'file', 'range'].includes(active.type)) ||
+          active.tagName === 'TEXTAREA'
+        );
+        if (!isStillTextInput) {
+          setKeyboardState(false);
+        }
+      }
+    });
+  } else {
+    let initialWinHeight = window.innerHeight;
+    window.addEventListener('resize', () => {
+      if ((initialWinHeight - window.innerHeight) > 120) {
+        setKeyboardState(true);
+      } else if (window.innerHeight >= initialWinHeight - 40) {
+        setKeyboardState(false);
+      }
+    });
+  }
+
+  // ----------------------------------------------------
   // Hardware Back Button Controller (Android)
   // ----------------------------------------------------
   window.handleHardwareBack = function() {
+    // If an input is focused when back is pressed, dismiss keyboard first
+    if (document.activeElement && (
+      (document.activeElement.tagName === 'INPUT' && !['checkbox', 'radio', 'button', 'submit'].includes(document.activeElement.type)) ||
+      document.activeElement.tagName === 'TEXTAREA'
+    )) {
+      document.activeElement.blur();
+      setKeyboardState(false);
+      return true;
+    }
+
     if (updateModal && updateModal.classList.contains('active')) {
       updateModal.classList.remove('active');
       return true;
