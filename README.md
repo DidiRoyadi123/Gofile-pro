@@ -1,8 +1,8 @@
-# GoFile Pro Downloader v2.0 Multiplatform (Android & Windows Portable UI)
+# GoFile Pro Downloader v2.2.0 Multiplatform (Android & Windows Portable UI)
 
-GoFile Pro Downloader is a high-speed, modern multi-threaded download manager designed for GoFile.io. It supports both **Android (Native .APK)** and **Windows (Portable .EXE)** platforms. Built with directory tree inspection, automatic chunked resume, a non-blocking dynamic queue, and strict file integrity verification to prevent duplicate downloads.
+GoFile Pro Downloader is a high-speed, modern multi-threaded download manager designed for GoFile.io. It supports both **Android (Native .APK)** and **Windows (Portable .EXE)** platforms. Built with in-app automated update delivery, native package installation, directory tree inspection, automatic chunked resume, 16-thread concurrent queue, and strict file integrity verification to prevent duplicate downloads.
 
-GoFile Pro Downloader adalah aplikasi pengunduh berkas multi-threaded modern untuk platform GoFile.io, mendukung sistem operasi **Android (.APK)** dan **Windows (.EXE)**. Dilengkapi inspeksi struktur direktori, auto-resume unduhan terputus, antrean dinamis non-blocking, serta verifikasi integritas berkas untuk mencegah unduhan ganda.
+GoFile Pro Downloader adalah aplikasi pengunduh berkas multi-threaded modern untuk platform GoFile.io, mendukung sistem operasi **Android (.APK)** dan **Windows (.EXE)**. Dilengkapi pembaruan aplikasi otomatis (in-app updater) dan instalasi paket langsung, inspeksi direktori, auto-resume unduhan, antrean simultan hingga 16 worker, serta verifikasi integritas berkas untuk mencegah unduhan ganda.
 
 ---
 

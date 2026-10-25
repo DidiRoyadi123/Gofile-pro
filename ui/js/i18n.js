@@ -125,6 +125,25 @@ const I18n = {
       'settings.sponsor_desc': 'Suka dengan kemudahan dan kecepatan GoFile Pro? Traktir secangkir kopi melalui Trakteer untuk mendukung pembaruan fitur di masa depan.',
       'settings.trakteer_btn': 'Dukung Saya di Trakteer',
       'settings.github_btn': 'GitHub Project',
+      'settings.update_title': 'Pembaruan Aplikasi',
+      'settings.update_subtitle': 'Periksa dan perbarui GoFile Pro langsung dari aplikasi.',
+      'settings.update_check_btn': 'Cek Pembaruan',
+      'settings.update_checking': 'Memeriksa...',
+      'settings.update_latest': 'Aplikasi Anda sudah versi terbaru ({version})',
+      'settings.update_available': 'Versi baru {version} tersedia!',
+      'settings.save_btn_bottom': 'Simpan Pengaturan',
+
+      // Update Modal
+      'update_modal.title': 'Pembaruan Aplikasi Tersedia',
+      'update_modal.version_badge': 'Versi Terbaru: {version}',
+      'update_modal.current_badge': 'Versi Saat Ini: {version}',
+      'update_modal.changelog': 'Catatan Rilis / Pembaruan:',
+      'update_modal.download_btn': 'Unduh & Pasang Sekarang',
+      'update_modal.downloading': 'Mengunduh Pembaruan ({progress}%)',
+      'update_modal.installing': 'Membuka Pemasang Paket...',
+      'update_modal.later_btn': 'Nanti Saja',
+      'update_modal.permission_notice': 'Catatan Android: Jika diminta persetujuan instalasi dari sumber tidak dikenal, silakan izinkan agar pembaruan dapat terpasang otomatis.',
+      'update_modal.permission_btn': 'Beri Izin Instalasi HP',
 
       // Inspection Modal
       'modal.folder_title': 'Konten Folder',
@@ -279,6 +298,25 @@ const I18n = {
       'settings.sponsor_desc': 'Enjoying the speed and ease of GoFile Pro? Treat the developer to a coffee via Trakteer to support ongoing maintenance and future updates.',
       'settings.trakteer_btn': 'Support on Trakteer',
       'settings.github_btn': 'GitHub Project',
+      'settings.update_title': 'App Updates',
+      'settings.update_subtitle': 'Check and update GoFile Pro directly inside the app.',
+      'settings.update_check_btn': 'Check for Updates',
+      'settings.update_checking': 'Checking...',
+      'settings.update_latest': 'You are on the latest version ({version})',
+      'settings.update_available': 'New version {version} is available!',
+      'settings.save_btn_bottom': 'Save Settings',
+
+      // Update Modal
+      'update_modal.title': 'New Update Available',
+      'update_modal.version_badge': 'Latest Version: {version}',
+      'update_modal.current_badge': 'Current Version: {version}',
+      'update_modal.changelog': 'Release Notes / Changelog:',
+      'update_modal.download_btn': 'Download & Install Now',
+      'update_modal.downloading': 'Downloading Update ({progress}%)',
+      'update_modal.installing': 'Opening Package Installer...',
+      'update_modal.later_btn': 'Later',
+      'update_modal.permission_notice': 'Android Notice: If prompted to allow installing apps from this source, please permit it to install the update automatically.',
+      'update_modal.permission_btn': 'Grant Install Permission',
 
       // Inspection Modal
       'modal.folder_title': 'Folder Contents',

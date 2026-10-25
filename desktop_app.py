@@ -140,6 +140,23 @@ class DesktopAPI:
         except Exception:
             return False
 
+    def install_update(self, exe_path: str) -> bool:
+        """Launches the updated Windows executable and closes the current application."""
+        try:
+            target = Path(exe_path).resolve()
+            if not target.exists() or not target.is_file():
+                return False
+            import subprocess
+            if os.name == "nt":
+                subprocess.Popen([str(target)], shell=True)
+            else:
+                subprocess.Popen([str(target)])
+            if self.window:
+                self.window.destroy()
+            return True
+        except Exception:
+            return False
+
     def stop_all(self):
         """Stops all active download tasks."""
         self.engine.stop_all()

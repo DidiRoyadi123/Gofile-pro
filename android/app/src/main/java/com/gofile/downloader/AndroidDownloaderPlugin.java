@@ -46,7 +46,7 @@ import java.util.concurrent.Executors;
 @CapacitorPlugin(name = "AndroidDownloader")
 public class AndroidDownloaderPlugin extends Plugin {
 
-    private final ExecutorService executor = Executors.newFixedThreadPool(4);
+    private final ExecutorService executor = Executors.newFixedThreadPool(16);
     private final ConcurrentHashMap<String, Boolean> cancelFlags = new ConcurrentHashMap<>();
     private final ConcurrentHashMap<String, HttpURLConnection> activeConnections = new ConcurrentHashMap<>();
     private final Handler mainHandler = new Handler(Looper.getMainLooper());
@@ -446,7 +446,7 @@ public class AndroidDownloaderPlugin extends Plugin {
                     throw new Exception("Gagal membuka stream penulisan file");
                 }
 
-                byte[] buffer = new byte[65536]; // 64 KB buffer
+                byte[] buffer = new byte[131072]; // 128 KB buffer for optimal throughput
                 int bytesRead;
                 long downloadedBytes = 0;
                 long startTime = System.currentTimeMillis();
@@ -1139,5 +1139,96 @@ public class AndroidDownloaderPlugin extends Plugin {
                 call.reject(msg);
             }
         });
+    }
+
+    @PluginMethod
+    public void canRequestPackageInstalls(PluginCall call) {
+        JSObject ret = new JSObject();
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+            boolean canInstall = getContext().getPackageManager().canRequestPackageInstalls();
+            ret.put("canInstall", canInstall);
+        } else {
+            ret.put("canInstall", true);
+        }
+        call.resolve(ret);
+    }
+
+    @PluginMethod
+    public void openInstallPermissionSettings(PluginCall call) {
+        try {
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+                Intent intent = new Intent(android.provider.Settings.ACTION_MANAGE_UNKNOWN_APP_SOURCES);
+                intent.setData(Uri.parse("package:" + getContext().getPackageName()));
+                intent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK);
+                getContext().startActivity(intent);
+                JSObject ret = new JSObject();
+                ret.put("success", true);
+                call.resolve(ret);
+            } else {
+                JSObject ret = new JSObject();
+                ret.put("success", true);
+                call.resolve(ret);
+            }
+        } catch (Exception e) {
+            call.reject("Gagal membuka pengaturan perizinan instalasi: " + e.getMessage());
+        }
+    }
+
+    @PluginMethod
+    public void installApk(PluginCall call) {
+        String filePath = call.getString("filePath");
+        String uriStr = call.getString("uri");
+
+        Context ctx = getContext();
+        Uri contentUri = null;
+
+        try {
+            if (filePath != null && !filePath.isEmpty()) {
+                File file = new File(filePath);
+                if (file.exists()) {
+                    contentUri = FileProvider.getUriForFile(ctx, ctx.getPackageName() + ".fileprovider", file);
+                }
+            }
+
+            if (contentUri == null && uriStr != null && !uriStr.isEmpty()) {
+                contentUri = Uri.parse(uriStr);
+            }
+
+            if (contentUri == null) {
+                // Fallback check standard download directory
+                File downloadDir = Environment.getExternalStoragePublicDirectory(Environment.DIRECTORY_DOWNLOADS);
+                File candidate = new File(downloadDir, "GoFile/GoFile-Pro.apk");
+                if (!candidate.exists()) {
+                    candidate = new File(downloadDir, "GoFile-Pro.apk");
+                }
+                if (candidate.exists()) {
+                    contentUri = FileProvider.getUriForFile(ctx, ctx.getPackageName() + ".fileprovider", candidate);
+                }
+            }
+
+            if (contentUri == null) {
+                call.reject("Berkas APK pembaruan tidak ditemukan");
+                return;
+            }
+
+            Intent installIntent = new Intent(Intent.ACTION_VIEW);
+            installIntent.setDataAndType(contentUri, "application/vnd.android.package-archive");
+            installIntent.addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION | Intent.FLAG_ACTIVITY_NEW_TASK);
+            ctx.startActivity(installIntent);
+
+            JSObject ret = new JSObject();
+            ret.put("success", true);
+            call.resolve(ret);
+        } catch (Exception e) {
+            call.reject("Gagal memulai pemasang aplikasi: " + e.getMessage());
+        }
+    }
+
+    @PluginMethod
+    public void exitApp(PluginCall call) {
+        if (getActivity() != null) {
+            mainHandler.post(() -> getActivity().finishAffinity());
+        }
+        call.resolve();
     }
 }

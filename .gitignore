@@ -37,6 +37,7 @@ downloads/
 dist/*
 !dist/GoFile-Pro.apk
 !dist/GoFile-Downloader-v2.exe
+!dist/GoFile-Downloader.exe
 
 # OS generated files
 .DS_Store

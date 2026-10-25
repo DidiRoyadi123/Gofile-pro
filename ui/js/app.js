@@ -3,6 +3,8 @@
  */
 
 document.addEventListener('DOMContentLoaded', () => {
+  const CURRENT_VERSION = 'v2.2.0';
+
   // State Management
   const state = {
     activeTab: 'tab-home',
@@ -264,7 +266,6 @@ document.addEventListener('DOMContentLoaded', () => {
 
     // Auto-check and scan download directory on startup (first install / update)
     try {
-      const CURRENT_VERSION = '2.0.0';
       const lastVersion = localStorage.getItem('gf_app_version');
       const isFirstRunOrUpdate = !lastVersion || lastVersion !== CURRENT_VERSION;
       localStorage.setItem('gf_app_version', CURRENT_VERSION);
@@ -277,6 +278,11 @@ document.addEventListener('DOMContentLoaded', () => {
     } catch (err) {
       console.warn('Initial storage scan non-fatal error:', err);
     }
+
+    // Auto-check for updates silently in background (delayed 2.5s)
+    setTimeout(() => {
+      checkForAppUpdate(true);
+    }, 2500);
   })();
 
   // ----------------------------------------------------
@@ -315,6 +321,21 @@ document.addEventListener('DOMContentLoaded', () => {
   openSettingsHeaderBtn.addEventListener('click', () => {
     document.getElementById('nav-settings-tab').click();
   });
+
+  if (headerDownloadIndicator) {
+    headerDownloadIndicator.style.cursor = 'pointer';
+    headerDownloadIndicator.addEventListener('click', () => {
+      showDownloadsTab('queue');
+    });
+  }
+
+  // Bottom Save Settings Button
+  const btnSaveSettingsBottom = document.getElementById('btn-save-settings-bottom');
+  if (btnSaveSettingsBottom) {
+    btnSaveSettingsBottom.addEventListener('click', () => {
+      btnSaveSettings.click();
+    });
+  }
 
   // ----------------------------------------------------
   // Open Sponsor & Traktir Kopi Action Listeners
@@ -1354,16 +1375,6 @@ document.addEventListener('DOMContentLoaded', () => {
   document.querySelectorAll('.btn-trakteer-trigger').forEach(btn => {
     btn.addEventListener('click', openTrakteer);
   });
-  const btnTrakteerSponsor = document.getElementById('btn-trakteer-sponsor');
-  if (btnTrakteerSponsor) {
-    btnTrakteerSponsor.addEventListener('click', openTrakteer);
-  }
-  const btnGithubSponsor = document.getElementById('btn-github-sponsor');
-  if (btnGithubSponsor) {
-    btnGithubSponsor.addEventListener('click', () => {
-      window.open('https://github.com/DidiRoyadi123/Gofile-pro', '_blank', 'noopener,noreferrer');
-    });
-  }
 
   btnSaveSettings.addEventListener('click', () => {
     state.downloadDir = settingDownloadDir.value.trim() || './downloads';
@@ -1631,4 +1642,287 @@ document.addEventListener('DOMContentLoaded', () => {
 
   // Initial load of stored files
   loadStoredFiles();
+
+  // ----------------------------------------------------
+  // Hardware Back Button Controller (Android)
+  // ----------------------------------------------------
+  window.handleHardwareBack = function() {
+    if (updateModal && updateModal.classList.contains('active')) {
+      updateModal.classList.remove('active');
+      return true;
+    }
+    if (inspectionModal && inspectionModal.classList.contains('active')) {
+      btnCloseModal.click();
+      return true;
+    }
+    if (state.activeTab !== 'tab-home') {
+      const homeTab = document.getElementById('nav-home-tab');
+      if (homeTab) {
+        homeTab.click();
+        window.scrollTo({ top: 0, behavior: 'smooth' });
+        return true;
+      }
+    }
+    if (window._lastBackPress && (Date.now() - window._lastBackPress < 2000)) {
+      return false; // Exit app on double back
+    }
+    window._lastBackPress = Date.now();
+    showToast('Tekan sekali lagi untuk keluar', 'info', 1800);
+    return true;
+  };
+
+  // ----------------------------------------------------
+  // In-App Update Engine Controller
+  // ----------------------------------------------------
+  const updateModal = document.getElementById('update-modal');
+  const btnCloseUpdateModal = document.getElementById('btn-close-update-modal');
+  const btnLaterUpdate = document.getElementById('btn-later-update');
+  const btnDownloadUpdate = document.getElementById('btn-download-update');
+  const btnDownloadUpdateText = document.getElementById('btn-download-update-text');
+  const updateNewVersionBadge = document.getElementById('update-new-version-badge');
+  const updateCurrVersionBadge = document.getElementById('update-curr-version-badge');
+  const updateChangelogText = document.getElementById('update-changelog-text');
+  const updatePermissionBox = document.getElementById('update-permission-box');
+  const btnOpenInstallPerm = document.getElementById('btn-open-install-perm');
+  const updateProgressContainer = document.getElementById('update-progress-container');
+  const updateProgressFill = document.getElementById('update-progress-fill');
+  const updateProgressStatus = document.getElementById('update-progress-status');
+  const updateProgressPct = document.getElementById('update-progress-pct');
+  const btnCheckUpdateSettings = document.getElementById('btn-check-update-settings');
+  const settingsUpdateStatusText = document.getElementById('settings-update-status-text');
+  const settingsCurrentVerBadge = document.getElementById('settings-current-ver-badge');
+  const updateBannerContainer = document.getElementById('update-banner-container');
+
+  let activeUpdateInfo = null;
+
+  if (settingsCurrentVerBadge) {
+    settingsCurrentVerBadge.textContent = CURRENT_VERSION;
+  }
+
+  function renderUpdateBanner(info) {
+    if (!updateBannerContainer || !info || !info.isUpdateAvailable) return;
+    updateBannerContainer.innerHTML = `
+      <div class="update-banner">
+        <div class="update-banner-info">
+          <div class="update-banner-icon">
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5">
+              <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path>
+              <polyline points="7 10 12 15 17 10"></polyline>
+              <line x1="12" y1="15" x2="12" y2="3"></line>
+            </svg>
+          </div>
+          <div class="update-banner-text">
+            <h4>Pembaruan ${escapeHtml(info.latestVersion)} Tersedia!</h4>
+            <p>${escapeHtml(info.releaseName || 'Versi baru dengan perbaikan dan peningkatan performa.')}</p>
+          </div>
+        </div>
+        <div class="update-banner-actions">
+          <button type="button" class="btn btn-primary btn-sm" id="btn-banner-view-update" style="padding:0.4rem 0.85rem; font-weight:700;">
+            Lihat & Pasang
+          </button>
+          <button type="button" class="btn-icon" id="btn-banner-dismiss" style="width:28px; height:28px;" title="Tutup banner">
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+              <line x1="18" y1="6" x2="6" y2="18"></line>
+              <line x1="6" y1="6" x2="18" y2="18"></line>
+            </svg>
+          </button>
+        </div>
+      </div>
+    `;
+
+    const btnView = document.getElementById('btn-banner-view-update');
+    const btnDismiss = document.getElementById('btn-banner-dismiss');
+    if (btnView) {
+      btnView.addEventListener('click', () => showUpdateModal(info));
+    }
+    if (btnDismiss) {
+      btnDismiss.addEventListener('click', () => {
+        updateBannerContainer.innerHTML = '';
+      });
+    }
+  }
+
+  async function showUpdateModal(info) {
+    activeUpdateInfo = info;
+    if (!updateModal) return;
+
+    if (updateNewVersionBadge) {
+      updateNewVersionBadge.textContent = `Versi Baru: ${info.latestVersion}`;
+    }
+    if (updateCurrVersionBadge) {
+      updateCurrVersionBadge.textContent = `Versi Saat Ini: ${CURRENT_VERSION}`;
+    }
+    if (updateChangelogText) {
+      updateChangelogText.textContent = info.releaseNotes || 'Pembaruan stabilitas, performa multi-worker, dan perbaikan antarmuka.';
+    }
+
+    // Check Android installation permission if on Android
+    const platInfo = ApiBridge.getPlatformInfo();
+    if (platInfo.isAndroid && updatePermissionBox) {
+      const canInstall = await ApiBridge.canRequestPackageInstalls();
+      updatePermissionBox.style.display = canInstall ? 'none' : 'flex';
+    } else if (updatePermissionBox) {
+      updatePermissionBox.style.display = 'none';
+    }
+
+    if (updateProgressContainer) {
+      updateProgressContainer.style.display = 'none';
+    }
+    if (btnDownloadUpdate) {
+      btnDownloadUpdate.disabled = false;
+      if (btnDownloadUpdateText) {
+        btnDownloadUpdateText.textContent = 'Unduh & Pasang Sekarang';
+      }
+    }
+
+    updateModal.classList.add('active');
+  }
+
+  if (btnCloseUpdateModal) {
+    btnCloseUpdateModal.addEventListener('click', () => {
+      if (updateModal) updateModal.classList.remove('active');
+    });
+  }
+
+  if (btnLaterUpdate) {
+    btnLaterUpdate.addEventListener('click', () => {
+      if (updateModal) updateModal.classList.remove('active');
+    });
+  }
+
+  if (btnOpenInstallPerm) {
+    btnOpenInstallPerm.addEventListener('click', async () => {
+      await ApiBridge.openInstallPermissionSettings();
+      showToast('Silakan aktifkan perizinan "Izinkan dari sumber ini", lalu kembali ke aplikasi.', 'info', 4000);
+    });
+  }
+
+  async function checkForAppUpdate(silent = false) {
+    if (settingsUpdateStatusText) {
+      settingsUpdateStatusText.textContent = 'Memeriksa pembaruan...';
+    }
+    if (btnCheckUpdateSettings) {
+      btnCheckUpdateSettings.disabled = true;
+    }
+
+    try {
+      const updateInfo = await ApiBridge.checkForUpdates(CURRENT_VERSION);
+      if (updateInfo && updateInfo.isUpdateAvailable) {
+        if (settingsUpdateStatusText) {
+          settingsUpdateStatusText.innerHTML = `<strong style="color:var(--cyan-400);">Versi baru ${escapeHtml(updateInfo.latestVersion)} tersedia!</strong>`;
+        }
+        renderUpdateBanner(updateInfo);
+        if (!silent) {
+          showUpdateModal(updateInfo);
+        } else {
+          showToast(`🚀 Pembaruan GoFile Pro ${updateInfo.latestVersion} tersedia!`, 'info', 4000);
+        }
+      } else {
+        if (settingsUpdateStatusText) {
+          settingsUpdateStatusText.textContent = `Aplikasi Anda sudah versi terbaru (${CURRENT_VERSION}).`;
+        }
+        if (!silent) {
+          showToast(`Aplikasi Anda sudah menggunakan versi terbaru (${CURRENT_VERSION}).`, 'success', 2500);
+        }
+      }
+    } catch (err) {
+      if (settingsUpdateStatusText) {
+        settingsUpdateStatusText.textContent = 'Gagal memeriksa pembaruan (cek koneksi internet).';
+      }
+      if (!silent) {
+        showToast('Gagal memeriksa pembaruan: ' + err.message, 'error', 3000);
+      }
+    } finally {
+      if (btnCheckUpdateSettings) {
+        btnCheckUpdateSettings.disabled = false;
+      }
+    }
+  }
+
+  if (btnCheckUpdateSettings) {
+    btnCheckUpdateSettings.addEventListener('click', () => {
+      checkForAppUpdate(false);
+    });
+  }
+
+  // Handle Download & In-App Installation of Update
+  if (btnDownloadUpdate) {
+    btnDownloadUpdate.addEventListener('click', async () => {
+      if (!activeUpdateInfo || !activeUpdateInfo.asset) {
+        if (activeUpdateInfo && activeUpdateInfo.releaseUrl) {
+          ApiBridge.openUrl(activeUpdateInfo.releaseUrl);
+        } else {
+          showToast('File pembaruan tidak ditemukan di rilis GitHub.', 'error', 3000);
+        }
+        return;
+      }
+
+      const platInfo = ApiBridge.getPlatformInfo();
+      const asset = activeUpdateInfo.asset;
+
+      // On Android, check permission before downloading
+      if (platInfo.isAndroid) {
+        const canInstall = await ApiBridge.canRequestPackageInstalls();
+        if (!canInstall) {
+          if (updatePermissionBox) updatePermissionBox.style.display = 'flex';
+          showToast('Mohon berikan izin instalasi aplikasi terlebih dahulu.', 'warning', 3500);
+          await ApiBridge.openInstallPermissionSettings();
+          return;
+        }
+      }
+
+      btnDownloadUpdate.disabled = true;
+      if (updateProgressContainer) updateProgressContainer.style.display = 'flex';
+      if (updateProgressFill) updateProgressFill.style.width = '0%';
+      if (updateProgressPct) updateProgressPct.textContent = '0%';
+      if (updateProgressStatus) updateProgressStatus.textContent = 'Menghubungkan ke GitHub...';
+
+      const updateItem = {
+        id: 'update_' + Date.now(),
+        name: asset.name,
+        link: asset.downloadUrl,
+        size: asset.size || 0,
+        relDir: '',
+        mimetype: platInfo.isAndroid ? 'application/vnd.android.package-archive' : 'application/octet-stream'
+      };
+
+      try {
+        if (updateProgressStatus) updateProgressStatus.textContent = `Mengunduh ${asset.name}...`;
+
+        const success = await ApiBridge.downloadItem(updateItem, state.downloadDir, (prog) => {
+          if (prog && prog.progress !== undefined) {
+            const p = Math.min(100, Math.round(prog.progress));
+            if (updateProgressFill) updateProgressFill.style.width = `${p}%`;
+            if (updateProgressPct) updateProgressPct.textContent = `${p}%`;
+            if (updateProgressStatus) {
+              updateProgressStatus.textContent = `Mengunduh: ${formatSpeed(prog.speed || 0)}`;
+            }
+          }
+        });
+
+        if (success) {
+          if (updateProgressFill) updateProgressFill.style.width = '100%';
+          if (updateProgressPct) updateProgressPct.textContent = '100%';
+          if (updateProgressStatus) updateProgressStatus.textContent = 'Unduhan selesai! Membuka pemasang...';
+          showToast('Unduhan pembaruan selesai. Memulai pemasangan...', 'success', 3000);
+
+          setTimeout(async () => {
+            const installRes = await ApiBridge.installUpdate(updateItem.savedUri || updateItem.name, updateItem.savedUri);
+            if (platInfo.isAndroid && !installRes) {
+              showToast('Membuka file APK di folder unduhan...', 'info', 2500);
+              ApiBridge.openFile('', updateItem);
+            }
+          }, 600);
+        } else {
+          throw new Error('Gagal mengunduh file pembaruan');
+        }
+      } catch (err) {
+        console.error('Update download error:', err);
+        if (updateProgressStatus) updateProgressStatus.textContent = 'Gagal mengunduh: ' + err.message;
+        showToast('Gagal mengunduh pembaruan: ' + err.message, 'error', 3500);
+        btnDownloadUpdate.disabled = false;
+        if (btnDownloadUpdateText) btnDownloadUpdateText.textContent = 'Coba Lagi';
+      }
+    });
+  }
 });

@@ -7,6 +7,8 @@ const ApiBridge = {
   clientEngine: null,
   platform: 'web',
 
+  _globalListenerAttached: false,
+
   async init() {
     try {
       if (window.GoFileClientEngine) {
@@ -17,6 +19,23 @@ const ApiBridge = {
     }
 
     this.detectPlatform();
+
+    if (this.platform === 'android' && !this._globalListenerAttached) {
+      const androidPlugin = this.getAndroidPlugin();
+      if (androidPlugin && typeof androidPlugin.addListener === 'function') {
+        try {
+          androidPlugin.addListener('downloadProgress', (prog) => {
+            if (window.updateItemProgress && typeof window.updateItemProgress === 'function') {
+              window.updateItemProgress(prog);
+            }
+          });
+          this._globalListenerAttached = true;
+        } catch (e) {
+          console.warn('Failed to attach global downloadProgress listener:', e);
+        }
+      }
+    }
+
     return this.platform;
   },
 
@@ -52,6 +71,10 @@ const ApiBridge = {
         deleteFile: (options) => window.Capacitor.nativePromise('AndroidDownloader', 'deleteFile', options),
         openUrl: (options) => window.Capacitor.nativePromise('AndroidDownloader', 'openUrl', options),
         readClipboard: () => window.Capacitor.nativePromise('AndroidDownloader', 'readClipboard', {}),
+        canRequestPackageInstalls: () => window.Capacitor.nativePromise('AndroidDownloader', 'canRequestPackageInstalls', {}),
+        openInstallPermissionSettings: () => window.Capacitor.nativePromise('AndroidDownloader', 'openInstallPermissionSettings', {}),
+        installApk: (options) => window.Capacitor.nativePromise('AndroidDownloader', 'installApk', options),
+        exitApp: () => window.Capacitor.nativePromise('AndroidDownloader', 'exitApp', {}),
         addListener: (eventName, callback) => {
           if (typeof window.Capacitor.addListener === 'function') {
             return window.Capacitor.addListener('AndroidDownloader', eventName, callback);
@@ -112,42 +135,25 @@ const ApiBridge = {
     // 2. Android Native (Capacitor Java Plugin)
     const androidPlugin = this.getAndroidPlugin();
     if (androidPlugin && typeof androidPlugin.downloadFile === 'function') {
-      let progressSub = null;
-      try {
-        if (typeof androidPlugin.addListener === 'function') {
-          progressSub = await androidPlugin.addListener('downloadProgress', (prog) => {
-            if (prog && prog.id === item.id) {
-              if (onProgress) onProgress(prog);
-            }
-          });
-        }
+      let token = localStorage.getItem('gf_token') || '';
+      const res = await androidPlugin.downloadFile({
+        id: item.id,
+        url: item.link,
+        filename: item.name,
+        token: token || '',
+        relDir: item.relDir || item.rel_dir || '',
+        mimetype: item.mimetype || '',
+        size: item.size || 0,
+        md5: item.md5 || ''
+      });
 
-        let token = localStorage.getItem('gf_token') || '';
-        const res = await androidPlugin.downloadFile({
-          id: item.id,
-          url: item.link,
-          filename: item.name,
-          token: token || '',
-          relDir: item.relDir || item.rel_dir || '',
-          mimetype: item.mimetype || '',
-          size: item.size || 0,
-          md5: item.md5 || ''
-        });
-
-        if (res && res.filename) {
-          item.name = res.filename;
-        }
-        if (res && res.uri) {
-          item.savedUri = res.uri;
-        }
-        return true;
-      } finally {
-        if (progressSub && typeof progressSub.remove === 'function') {
-          try {
-            progressSub.remove();
-          } catch (ignored) {}
-        }
+      if (res && res.filename) {
+        item.name = res.filename;
       }
+      if (res && res.uri) {
+        item.savedUri = res.uri;
+      }
+      return true;
     }
 
     // 3. Web Browser Fallback
@@ -389,6 +395,129 @@ const ApiBridge = {
     }
 
     return '';
+  },
+
+  // ----------------------------------------------------
+  // In-App Update Engine (Bilingual, Cross-Platform)
+  // ----------------------------------------------------
+  async checkForUpdates(currentVersion) {
+    try {
+      const repoUrl = 'https://api.github.com/repos/DidiRoyadi123/Gofile-pro/releases/latest';
+      const controller = new AbortController();
+      const timeoutId = setTimeout(() => controller.abort(), 8500);
+
+      const resp = await fetch(repoUrl, {
+        headers: { 'Accept': 'application/vnd.github.v3+json' },
+        signal: controller.signal
+      });
+      clearTimeout(timeoutId);
+
+      if (!resp.ok) {
+        throw new Error(`GitHub API HTTP ${resp.status}`);
+      }
+
+      const release = await resp.json();
+      const latestTag = (release.tag_name || '').trim();
+      const cleanCurrent = (currentVersion || '').replace(/^v/, '').trim();
+      const cleanLatest = latestTag.replace(/^v/, '').trim();
+
+      const isUpdateAvailable = this._compareVersions(cleanLatest, cleanCurrent) > 0;
+
+      this.detectPlatform();
+      const assets = release.assets || [];
+      let matchedAsset = null;
+
+      if (this.platform === 'android') {
+        matchedAsset = assets.find(a => a.name.toLowerCase().endsWith('.apk'));
+      } else if (this.platform === 'windows') {
+        matchedAsset = assets.find(a => a.name.toLowerCase().endsWith('.exe'));
+      }
+      if (!matchedAsset && assets.length > 0) {
+        matchedAsset = assets[0];
+      }
+
+      return {
+        isUpdateAvailable,
+        currentVersion,
+        latestVersion: latestTag,
+        releaseName: release.name || latestTag,
+        releaseNotes: release.body || '',
+        releaseUrl: release.html_url || 'https://github.com/DidiRoyadi123/Gofile-pro/releases/latest',
+        publishedAt: release.published_at,
+        asset: matchedAsset ? {
+          name: matchedAsset.name,
+          downloadUrl: matchedAsset.browser_download_url,
+          size: matchedAsset.size
+        } : null
+      };
+    } catch (e) {
+      console.warn('Check update error:', e);
+      return {
+        isUpdateAvailable: false,
+        error: e.message
+      };
+    }
+  },
+
+  _compareVersions(v1, v2) {
+    if (!v1 || !v2) return 0;
+    const parts1 = v1.split('.').map(n => parseInt(n, 10) || 0);
+    const parts2 = v2.split('.').map(n => parseInt(n, 10) || 0);
+    const len = Math.max(parts1.length, parts2.length);
+    for (let i = 0; i < len; i++) {
+      const p1 = parts1[i] || 0;
+      const p2 = parts2[i] || 0;
+      if (p1 > p2) return 1;
+      if (p1 < p2) return -1;
+    }
+    return 0;
+  },
+
+  async canRequestPackageInstalls() {
+    this.detectPlatform();
+    if (this.platform === 'android') {
+      const androidPlugin = this.getAndroidPlugin();
+      if (androidPlugin && typeof androidPlugin.canRequestPackageInstalls === 'function') {
+        try {
+          const res = await androidPlugin.canRequestPackageInstalls();
+          return res && res.canInstall !== false;
+        } catch (e) {
+          return true;
+        }
+      }
+    }
+    return true;
+  },
+
+  async openInstallPermissionSettings() {
+    this.detectPlatform();
+    if (this.platform === 'android') {
+      const androidPlugin = this.getAndroidPlugin();
+      if (androidPlugin && typeof androidPlugin.openInstallPermissionSettings === 'function') {
+        return await androidPlugin.openInstallPermissionSettings();
+      }
+    }
+    return false;
+  },
+
+  async installUpdate(filePath, uri = '') {
+    this.detectPlatform();
+    if (this.platform === 'android') {
+      const androidPlugin = this.getAndroidPlugin();
+      if (androidPlugin && typeof androidPlugin.installApk === 'function') {
+        return await androidPlugin.installApk({ filePath, uri });
+      }
+    } else if (this.platform === 'windows') {
+      if (window.pywebview && window.pywebview.api && typeof window.pywebview.api.install_update === 'function') {
+        return await window.pywebview.api.install_update(filePath);
+      }
+    } else {
+      if (filePath && filePath.startsWith('http')) {
+        window.open(filePath, '_blank');
+        return true;
+      }
+    }
+    return false;
   }
 };
 
