@@ -837,7 +837,7 @@
 
         <div style="margin-top: 0.9rem; display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 0.75rem;">
           <div style="display: flex; align-items: center; gap: 0.6rem;">
-            <span class="badge" style="background:rgba(99,102,241,0.18); color:var(--indigo-400); border:1px solid rgba(99,102,241,0.3); font-weight:600;" id="settings-current-ver-badge">v2.3.0</span>
+            <span class="badge" style="background:rgba(99,102,241,0.18); color:var(--indigo-400); border:1px solid rgba(99,102,241,0.3); font-weight:600;" id="settings-current-ver-badge">v2.3.1</span>
             <span style="font-size: 0.85rem; color: var(--text-secondary);" id="settings-update-status-text">Aplikasi Anda sudah versi terbaru.</span>
           </div>
           <button type="button" class="btn btn-secondary btn-sm" id="btn-check-update-settings" style="display:inline-flex; align-items:center; gap:0.4rem;">
@@ -1384,25 +1384,55 @@
         </div>
 
         <!-- Server Active Info Box -->
-        <div id="wifi-server-details" style="display:none; width:100%; flex-direction:column; align-items:center; gap:1rem;">
+        <div id="wifi-server-details" style="display:none; width:100%; flex-direction:column; align-items:center; gap:0.85rem;">
+          <!-- Network Status Indicator -->
+          <div id="wifi-network-status-box" class="wifi-net-badge online">
+            <div style="display:flex; align-items:center; gap:6px;">
+              <span id="wifi-net-dot">🟢</span>
+              <span id="wifi-net-label">Jaringan Siap: <strong>192.168.1.xxx</strong></span>
+            </div>
+            <button type="button" class="btn-refresh-ip" id="btn-refresh-wifi-ip" title="Segarkan IP Jaringan">
+              <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M23 4v6h-6"></path><path d="M1 20v-6h6"></path><path d="M3.51 9a9 9 0 0 1 14.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0 0 20.49 15"></path></svg>
+              Segarkan
+            </button>
+          </div>
+
+          <!-- QR Code Canvas Container -->
           <div id="wifi-qr-container" style="background:#ffffff; padding:12px; border-radius:12px; box-shadow:var(--shadow-md); display:flex; align-items:center; justify-content:center;">
             <!-- SVG QR Code rendered dynamically -->
           </div>
 
-          <div style="font-size:0.78rem; color:var(--text-secondary);">
-            Arahkan kamera HP lain ke kode QR di atas atau buka tautan ini di browser Laptop/PC:
+          <!-- Prominent Scanning Warning / Guidance Box -->
+          <div class="wifi-scan-hint">
+            <div class="wifi-scan-hint-header">
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M23 19a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h4l2-3h6l2 3h4a2 2 0 0 1 2 2z"></path><circle cx="12" cy="13" r="4"></circle></svg>
+              <span>Cara Memindai di HP Lain:</span>
+            </div>
+            <div style="color:var(--text-secondary); font-size:0.75rem;">
+              • Pindai menggunakan <strong>Aplikasi Kamera Biasa</strong> atau <strong>Google Lens / Browser</strong>.<br>
+              • <span style="color:#f59e0b; font-weight:600;">⚠️ Catatan:</span> Jangan scan dari menu <em>Setelan Wi-Fi</em> HP penerima karena menu tersebut khusus untuk sandi Wi-Fi router, bukan halaman web.
+            </div>
           </div>
 
-          <div style="width:100%; display:flex; align-items:center; gap:0.5rem; background:rgba(0,0,0,0.3); border:1px solid var(--glass-border); padding:0.6rem 0.85rem; border-radius:8px;">
-            <code id="wifi-server-url-text" style="font-family:var(--font-mono); font-size:0.95rem; color:var(--cyan-400); flex:1; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;">http://192.168.1.xxx:8080</code>
-            <button type="button" class="btn btn-secondary btn-sm" id="btn-copy-wifi-url" style="padding:0.4rem 0.75rem;">
-              Salin
-            </button>
+          <!-- Direct URL Address Box -->
+          <div style="width:100%; text-align:left;">
+            <div style="font-size:0.73rem; color:var(--text-muted); margin-bottom:4px;">Atau ketik alamat ini di browser HP / Laptop penerima:</div>
+            <div style="display:flex; align-items:center; gap:0.5rem; background:rgba(0,0,0,0.3); border:1px solid var(--glass-border); padding:0.55rem 0.8rem; border-radius:8px;">
+              <code id="wifi-server-url-text" style="font-family:var(--font-mono); font-size:0.88rem; color:var(--cyan-400); flex:1; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;">http://192.168.1.xxx:8080</code>
+              <button type="button" class="btn btn-secondary btn-sm" id="btn-copy-wifi-url" style="padding:0.35rem 0.65rem; font-size:0.75rem;">
+                Salin
+              </button>
+            </div>
           </div>
 
-          <div style="font-size:0.72rem; color:var(--text-muted); line-height:1.4;">
-            Pastikan kedua perangkat tersambung ke jaringan Wi-Fi / Hotspot yang sama. Transfer berkas berjalan langsung secara lokal tanpa kuota internet.
-          </div>
+          <!-- Connection Tips Accordion -->
+          <details class="wifi-guide-details">
+            <summary>💡 Butuh Bantuan Sambungan?</summary>
+            <div style="margin-top:0.5rem; display:flex; flex-direction:column; gap:0.4rem;">
+              <div><strong>Opsi 1 (Satu Wi-Fi):</strong> Pastikan kedua HP terhubung ke Wi-Fi rumah/kantor yang sama.</div>
+              <div><strong>Opsi 2 (Tanpa Router / Pakai Hotspot):</strong> Nyalakan Hotspot Pribadi di HP ini, lalu sambungkan HP lain ke Hotspot tersebut, kemudian tekan tombol "Segarkan" di atas.</div>
+            </div>
+          </details>
         </div>
       </div>
 

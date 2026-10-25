@@ -747,7 +747,31 @@ const ApiBridge = {
         }
       }
     }
-    return { isRunning: false, port: 8080, ip: '127.0.0.1', url: 'http://127.0.0.1:8080' };
+    const isLocal = false;
+    return { isRunning: false, port: 8080, ip: '127.0.0.1', url: 'http://127.0.0.1:8080', isLocalNetwork: isLocal };
+  },
+
+  async refreshWifiShareIp() {
+    this.detectPlatform();
+    if (this.platform === 'android') {
+      const androidPlugin = this.getAndroidPlugin();
+      if (androidPlugin && typeof androidPlugin.refreshWifiShareIp === 'function') {
+        try {
+          return await androidPlugin.refreshWifiShareIp();
+        } catch (e) {
+          console.warn('refreshWifiShareIp android error:', e);
+        }
+      }
+    } else if (this.platform === 'windows' || window.pywebview) {
+      if (window.pywebview && window.pywebview.api && typeof window.pywebview.api.refresh_wifi_share_ip === 'function') {
+        try {
+          return await window.pywebview.api.refresh_wifi_share_ip();
+        } catch (e) {
+          console.warn('refresh_wifi_share_ip desktop error:', e);
+        }
+      }
+    }
+    return await this.getWifiShareStatus();
   }
 };
 

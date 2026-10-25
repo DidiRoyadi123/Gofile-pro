@@ -1,4 +1,4 @@
-# GoFile Pro Downloader v2.3.0 Multiplatform (Android & Windows Portable UI)
+# GoFile Pro Downloader v2.3.1 Multiplatform (Android & Windows Portable UI)
 
 GoFile Pro Downloader is a high-speed, modern multi-threaded download manager designed for GoFile.io. It supports both **Android (Native .APK)** and **Windows (Portable .EXE)** platforms. Built with 4 major power features: **Vertical Swipe Gestures** for brightness and volume, **Smart Clipboard Auto-Detection**, **Smart Subfolder Sorting** into Videos/Photos/Music/Archives, and an embedded **Local Wi-Fi File Sharing Server** with QR code and browser streaming. Features automated in-app updates, directory tree inspection with virtualized lazy-chunked modal rendering, HTTP Range chunked resume, 16-thread queue, and modern media player with Picture-in-Picture (PiP).
 

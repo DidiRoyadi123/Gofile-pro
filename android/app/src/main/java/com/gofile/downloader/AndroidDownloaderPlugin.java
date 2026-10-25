@@ -1904,17 +1904,22 @@ public class AndroidDownloaderPlugin extends Plugin {
         JSObject ret = new JSObject();
         boolean running = wifiShareServer != null && wifiShareServer.isRunning();
         ret.put("isRunning", running);
-        if (running) {
-            ret.put("port", wifiShareServer.getPort());
-            ret.put("ip", wifiShareServer.getHostIp());
-            ret.put("url", wifiShareServer.getShareUrl());
-        } else {
-            String ip = WifiShareServer.resolveLocalIp(getContext());
-            ret.put("port", 8080);
-            ret.put("ip", ip);
-            ret.put("url", "http://" + ip + ":8080");
-        }
+        String ip = wifiShareServer != null ? wifiShareServer.refreshIp() : WifiShareServer.resolveLocalIp(getContext());
+        int port = wifiShareServer != null ? wifiShareServer.getPort() : 8080;
+        ret.put("port", port);
+        ret.put("ip", ip);
+        ret.put("url", "http://" + ip + ":" + port);
+        boolean isLocal = !ip.equals("127.0.0.1") && !ip.startsWith("127.");
+        ret.put("isLocalNetwork", isLocal);
         call.resolve(ret);
+    }
+
+    @PluginMethod
+    public void refreshWifiShareIp(PluginCall call) {
+        if (wifiShareServer != null) {
+            wifiShareServer.refreshIp();
+        }
+        getWifiShareStatus(call);
     }
 
     @Override

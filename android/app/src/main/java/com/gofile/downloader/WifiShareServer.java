@@ -3,6 +3,11 @@ package com.gofile.downloader;
 import android.content.ContentResolver;
 import android.content.Context;
 import android.database.Cursor;
+import android.net.ConnectivityManager;
+import android.net.LinkAddress;
+import android.net.LinkProperties;
+import android.net.Network;
+import android.net.NetworkCapabilities;
 import android.net.Uri;
 import android.net.wifi.WifiManager;
 import android.os.Build;
@@ -115,48 +120,109 @@ public class WifiShareServer {
         return activeHostIp;
     }
 
+    public synchronized String refreshIp() {
+        activeHostIp = resolveLocalIp(context);
+        return activeHostIp;
+    }
+
     public String getShareUrl() {
         return "http://" + getHostIp() + ":" + port;
     }
 
     public static String resolveLocalIp(Context ctx) {
+        // 1. Try modern Android ConnectivityManager (API 23+) for active Wi-Fi or Ethernet
         try {
-            WifiManager wm = (WifiManager) ctx.getSystemService(Context.WIFI_SERVICE);
-            if (wm != null && wm.isWifiEnabled()) {
-                int ipInt = wm.getConnectionInfo().getIpAddress();
-                if (ipInt != 0) {
-                    return Formatter.formatIpAddress(ipInt);
+            ConnectivityManager cm = (ConnectivityManager) ctx.getSystemService(Context.CONNECTIVITY_SERVICE);
+            if (cm != null && Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
+                Network activeNet = cm.getActiveNetwork();
+                if (activeNet != null) {
+                    NetworkCapabilities caps = cm.getNetworkCapabilities(activeNet);
+                    if (caps != null && (caps.hasTransport(NetworkCapabilities.TRANSPORT_WIFI) ||
+                                         caps.hasTransport(NetworkCapabilities.TRANSPORT_ETHERNET))) {
+                        LinkProperties lp = cm.getLinkProperties(activeNet);
+                        if (lp != null) {
+                            for (LinkAddress la : lp.getLinkAddresses()) {
+                                InetAddress addr = la.getAddress();
+                                if (addr instanceof Inet4Address && !addr.isLoopbackAddress()) {
+                                    String ip = addr.getHostAddress();
+                                    if (ip != null && !ip.startsWith("127.")) {
+                                        return ip;
+                                    }
+                                }
+                            }
+                        }
+                    }
                 }
             }
         } catch (Exception ignored) {}
 
+        // 2. Try WifiManager (for legacy devices or active Wi-Fi station mode)
+        try {
+            WifiManager wm = (WifiManager) ctx.getApplicationContext().getSystemService(Context.WIFI_SERVICE);
+            if (wm != null && wm.isWifiEnabled()) {
+                int ipInt = wm.getConnectionInfo().getIpAddress();
+                if (ipInt != 0) {
+                    String ip = String.format(Locale.US, "%d.%d.%d.%d",
+                            (ipInt & 0xff),
+                            ((ipInt >> 8) & 0xff),
+                            ((ipInt >> 16) & 0xff),
+                            ((ipInt >> 24) & 0xff));
+                    if (!ip.equals("0.0.0.0") && !ip.startsWith("127.")) {
+                        return ip;
+                    }
+                }
+            }
+        } catch (Exception ignored) {}
+
+        // 3. Scan NetworkInterfaces specifically for Wi-Fi and Hotspot Tethering
         try {
             List<NetworkInterface> interfaces = Collections.list(NetworkInterface.getNetworkInterfaces());
+            
+            // Priority 3A: Known Android Hotspot / SoftAP gateways (192.168.43.x, 192.168.49.x, 192.168.50.x)
             for (NetworkInterface intf : interfaces) {
                 if (intf.isLoopback() || !intf.isUp()) continue;
                 String name = intf.getName().toLowerCase();
-                // Prioritize wlan, ap, or eth interfaces
-                if (!name.contains("wlan") && !name.contains("ap") && !name.contains("eth") && !name.contains("rndis")) {
+                if (name.contains("rmnet") || name.contains("ccmni") || name.contains("pdp") || 
+                    name.contains("dummy") || name.contains("tun") || name.contains("sit")) {
                     continue;
                 }
+                boolean isWireless = name.contains("wlan") || name.contains("ap") || name.contains("swlan") ||
+                                     name.contains("softap") || name.contains("rndis") || name.contains("p2p") ||
+                                     name.contains("tether") || name.contains("eth");
+                if (!isWireless) continue;
+
                 for (InetAddress addr : Collections.list(intf.getInetAddresses())) {
                     if (!addr.isLoopbackAddress() && addr instanceof Inet4Address) {
                         String ip = addr.getHostAddress();
                         if (ip != null && !ip.startsWith("127.")) {
-                            return ip;
+                            if (ip.startsWith("192.168.43.") || ip.startsWith("192.168.49.") || ip.startsWith("192.168.50.")) {
+                                return ip;
+                            }
                         }
                     }
                 }
             }
 
-            // Fallback: any non-loopback IPv4
+            // Priority 3B: Any local private network IP (RFC 1918) on wireless or ethernet
             for (NetworkInterface intf : interfaces) {
                 if (intf.isLoopback() || !intf.isUp()) continue;
+                String name = intf.getName().toLowerCase();
+                if (name.contains("rmnet") || name.contains("ccmni") || name.contains("pdp") || 
+                    name.contains("dummy") || name.contains("tun") || name.contains("sit")) {
+                    continue;
+                }
+                boolean isWireless = name.contains("wlan") || name.contains("ap") || name.contains("swlan") ||
+                                     name.contains("softap") || name.contains("rndis") || name.contains("p2p") ||
+                                     name.contains("tether") || name.contains("eth");
+                if (!isWireless) continue;
+
                 for (InetAddress addr : Collections.list(intf.getInetAddresses())) {
                     if (!addr.isLoopbackAddress() && addr instanceof Inet4Address) {
                         String ip = addr.getHostAddress();
                         if (ip != null && !ip.startsWith("127.")) {
-                            return ip;
+                            if (ip.startsWith("192.168.") || ip.startsWith("10.") || ip.matches("^172\\.(1[6-9]|2[0-9]|3[0-1])\\..*")) {
+                                return ip;
+                            }
                         }
                     }
                 }

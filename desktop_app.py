@@ -548,14 +548,21 @@ class DesktopAPI:
 
     def get_wifi_share_status(self):
         running = self.wifi_server.is_running()
-        ip = self.wifi_server.ip if running else WifiShareServer.get_local_ip()
+        ip = WifiShareServer.get_local_ip()
         port = self.wifi_server.port if running else 8080
+        if running:
+            self.wifi_server.ip = ip
+        is_local = (ip != "127.0.0.1" and not ip.startswith("127."))
         return {
             "isRunning": running,
             "port": port,
             "ip": ip,
-            "url": f"http://{ip}:{port}"
+            "url": f"http://{ip}:{port}",
+            "isLocalNetwork": is_local
         }
+
+    def refresh_wifi_share_ip(self):
+        return self.get_wifi_share_status()
 
 
 def main():

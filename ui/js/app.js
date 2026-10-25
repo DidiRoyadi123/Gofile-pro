@@ -3,7 +3,7 @@
  */
 
 document.addEventListener('DOMContentLoaded', () => {
-  const CURRENT_VERSION = 'v2.3.0';
+  const CURRENT_VERSION = 'v2.3.1';
 
   // Ensure native Android PiP is strictly disarmed until a video is played
   if (window.ApiBridge && typeof window.ApiBridge.setVideoPlaybackState === 'function') {
@@ -113,6 +113,10 @@ document.addEventListener('DOMContentLoaded', () => {
   const wifiQrContainer = document.getElementById('wifi-qr-container');
   const wifiServerUrlText = document.getElementById('wifi-server-url-text');
   const btnCopyWifiUrl = document.getElementById('btn-copy-wifi-url');
+  const wifiNetworkStatusBox = document.getElementById('wifi-network-status-box');
+  const wifiNetDot = document.getElementById('wifi-net-dot');
+  const wifiNetLabel = document.getElementById('wifi-net-label');
+  const btnRefreshWifiIp = document.getElementById('btn-refresh-wifi-ip');
 
   // Modal Elements
   const inspectionModal = document.getElementById('inspection-modal');
@@ -2190,6 +2194,8 @@ document.addEventListener('DOMContentLoaded', () => {
     try {
       const status = await ApiBridge.getWifiShareStatus();
       const isRunning = !!status.isRunning;
+      const isLocal = status.isLocalNetwork !== false && status.ip && !status.ip.startsWith('127.');
+
       if (toggleWifiServer) {
         toggleWifiServer.checked = isRunning;
       }
@@ -2198,6 +2204,20 @@ document.addEventListener('DOMContentLoaded', () => {
         if (wifiServerStatusDesc) wifiServerStatusDesc.textContent = `Aktif di port ${status.port} • Berkas siap diakses`;
         if (wifiServerDetails) wifiServerDetails.style.display = 'flex';
         if (wifiServerUrlText) wifiServerUrlText.textContent = status.url;
+
+        // Update Network Status Badge
+        if (wifiNetworkStatusBox) {
+          if (isLocal) {
+            wifiNetworkStatusBox.className = 'wifi-net-badge online';
+            if (wifiNetDot) wifiNetDot.textContent = '🟢';
+            if (wifiNetLabel) wifiNetLabel.innerHTML = `Jaringan Lokal Siap: <strong>${escapeHtml(status.ip)}</strong>`;
+          } else {
+            wifiNetworkStatusBox.className = 'wifi-net-badge offline';
+            if (wifiNetDot) wifiNetDot.textContent = '⚠️';
+            if (wifiNetLabel) wifiNetLabel.innerHTML = `<div><strong>Wi-Fi / Hotspot Belum Aktif di HP Ini</strong></div><div style="font-size:0.72rem; color:var(--text-muted); margin-top:2px;">Sambungkan HP ini ke Wi-Fi atau nyalakan Hotspot Pribadi, lalu tekan tombol Segarkan.</div>`;
+          }
+        }
+
         if (wifiQrContainer && typeof window.generateQrSvg === 'function') {
           wifiQrContainer.innerHTML = window.generateQrSvg(status.url, 180);
         }
@@ -2235,6 +2255,20 @@ document.addEventListener('DOMContentLoaded', () => {
 
   if (btnCloseWifiShareBottom) {
     btnCloseWifiShareBottom.addEventListener('click', closeWifiShareModal);
+  }
+
+  if (btnRefreshWifiIp) {
+    btnRefreshWifiIp.addEventListener('click', async () => {
+      showToast('Menyegarkan status IP jaringan...', 'info', 1200);
+      await ApiBridge.refreshWifiShareIp();
+      await syncWifiShareUI();
+      const status = await ApiBridge.getWifiShareStatus();
+      if (status.ip && !status.ip.startsWith('127.')) {
+        showToast(`IP diperbarui: ${status.ip}`, 'success', 2200);
+      } else {
+        showToast('Wi-Fi / Hotspot belum aktif di HP ini.', 'warning', 2500);
+      }
+    });
   }
 
   if (toggleWifiServer) {

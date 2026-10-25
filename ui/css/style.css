@@ -4142,3 +4142,94 @@ body.pip-mode #media-video-element {
 .switch-toggle input:checked + .slider-toggle:before {
   transform: translateX(20px);
 }
+
+/* ---------------------------------------------------- */
+/* Wi-Fi Share Modal Enhancements                       */
+/* ---------------------------------------------------- */
+.wifi-net-badge {
+  width: 100%;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 0.55rem 0.85rem;
+  border-radius: var(--radius-sm);
+  font-size: 0.78rem;
+  font-weight: 600;
+  gap: 0.5rem;
+  transition: all 0.25s ease;
+}
+
+.wifi-net-badge.online {
+  background: rgba(16, 185, 129, 0.12);
+  border: 1px solid rgba(16, 185, 129, 0.35);
+  color: #34d399;
+}
+
+.wifi-net-badge.offline {
+  background: rgba(245, 158, 11, 0.12);
+  border: 1px solid rgba(245, 158, 11, 0.35);
+  color: #fbbf24;
+  flex-direction: column;
+  align-items: flex-start;
+  text-align: left;
+}
+
+.btn-refresh-ip {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  background: rgba(255, 255, 255, 0.08);
+  border: 1px solid var(--glass-border);
+  color: var(--text-primary);
+  font-size: 0.72rem;
+  font-weight: 600;
+  padding: 0.3rem 0.6rem;
+  border-radius: 6px;
+  cursor: pointer;
+  transition: all 0.2s ease;
+}
+
+.btn-refresh-ip:hover {
+  background: rgba(255, 255, 255, 0.16);
+  border-color: var(--indigo-400);
+}
+
+.wifi-scan-hint {
+  width: 100%;
+  background: rgba(99, 102, 241, 0.09);
+  border: 1px solid rgba(99, 102, 241, 0.28);
+  border-radius: var(--radius-sm);
+  padding: 0.7rem 0.9rem;
+  text-align: left;
+  font-size: 0.76rem;
+  line-height: 1.45;
+}
+
+.wifi-scan-hint-header {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-weight: 700;
+  color: var(--indigo-300);
+  margin-bottom: 4px;
+}
+
+.wifi-guide-details {
+  width: 100%;
+  background: var(--glass-bg);
+  border: 1px solid var(--glass-border);
+  border-radius: var(--radius-sm);
+  padding: 0.6rem 0.85rem;
+  text-align: left;
+  font-size: 0.74rem;
+  color: var(--text-muted);
+  line-height: 1.4;
+}
+
+.wifi-guide-details summary {
+  cursor: pointer;
+  font-weight: 600;
+  color: var(--text-secondary);
+  user-select: none;
+}
+
