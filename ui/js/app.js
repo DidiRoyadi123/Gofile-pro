@@ -3,7 +3,7 @@
  */
 
 document.addEventListener('DOMContentLoaded', () => {
-  const CURRENT_VERSION = 'v2.2.8';
+  const CURRENT_VERSION = 'v2.2.9';
 
   // Ensure native Android PiP is strictly disarmed until a video is played
   if (window.ApiBridge && typeof window.ApiBridge.setVideoPlaybackState === 'function') {
@@ -1212,8 +1212,13 @@ document.addEventListener('DOMContentLoaded', () => {
           </div>
         </div>
         <div class="queue-actions">
-          <span class="status-badge queued" id="badge-${item.id}">Queued</span>
-          <button class="btn-icon" style="width:32px; height:32px;" id="btn-cancel-${item.id}" title="Remove from queue">
+          <span class="status-badge ${item.status || 'queued'}" id="badge-${item.id}">${item.status === 'paused' ? 'Dijeda' : (item.status === 'downloading' ? 'Downloading' : 'Queued')}</span>
+          <button type="button" class="btn-card-pause-resume" id="btn-pause-resume-${item.id}" title="${item.status === 'paused' ? 'Lanjutkan unduhan' : 'Jeda unduhan'}">
+            <svg id="icon-pause-resume-${item.id}" width="14" height="14" viewBox="0 0 24 24" fill="currentColor">
+              ${item.status === 'paused' ? '<polygon points="6 4 20 12 6 20 6 4"></polygon>' : '<rect x="6" y="4" width="4" height="16" rx="1"></rect><rect x="14" y="4" width="4" height="16" rx="1"></rect>'}
+            </svg>
+          </button>
+          <button type="button" class="btn-icon" style="width:32px; height:32px;" id="btn-cancel-${item.id}" title="Remove from queue">
             <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
               <line x1="18" y1="6" x2="6" y2="18"></line>
               <line x1="6" y1="6" x2="18" y2="18"></line>
@@ -1223,15 +1228,15 @@ document.addEventListener('DOMContentLoaded', () => {
       </div>
 
       <div class="progress-track">
-        <div class="progress-fill" id="pfill-${item.id}" style="width: 0%;"></div>
+        <div class="progress-fill" id="pfill-${item.id}" style="width: ${item.progress || 0}%;"></div>
       </div>
 
       <div class="queue-meta-row">
         <div class="meta-stats">
-          <span id="speed-${item.id}">0.0 B/s</span>
-          <span id="bytes-${item.id}">0 B / ${formatBytes(item.size)}</span>
+          <span id="speed-${item.id}">${formatSpeed(item.speed || 0)}</span>
+          <span id="bytes-${item.id}">${formatBytes(item.downloaded || 0)} / ${formatBytes(item.size)}</span>
         </div>
-        <div id="pct-${item.id}" style="font-weight:600; color:var(--text-primary);">0%</div>
+        <div id="pct-${item.id}" style="font-weight:600; color:var(--text-primary);">${item.progress || 0}%</div>
       </div>
     `;
 
@@ -1240,9 +1245,73 @@ document.addEventListener('DOMContentLoaded', () => {
       cancelQueueItem(item.id);
     });
 
+    const pauseResumeBtn = card.querySelector(`#btn-pause-resume-${item.id}`);
+    pauseResumeBtn.addEventListener('click', () => {
+      togglePauseResumeItem(item.id);
+    });
+
     item.domElement = card;
     queueContainer.appendChild(card);
     reorderQueueDom();
+  }
+
+  function togglePauseResumeItem(id) {
+    const item = state.queue.find(q => q.id === id);
+    if (!item) return;
+
+    if (item.status === 'downloading' || item.status === 'queued') {
+      // Pause it gracefully
+      item.status = 'paused';
+      item.speed = 0;
+      ApiBridge.pauseDownload(id);
+      updateQueueItemStateUI(item);
+      updateQueueCounters();
+      updateGlobalMetrics();
+      showToast(`Dijeda: ${item.name}`, 'info', 1500);
+    } else if (item.status === 'paused' || item.status === 'failed') {
+      // Resume it from existing bytes
+      item.status = 'queued';
+      item.speed = 0;
+      updateQueueItemStateUI(item);
+      updateQueueCounters();
+      updateGlobalMetrics();
+      processQueue();
+      showToast(`Melanjutkan: ${item.name}`, 'info', 1500);
+    }
+  }
+
+  function updateQueueItemStateUI(item) {
+    const card = item.domElement || document.getElementById(`qcard-${item.id}`);
+    if (!card) return;
+
+    const badge = card.querySelector(`#badge-${item.id}`);
+    const speedEl = card.querySelector(`#speed-${item.id}`);
+    const btnPr = card.querySelector(`#btn-pause-resume-${item.id}`);
+    const iconPr = card.querySelector(`#icon-pause-resume-${item.id}`);
+
+    if (item.status === 'downloading') {
+      card.classList.add('active-download');
+      if (badge) { badge.className = 'status-badge downloading'; badge.textContent = 'Downloading'; }
+      if (btnPr) btnPr.title = 'Jeda unduhan';
+      if (iconPr) iconPr.innerHTML = `<rect x="6" y="4" width="4" height="16" rx="1"></rect><rect x="14" y="4" width="4" height="16" rx="1"></rect>`;
+    } else if (item.status === 'paused') {
+      card.classList.remove('active-download');
+      if (badge) { badge.className = 'status-badge paused'; badge.textContent = 'Dijeda'; }
+      if (speedEl) speedEl.textContent = '0.0 B/s';
+      if (btnPr) btnPr.title = 'Lanjutkan unduhan';
+      if (iconPr) iconPr.innerHTML = `<polygon points="6 4 20 12 6 20 6 4"></polygon>`;
+    } else if (item.status === 'queued') {
+      card.classList.remove('active-download');
+      if (badge) { badge.className = 'status-badge queued'; badge.textContent = 'Queued'; }
+      if (speedEl) speedEl.textContent = '0.0 B/s';
+      if (btnPr) btnPr.title = 'Jeda antrean';
+      if (iconPr) iconPr.innerHTML = `<rect x="6" y="4" width="4" height="16" rx="1"></rect><rect x="14" y="4" width="4" height="16" rx="1"></rect>`;
+    } else if (item.status === 'failed') {
+      card.classList.remove('active-download');
+      if (badge) { badge.className = 'status-badge failed'; badge.textContent = 'Gagal'; }
+      if (btnPr) btnPr.title = 'Coba lagi unduhan';
+      if (iconPr) iconPr.innerHTML = `<polygon points="6 4 20 12 6 20 6 4"></polygon>`;
+    }
   }
 
   function reorderQueueDom() {
@@ -1317,33 +1386,36 @@ document.addEventListener('DOMContentLoaded', () => {
   }
 
   async function startDownloadingItem(item) {
+    if (item.status === 'paused') return;
     item.status = 'downloading';
     state.activeWorkersCount++;
     updateQueueCounters();
-
-    const card = item.domElement;
-    if (card) {
-      card.classList.add('active-download');
-      const badge = card.querySelector(`#badge-${item.id}`);
-      if (badge) {
-        badge.className = 'status-badge downloading';
-        badge.textContent = 'Downloading';
-      }
-      reorderQueueDom();
-    }
+    updateQueueItemStateUI(item);
+    reorderQueueDom();
 
     try {
-      const success = await ApiBridge.downloadItem(item, state.downloadDir, (prog) => {
+      const res = await ApiBridge.downloadItem(item, state.downloadDir, (prog) => {
         updateItemProgress(prog);
       });
 
-      if (success) {
+      if (item.status === 'paused' || (res && res.paused)) {
+        item.status = 'paused';
+        item.speed = 0;
+        updateQueueItemStateUI(item);
+        return;
+      }
+
+      if (res === true || (res && res.success !== false)) {
         markItemCompleted(item);
       } else {
-        markItemFailed(item, 'Download incomplete or interrupted');
+        if (item.status !== 'paused') {
+          markItemFailed(item, 'Unduhan terputus');
+        }
       }
     } catch (err) {
-      markItemFailed(item, err.message);
+      if (item.status !== 'paused') {
+        markItemFailed(item, err.message);
+      }
     } finally {
       state.activeWorkersCount = Math.max(0, state.activeWorkersCount - 1);
       updateQueueCounters();
@@ -1646,15 +1718,13 @@ document.addEventListener('DOMContentLoaded', () => {
     state.queue.forEach(q => {
       if (q.status === 'downloading' || q.status === 'queued') {
         q.status = 'paused';
-        const badge = document.getElementById(`badge-${q.id}`);
-        if (badge) {
-          badge.className = 'status-badge queued';
-          badge.textContent = 'Paused';
-        }
+        q.speed = 0;
+        updateQueueItemStateUI(q);
       }
     });
     state.activeWorkersCount = 0;
     updateQueueCounters();
+    updateGlobalMetrics();
     showToast('Semua unduhan dijeda (Paused)', 'info', 2000);
   });
 
@@ -2732,6 +2802,13 @@ document.addEventListener('DOMContentLoaded', () => {
   const btnMediaFullscreen = document.getElementById('btn-media-fullscreen');
   const btnCloseMediaModal = document.getElementById('btn-close-media-modal');
 
+  // Modern Video Top Overlay Bar Elements
+  const btnVideoBack = document.getElementById('btn-video-back');
+  const btnVideoTopPip = document.getElementById('btn-video-top-pip');
+  const btnVideoTopClose = document.getElementById('btn-video-top-close');
+  const videoTopTitle = document.getElementById('video-top-title');
+  const videoTopBadge = document.getElementById('video-top-badge');
+
   // Video View Elements
   const mediaVideoContainer = document.getElementById('media-video-container');
   const mediaVideoEl = document.getElementById('media-video-element');
@@ -2747,6 +2824,21 @@ document.addEventListener('DOMContentLoaded', () => {
   const btnVideoSpeed = document.getElementById('btn-video-speed');
   const btnVideoPipQuick = document.getElementById('btn-video-pip-quick');
   const btnVideoFullscreenQuick = document.getElementById('btn-video-fullscreen-quick');
+
+  // Modern Center Floating Controls
+  const btnVideoCenterPlay = document.getElementById('btn-video-center-play');
+  const centerIconPlay = document.getElementById('center-icon-play');
+  const centerIconPause = document.getElementById('center-icon-pause');
+  const btnVideoSkipBack10 = document.getElementById('btn-video-skip-back-10');
+  const btnVideoSkipForward10 = document.getElementById('btn-video-skip-forward-10');
+
+  // Double-Tap Skip Gesture Zones
+  const videoGestureLeft = document.getElementById('video-gesture-left');
+  const videoGestureRight = document.getElementById('video-gesture-right');
+  const rippleLeft = document.getElementById('ripple-left');
+  const rippleRight = document.getElementById('ripple-right');
+  const audioVisualizerBars = document.getElementById('audio-visualizer-bars');
+  const audioPlayerCard = document.querySelector('.audio-player-card');
 
   // Audio View Elements
   const mediaAudioContainer = document.getElementById('media-audio-container');
@@ -2976,12 +3068,17 @@ document.addEventListener('DOMContentLoaded', () => {
     mediaState.speedIndex = 2; // 1x default
 
     if (mediaPlayerTitle) mediaPlayerTitle.textContent = fileName;
+    if (videoTopTitle) videoTopTitle.textContent = fileName;
+    const fileExt = fileName.includes('.') ? fileName.split('.').pop() : type;
+    if (videoTopBadge) videoTopBadge.textContent = fileExt.toUpperCase();
+
     if (mediaBadgeType) {
       mediaBadgeType.textContent = type.toUpperCase();
       mediaBadgeType.className = `media-type-badge ${type}`;
     }
 
     hideMiniPlayer();
+    resetControlsTimeout();
 
     // Reset all views
     if (mediaVideoContainer) mediaVideoContainer.style.display = 'none';
@@ -3044,6 +3141,9 @@ document.addEventListener('DOMContentLoaded', () => {
   }
 
   function closeMediaPlayer() {
+    clearTimeout(controlsHideTimeout);
+    if (mediaVideoContainer) mediaVideoContainer.classList.remove('controls-hidden');
+    if (audioPlayerCard) audioPlayerCard.classList.remove('playing');
     if (mediaVideoEl) {
       mediaVideoEl.pause();
       mediaVideoEl.removeAttribute('src');
@@ -3129,17 +3229,68 @@ document.addEventListener('DOMContentLoaded', () => {
     }
   };
 
+  // Modern Video Auto-Hide Engine & Tactile Controls
+  let controlsHideTimeout = null;
+
+  function resetControlsTimeout() {
+    if (!mediaVideoContainer) return;
+    mediaVideoContainer.classList.remove('controls-hidden');
+    clearTimeout(controlsHideTimeout);
+
+    if (mediaState.isPlaying && mediaState.mediaType === 'video') {
+      controlsHideTimeout = setTimeout(() => {
+        if (mediaState.isPlaying && mediaState.mediaType === 'video') {
+          mediaVideoContainer.classList.add('controls-hidden');
+        }
+      }, 3000);
+    }
+  }
+
+  function toggleControlsVisibility() {
+    if (!mediaVideoContainer) return;
+    if (mediaVideoContainer.classList.contains('controls-hidden')) {
+      resetControlsTimeout();
+    } else {
+      clearTimeout(controlsHideTimeout);
+      mediaVideoContainer.classList.add('controls-hidden');
+    }
+  }
+
+  function updateVideoPlayPauseIcons(isPlaying) {
+    if (isPlaying) {
+      if (iconVideoPlay) iconVideoPlay.style.display = 'none';
+      if (iconVideoPause) iconVideoPause.style.display = 'inline-block';
+      if (centerIconPlay) centerIconPlay.style.display = 'none';
+      if (centerIconPause) centerIconPause.style.display = 'inline-block';
+    } else {
+      if (iconVideoPlay) iconVideoPlay.style.display = 'inline-block';
+      if (iconVideoPause) iconVideoPause.style.display = 'none';
+      if (centerIconPlay) centerIconPlay.style.display = 'inline-block';
+      if (centerIconPause) centerIconPause.style.display = 'none';
+    }
+  }
+
+  function showGestureRipple(el) {
+    if (!el) return;
+    el.classList.remove('ripple-active');
+    void el.offsetWidth;
+    el.classList.add('ripple-active');
+    setTimeout(() => {
+      el.classList.remove('ripple-active');
+    }, 700);
+  }
+
   // Video Events
   if (mediaVideoEl) {
     mediaVideoEl.addEventListener('play', () => {
       mediaState.isPlaying = true;
-      if (iconVideoPlay) iconVideoPlay.style.display = 'none';
-      if (iconVideoPause) iconVideoPause.style.display = 'inline-block';
+      updateVideoPlayPauseIcons(true);
       if (miniPlayerStatus) miniPlayerStatus.textContent = 'Memutar video';
       updateMiniPlayPauseIcon();
       const w = mediaVideoEl.videoWidth || 16;
       const h = mediaVideoEl.videoHeight || 9;
       ApiBridge.setVideoPlaybackState(true, w, h);
+      resetControlsTimeout();
     });
 
     mediaVideoEl.addEventListener('loadedmetadata', () => {
@@ -3152,20 +3303,20 @@ document.addEventListener('DOMContentLoaded', () => {
 
     mediaVideoEl.addEventListener('pause', () => {
       mediaState.isPlaying = false;
-      if (iconVideoPlay) iconVideoPlay.style.display = 'inline-block';
-      if (iconVideoPause) iconVideoPause.style.display = 'none';
+      updateVideoPlayPauseIcons(false);
       if (miniPlayerStatus) miniPlayerStatus.textContent = 'Dijeda';
       updateMiniPlayPauseIcon();
       ApiBridge.setVideoPlaybackState(false);
+      resetControlsTimeout();
     });
 
     mediaVideoEl.addEventListener('ended', async () => {
       mediaState.isPlaying = false;
-      if (iconVideoPlay) iconVideoPlay.style.display = 'inline-block';
-      if (iconVideoPause) iconVideoPause.style.display = 'none';
+      updateVideoPlayPauseIcons(false);
       if (miniPlayerStatus) miniPlayerStatus.textContent = 'Selesai';
       updateMiniPlayPauseIcon();
       ApiBridge.setVideoPlaybackState(false);
+      resetControlsTimeout();
 
       if (mediaState.autoNext && mediaState.playlist && mediaState.playlist.length > 1) {
         const played = await playNextVideo(true);
@@ -3182,11 +3333,6 @@ document.addEventListener('DOMContentLoaded', () => {
         }
       }
     });
-
-    mediaVideoEl.addEventListener('click', () => {
-      if (mediaVideoEl.paused) mediaVideoEl.play();
-      else mediaVideoEl.pause();
-    });
   }
 
   if (videoSeekBar && mediaVideoEl) {
@@ -3198,12 +3344,14 @@ document.addEventListener('DOMContentLoaded', () => {
           videoTimeDisplay.textContent = `${formatMediaTime(targetSec)} / ${formatMediaTime(mediaVideoEl.duration)}`;
         }
       }
+      resetControlsTimeout();
     });
     videoSeekBar.addEventListener('change', () => {
       mediaState.isSeekingVideo = false;
       if (mediaVideoEl.duration) {
         mediaVideoEl.currentTime = (videoSeekBar.value / 100) * mediaVideoEl.duration;
       }
+      resetControlsTimeout();
     });
   }
 
@@ -3211,7 +3359,100 @@ document.addEventListener('DOMContentLoaded', () => {
     btnVideoPlayPause.addEventListener('click', () => {
       if (mediaVideoEl.paused) mediaVideoEl.play();
       else mediaVideoEl.pause();
+      resetControlsTimeout();
     });
+  }
+
+  // Center Tactile Buttons
+  if (btnVideoCenterPlay && mediaVideoEl) {
+    btnVideoCenterPlay.addEventListener('click', (e) => {
+      e.stopPropagation();
+      if (mediaVideoEl.paused) mediaVideoEl.play();
+      else mediaVideoEl.pause();
+      resetControlsTimeout();
+    });
+  }
+
+  if (btnVideoSkipBack10 && mediaVideoEl) {
+    btnVideoSkipBack10.addEventListener('click', (e) => {
+      e.stopPropagation();
+      mediaVideoEl.currentTime = Math.max(0, mediaVideoEl.currentTime - 10);
+      showGestureRipple(rippleLeft);
+      resetControlsTimeout();
+    });
+  }
+
+  if (btnVideoSkipForward10 && mediaVideoEl) {
+    btnVideoSkipForward10.addEventListener('click', (e) => {
+      e.stopPropagation();
+      if (mediaVideoEl.duration) {
+        mediaVideoEl.currentTime = Math.min(mediaVideoEl.duration, mediaVideoEl.currentTime + 10);
+        showGestureRipple(rippleRight);
+      }
+      resetControlsTimeout();
+    });
+  }
+
+  // Top Bar Overlay Controls
+  if (btnVideoBack) btnVideoBack.addEventListener('click', closeMediaPlayer);
+  if (btnVideoTopClose) btnVideoTopClose.addEventListener('click', closeMediaPlayer);
+  if (btnVideoTopPip) btnVideoTopPip.addEventListener('click', triggerPictureInPicture);
+
+  // Double-tap & Single-tap Gesture Zones
+  let lastTapLeft = 0;
+  let lastTapRight = 0;
+
+  if (videoGestureLeft) {
+    videoGestureLeft.addEventListener('click', (e) => {
+      e.stopPropagation();
+      const now = Date.now();
+      if (now - lastTapLeft < 300) {
+        if (mediaVideoEl) {
+          mediaVideoEl.currentTime = Math.max(0, mediaVideoEl.currentTime - 10);
+          showGestureRipple(rippleLeft);
+        }
+        lastTapLeft = 0;
+        resetControlsTimeout();
+      } else {
+        lastTapLeft = now;
+        setTimeout(() => {
+          if (lastTapLeft === now) {
+            toggleControlsVisibility();
+          }
+        }, 310);
+      }
+    });
+  }
+
+  if (videoGestureRight) {
+    videoGestureRight.addEventListener('click', (e) => {
+      e.stopPropagation();
+      const now = Date.now();
+      if (now - lastTapRight < 300) {
+        if (mediaVideoEl && mediaVideoEl.duration) {
+          mediaVideoEl.currentTime = Math.min(mediaVideoEl.duration, mediaVideoEl.currentTime + 10);
+          showGestureRipple(rippleRight);
+        }
+        lastTapRight = 0;
+        resetControlsTimeout();
+      } else {
+        lastTapRight = now;
+        setTimeout(() => {
+          if (lastTapRight === now) {
+            toggleControlsVisibility();
+          }
+        }, 310);
+      }
+    });
+  }
+
+  if (mediaVideoContainer) {
+    mediaVideoContainer.addEventListener('mousemove', () => {
+      resetControlsTimeout();
+    });
+    mediaVideoContainer.addEventListener('touchstart', () => {
+      resetControlsTimeout();
+    }, { passive: true });
   }
 
   if (btnVideoPrev) {
@@ -3233,6 +3474,7 @@ document.addEventListener('DOMContentLoaded', () => {
       mediaVideoEl.playbackRate = spd;
       btnVideoSpeed.textContent = `${spd}x`;
       showToast(`Kecepatan putar: ${spd}x`, 'info', 1200);
+      resetControlsTimeout();
     });
   }
 
@@ -3291,6 +3533,7 @@ document.addEventListener('DOMContentLoaded', () => {
     mediaAudioEl.addEventListener('play', () => {
       mediaState.isPlaying = true;
       if (audioDisc) audioDisc.classList.add('playing');
+      if (audioPlayerCard) audioPlayerCard.classList.add('playing');
       if (iconAudioPlay) iconAudioPlay.style.display = 'none';
       if (iconAudioPause) iconAudioPause.style.display = 'inline-block';
       if (miniPlayerStatus) miniPlayerStatus.textContent = 'Memutar musik';
@@ -3300,6 +3543,7 @@ document.addEventListener('DOMContentLoaded', () => {
     mediaAudioEl.addEventListener('pause', () => {
       mediaState.isPlaying = false;
       if (audioDisc) audioDisc.classList.remove('playing');
+      if (audioPlayerCard) audioPlayerCard.classList.remove('playing');
       if (iconAudioPlay) iconAudioPlay.style.display = 'inline-block';
       if (iconAudioPause) iconAudioPause.style.display = 'none';
       if (miniPlayerStatus) miniPlayerStatus.textContent = 'Dijeda';
@@ -3313,6 +3557,7 @@ document.addEventListener('DOMContentLoaded', () => {
       } else {
         mediaState.isPlaying = false;
         if (audioDisc) audioDisc.classList.remove('playing');
+        if (audioPlayerCard) audioPlayerCard.classList.remove('playing');
         if (iconAudioPlay) iconAudioPlay.style.display = 'inline-block';
         if (iconAudioPause) iconAudioPause.style.display = 'none';
         if (miniPlayerStatus) miniPlayerStatus.textContent = 'Selesai';

@@ -818,7 +818,7 @@
 
         <div style="margin-top: 0.9rem; display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 0.75rem;">
           <div style="display: flex; align-items: center; gap: 0.6rem;">
-            <span class="badge" style="background:rgba(99,102,241,0.18); color:var(--indigo-400); border:1px solid rgba(99,102,241,0.3); font-weight:600;" id="settings-current-ver-badge">v2.2.8</span>
+            <span class="badge" style="background:rgba(99,102,241,0.18); color:var(--indigo-400); border:1px solid rgba(99,102,241,0.3); font-weight:600;" id="settings-current-ver-badge">v2.2.9</span>
             <span style="font-size: 0.85rem; color: var(--text-secondary);" id="settings-update-status-text">Aplikasi Anda sudah versi terbaru.</span>
           </div>
           <button type="button" class="btn btn-secondary btn-sm" id="btn-check-update-settings" style="display:inline-flex; align-items:center; gap:0.4rem;">
@@ -1001,17 +1001,17 @@
     </div>
   </div>
 
-  <!-- Universal Built-in Media Player Modal (Video / Audio / Photo) -->
+  <!-- Universal Built-in Modern Media Player Modal (Video / Audio / Photo) -->
   <div class="modal-backdrop media-player-backdrop" id="media-player-modal">
     <div class="modal-window media-player-window">
-      <!-- Media Header -->
-      <div class="modal-header media-player-header">
+      <!-- Desktop/Fallback Media Header (Hidden on Mobile/Fullscreen for Immersive View) -->
+      <div class="modal-header media-player-header" id="media-player-desktop-header">
         <div class="media-header-info">
           <span class="media-type-badge" id="media-badge-type">VIDEO</span>
           <h3 id="media-player-title" class="media-title-truncate">Pratinjau Media</h3>
         </div>
         <div class="media-header-actions">
-          <!-- PiP button (YouTube style floating Picture-in-Picture) -->
+          <!-- PiP button -->
           <button type="button" class="btn-icon media-action-btn" id="btn-media-pip" title="Putar Mengambang (Picture-in-Picture)">
             <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
               <rect x="2" y="3" width="20" height="14" rx="2" ry="2"></rect>
@@ -1019,7 +1019,7 @@
               <polyline points="12 9 12 11 14 11"></polyline>
             </svg>
           </button>
-          <!-- Mini-Player Button (In-App floating corner dock) -->
+          <!-- Mini-Player Button -->
           <button type="button" class="btn-icon media-action-btn" id="btn-media-minimize" title="Perkecil ke Sudut (Mini Player)">
             <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
               <rect x="3" y="3" width="18" height="18" rx="2"></rect>
@@ -1048,7 +1048,66 @@
         <div class="media-view-container" id="media-video-container" style="display: none;">
           <div class="video-wrapper" id="video-wrapper">
             <video id="media-video-element" playsinline webkit-playsinline preload="metadata"></video>
-            <!-- Custom Video Controls Overlay -->
+
+            <!-- A. Modern Top Overlay Bar (Edge-to-edge mobile & fullscreen) -->
+            <div class="video-controls-top" id="video-controls-top">
+              <button type="button" class="btn-media-overlay-icon" id="btn-video-back" title="Kembali">
+                <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5">
+                  <line x1="19" y1="12" x2="5" y2="12"></line>
+                  <polyline points="12 19 5 12 12 5"></polyline>
+                </svg>
+              </button>
+              <div class="video-top-meta">
+                <span class="video-top-title" id="video-top-title">Judul Video</span>
+                <span class="video-top-badge" id="video-top-badge">MP4</span>
+              </div>
+              <div class="video-top-actions">
+                <button type="button" class="btn-media-overlay-icon" id="btn-video-top-pip" title="Putar Mengambang (PiP)">
+                  <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                    <rect x="2" y="3" width="20" height="14" rx="2"></rect>
+                    <rect x="12" y="9" width="8" height="6" rx="1" fill="currentColor" opacity="0.4"></rect>
+                  </svg>
+                </button>
+                <button type="button" class="btn-media-overlay-icon" id="btn-video-top-close" title="Tutup">
+                  <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5">
+                    <line x1="18" y1="6" x2="6" y2="18"></line>
+                    <line x1="6" y1="6" x2="18" y2="18"></line>
+                  </svg>
+                </button>
+              </div>
+            </div>
+
+            <!-- B. Double-Tap Skip Gesture Zones (Left = -10s, Right = +10s) -->
+            <div class="video-gesture-zone video-gesture-left" id="video-gesture-left">
+              <div class="gesture-ripple-badge" id="ripple-left">
+                <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><path d="M11 17l-5-5 5-5M18 17l-5-5 5-5"></path></svg>
+                <span>-10s</span>
+              </div>
+            </div>
+            <div class="video-gesture-zone video-gesture-right" id="video-gesture-right">
+              <div class="gesture-ripple-badge" id="ripple-right">
+                <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><path d="M13 17l5-5-5-5M6 17l5-5-5-5"></path></svg>
+                <span>+10s</span>
+              </div>
+            </div>
+
+            <!-- C. Modern Center Floating Controls Cluster -->
+            <div class="video-center-controls" id="video-center-controls">
+              <button type="button" class="btn-video-center-skip" id="btn-video-skip-back-10" title="Mundur 10 detik">
+                <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><path d="M11 17l-5-5 5-5M18 17l-5-5 5-5"></path></svg>
+                <span>-10s</span>
+              </button>
+              <button type="button" class="btn-video-center-play" id="btn-video-center-play" title="Putar / Jeda">
+                <svg id="center-icon-play" width="30" height="30" viewBox="0 0 24 24" fill="currentColor"><polygon points="6 4 20 12 6 20 6 4"></polygon></svg>
+                <svg id="center-icon-pause" width="30" height="30" viewBox="0 0 24 24" fill="currentColor" style="display:none;"><rect x="6" y="5" width="4" height="14" rx="1"></rect><rect x="14" y="5" width="4" height="14" rx="1"></rect></svg>
+              </button>
+              <button type="button" class="btn-video-center-skip" id="btn-video-skip-forward-10" title="Maju 10 detik">
+                <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><path d="M13 17l5-5-5-5M6 17l5-5-5-5"></path></svg>
+                <span>+10s</span>
+              </button>
+            </div>
+
+            <!-- D. Modern Bottom Overlay Bar -->
             <div class="video-controls-overlay" id="video-controls-overlay">
               <div class="video-seek-container">
                 <input type="range" class="media-range-slider" id="video-seek-bar" min="0" max="100" value="0" step="0.1">
@@ -1096,21 +1155,32 @@
           </div>
         </div>
 
-        <!-- 2. AUDIO VIEW -->
+        <!-- 2. AUDIO VIEW (Modern Spotify/Apple-like Layout) -->
         <div class="media-view-container" id="media-audio-container" style="display: none;">
           <div class="audio-player-card">
+            <!-- Vinyl Disc & Glowing Disc Ring -->
             <div class="audio-disc-wrapper">
+              <div class="audio-disc-ambient-glow"></div>
               <div class="audio-disc" id="audio-disc">
                 <div class="audio-disc-center">
-                  <svg width="24" height="24" viewBox="0 0 24 24" fill="currentColor"><circle cx="12" cy="12" r="3"></circle><path d="M9 18V5l12-2v13"></path><circle cx="6" cy="18" r="3"></circle><circle cx="18" cy="16" r="3"></circle></svg>
+                  <svg width="26" height="26" viewBox="0 0 24 24" fill="currentColor"><circle cx="12" cy="12" r="3"></circle><path d="M9 18V5l12-2v13"></path><circle cx="6" cy="18" r="3"></circle><circle cx="18" cy="16" r="3"></circle></svg>
                 </div>
               </div>
             </div>
+
+            <!-- Waveform Animation Bars -->
+            <div class="audio-visualizer-bars" id="audio-visualizer-bars">
+              <span class="vbar"></span><span class="vbar"></span><span class="vbar"></span><span class="vbar"></span><span class="vbar"></span>
+              <span class="vbar"></span><span class="vbar"></span><span class="vbar"></span><span class="vbar"></span><span class="vbar"></span>
+              <span class="vbar"></span><span class="vbar"></span><span class="vbar"></span><span class="vbar"></span><span class="vbar"></span>
+            </div>
+
             <div class="audio-info-wrapper">
               <h4 class="audio-track-title" id="audio-track-title">Judul Lagu</h4>
               <span class="audio-track-meta" id="audio-track-meta">Audio Musik</span>
             </div>
             <audio id="media-audio-element" preload="metadata"></audio>
+
             <!-- Audio Seekbar -->
             <div class="audio-seek-wrapper">
               <input type="range" class="media-range-slider" id="audio-seek-bar" min="0" max="100" value="0" step="0.1">
@@ -1119,21 +1189,22 @@
                 <span id="audio-total-time">00:00</span>
               </div>
             </div>
-            <!-- Audio Controls -->
+
+            <!-- Ergonomic Audio Controls -->
             <div class="audio-controls-row">
               <button type="button" class="btn-media-ctrl" id="btn-audio-rewind" title="Mundur 10 detik">
-                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M11 17l-5-5 5-5M18 17l-5-5 5-5"></path></svg>
+                <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><path d="M11 17l-5-5 5-5M18 17l-5-5 5-5"></path></svg>
               </button>
               <button type="button" class="btn-media-ctrl btn-audio-play-main" id="btn-audio-play-pause" title="Putar / Jeda">
-                <svg id="icon-audio-play" width="22" height="22" viewBox="0 0 24 24" fill="currentColor"><polygon points="5 3 19 12 5 21 5 3"></polygon></svg>
-                <svg id="icon-audio-pause" width="22" height="22" viewBox="0 0 24 24" fill="currentColor" style="display:none;"><rect x="6" y="4" width="4" height="16"></rect><rect x="14" y="4" width="4" height="16"></rect></svg>
+                <svg id="icon-audio-play" width="26" height="26" viewBox="0 0 24 24" fill="currentColor"><polygon points="6 4 20 12 6 20 6 4"></polygon></svg>
+                <svg id="icon-audio-pause" width="26" height="26" viewBox="0 0 24 24" fill="currentColor" style="display:none;"><rect x="6" y="5" width="4" height="14" rx="1"></rect><rect x="14" y="5" width="4" height="14" rx="1"></rect></svg>
               </button>
               <button type="button" class="btn-media-ctrl" id="btn-audio-forward" title="Maju 10 detik">
-                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M13 17l5-5-5-5M6 17l5-5-5-5"></path></svg>
+                <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><path d="M13 17l5-5-5-5M6 17l5-5-5-5"></path></svg>
               </button>
               <button type="button" class="btn-media-badge" id="btn-audio-speed" title="Kecepatan">1x</button>
               <button type="button" class="btn-media-ctrl" id="btn-audio-loop" title="Ulangi (Loop)">
-                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="17 1 21 5 17 9"></polyline><path d="M3 11V9a4 4 0 0 1 4-4h14"></path><polyline points="7 23 3 19 7 15"></polyline><path d="M21 13v2a4 4 0 0 1-4 4H3"></path></svg>
+                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="17 1 21 5 17 9"></polyline><path d="M3 11V9a4 4 0 0 1 4-4h14"></path><polyline points="7 23 3 19 7 15"></polyline><path d="M21 13v2a4 4 0 0 1-4 4H3"></path></svg>
               </button>
             </div>
           </div>

@@ -63,6 +63,7 @@ const ApiBridge = {
         downloadFile: (options) => window.Capacitor.nativePromise('AndroidDownloader', 'downloadFile', options),
         openFile: (options) => window.Capacitor.nativePromise('AndroidDownloader', 'openFile', options),
         openFolder: (options) => window.Capacitor.nativePromise('AndroidDownloader', 'openFolder', options || {}),
+        pauseDownload: (options) => window.Capacitor.nativePromise('AndroidDownloader', 'pauseDownload', options),
         cancelDownload: (options) => window.Capacitor.nativePromise('AndroidDownloader', 'cancelDownload', options),
         stopAll: () => window.Capacitor.nativePromise('AndroidDownloader', 'stopAll', {}),
         inspectContent: (options) => window.Capacitor.nativePromise('AndroidDownloader', 'inspectContent', options),
@@ -162,7 +163,10 @@ const ApiBridge = {
       if (res && res.uri) {
         item.savedUri = res.uri;
       }
-      return true;
+      if (res && res.paused) {
+        return { success: false, paused: true };
+      }
+      return (res && res.success !== false);
     }
 
     // 3. Web Browser Fallback
@@ -278,6 +282,15 @@ const ApiBridge = {
     } catch (e) {
       window.location.href = url;
       return true;
+    }
+  },
+
+  pauseDownload(id) {
+    const androidPlugin = this.getAndroidPlugin();
+    if (androidPlugin && typeof androidPlugin.pauseDownload === 'function') {
+      try {
+        androidPlugin.pauseDownload({ id: String(id) });
+      } catch (ignored) {}
     }
   },
 

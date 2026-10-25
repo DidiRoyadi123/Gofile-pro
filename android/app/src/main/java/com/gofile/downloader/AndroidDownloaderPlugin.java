@@ -57,6 +57,7 @@ public class AndroidDownloaderPlugin extends Plugin {
 
     private final ExecutorService executor = Executors.newFixedThreadPool(16);
     private final ConcurrentHashMap<String, Boolean> cancelFlags = new ConcurrentHashMap<>();
+    private final ConcurrentHashMap<String, Boolean> pauseFlags = new ConcurrentHashMap<>();
     private final ConcurrentHashMap<String, HttpURLConnection> activeConnections = new ConcurrentHashMap<>();
     private final Handler mainHandler = new Handler(Looper.getMainLooper());
     private static final String APP_USER_AGENT = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/126.0.0.0 Safari/537.36";
@@ -286,6 +287,78 @@ public class AndroidDownloaderPlugin extends Plugin {
         return filename;
     }
 
+    private File getStageFile(Context ctx, String taskId) {
+        File dir = new File(ctx.getExternalFilesDir(null), ".stage");
+        if (!dir.exists()) {
+            dir.mkdirs();
+        }
+        return new File(dir, "stage_" + taskId + ".part");
+    }
+
+    private Uri commitStageFile(Context ctx, File stageFile, String filename, String relDir, String mimeType) throws Exception {
+        ContentResolver resolver = ctx.getContentResolver();
+        Uri targetUri = null;
+
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
+            ContentValues values = new ContentValues();
+            values.put(MediaStore.Downloads.DISPLAY_NAME, filename);
+            values.put(MediaStore.Downloads.MIME_TYPE, mimeType);
+
+            String relativePath = Environment.DIRECTORY_DOWNLOADS + "/GoFile";
+            if (relDir != null && !relDir.trim().isEmpty()) {
+                String cleanSub = relDir.trim().replace('\\', '/').replaceAll("^/+", "").replaceAll("/+$", "");
+                if (!cleanSub.isEmpty()) {
+                    relativePath += "/" + cleanSub;
+                }
+            }
+            values.put(MediaStore.Downloads.RELATIVE_PATH, relativePath);
+            values.put(MediaStore.Downloads.IS_PENDING, 1);
+
+            targetUri = resolver.insert(MediaStore.Downloads.EXTERNAL_CONTENT_URI, values);
+            if (targetUri == null) {
+                throw new Exception("Gagal membuat entri penyimpanan MediaStore");
+            }
+
+            try (InputStream fis = new FileInputStream(stageFile);
+                 OutputStream os = resolver.openOutputStream(targetUri)) {
+                if (os == null) {
+                    throw new Exception("Gagal membuka output stream MediaStore");
+                }
+                byte[] buf = new byte[262144];
+                int n;
+                while ((n = fis.read(buf)) != -1) {
+                    os.write(buf, 0, n);
+                }
+                os.flush();
+            }
+
+            ContentValues finishValues = new ContentValues();
+            finishValues.put(MediaStore.Downloads.IS_PENDING, 0);
+            resolver.update(targetUri, finishValues, null, null);
+        } else {
+            File downloadDir = Environment.getExternalStoragePublicDirectory(Environment.DIRECTORY_DOWNLOADS);
+            File gofileDir = new File(downloadDir, "GoFile" + (relDir != null && !relDir.trim().isEmpty() ? "/" + relDir.trim() : ""));
+            if (!gofileDir.exists()) {
+                gofileDir.mkdirs();
+            }
+            File targetFile = new File(gofileDir, filename);
+            try (InputStream fis = new FileInputStream(stageFile);
+                 OutputStream fos = new FileOutputStream(targetFile)) {
+                byte[] buf = new byte[262144];
+                int n;
+                while ((n = fis.read(buf)) != -1) {
+                    fos.write(buf, 0, n);
+                }
+                fos.flush();
+            }
+            targetUri = FileProvider.getUriForFile(ctx, ctx.getPackageName() + ".fileprovider", targetFile);
+            try {
+                MediaScannerConnection.scanFile(ctx, new String[]{targetFile.getAbsolutePath()}, new String[]{mimeType}, null);
+            } catch (Exception ignored) {}
+        }
+        return targetUri;
+    }
+
     @PluginMethod
     public void checkFileExists(PluginCall call) {
         String filename = call.getString("filename");
@@ -348,13 +421,16 @@ public class AndroidDownloaderPlugin extends Plugin {
         DownloadService.start(getContext(), filename);
 
         cancelFlags.put(taskId, false);
+        pauseFlags.put(taskId, false);
 
         executor.submit(() -> {
+            Context ctx = getContext();
             String resolvedFilename;
+            File stageFile = getStageFile(ctx, taskId);
+
             if (isUpdate || overwrite) {
                 resolvedFilename = getSafeFilename(filename);
-                // Clean up any stale existing file in MediaStore and Download folder so fresh file is written
-                Context ctx = getContext();
+                if (stageFile.exists()) stageFile.delete();
                 ContentResolver resolver = ctx.getContentResolver();
                 try {
                     if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
@@ -377,6 +453,7 @@ public class AndroidDownloaderPlugin extends Plugin {
                 // Check if file already exists in local storage with matching size
                 Uri existingUri = findFileUri(resolvedFilename, relDir, expectedSize);
                 if (existingUri != null) {
+                    if (stageFile.exists()) stageFile.delete();
                     JSObject finishData = new JSObject();
                     finishData.put("id", taskId);
                     finishData.put("filename", resolvedFilename);
@@ -404,8 +481,6 @@ public class AndroidDownloaderPlugin extends Plugin {
             HttpURLConnection conn = null;
             InputStream in = null;
             OutputStream out = null;
-            Uri targetUri = null;
-            File targetFile = null;
 
             try {
                 boolean isGofile = urlStr.contains("gofile.io") || urlStr.contains("api.gofile.io");
@@ -422,6 +497,7 @@ public class AndroidDownloaderPlugin extends Plugin {
                     }
                 }
 
+                long existingBytes = (stageFile.exists() && !isUpdate && !overwrite) ? stageFile.length() : 0L;
                 String currentUrl = urlStr;
                 int redirects = 0;
 
@@ -439,6 +515,10 @@ public class AndroidDownloaderPlugin extends Plugin {
                         if (token != null && !token.trim().isEmpty()) {
                             conn.setRequestProperty("Cookie", "accountToken=" + token);
                         }
+                    }
+
+                    if (existingBytes > 0) {
+                        conn.setRequestProperty("Range", "bytes=" + existingBytes + "-");
                     }
 
                     conn.setConnectTimeout(25000);
@@ -471,148 +551,116 @@ public class AndroidDownloaderPlugin extends Plugin {
                     throw new Exception("Autentikasi gagal: server GoFile mengembalikan respons HTML. Pastikan token akun valid.");
                 }
 
-                long totalBytes = conn.getContentLengthLong();
-                String acceptRanges = conn.getHeaderField("Accept-Ranges");
-                boolean supportsRange = "bytes".equalsIgnoreCase(acceptRanges) || statusCode == 206;
-
-                Context ctx = getContext();
-                ContentResolver resolver = ctx.getContentResolver();
-
-                // Save to Android Internal Storage Downloads/GoFile
-                if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
-                    ContentValues values = new ContentValues();
-                    values.put(MediaStore.Downloads.DISPLAY_NAME, resolvedFilename);
-                    values.put(MediaStore.Downloads.MIME_TYPE, effectiveMime);
-
-                    String relativePath = Environment.DIRECTORY_DOWNLOADS + "/GoFile";
-                    if (relDir != null && !relDir.trim().isEmpty()) {
-                        String cleanSub = relDir.trim().replace('\\', '/').replaceAll("^/+", "").replaceAll("/+$", "");
-                        if (!cleanSub.isEmpty()) {
-                            relativePath += "/" + cleanSub;
-                        }
-                    }
-                    values.put(MediaStore.Downloads.RELATIVE_PATH, relativePath);
-                    values.put(MediaStore.Downloads.IS_PENDING, 1);
-
-                    targetUri = resolver.insert(MediaStore.Downloads.EXTERNAL_CONTENT_URI, values);
-                    if (targetUri == null) {
-                        throw new Exception("Gagal membuat entri penyimpanan MediaStore");
-                    }
-                    out = resolver.openOutputStream(targetUri);
-                } else {
-                    File downloadDir = Environment.getExternalStoragePublicDirectory(Environment.DIRECTORY_DOWNLOADS);
-                    File gofileDir = new File(downloadDir, "GoFile" + (relDir != null && !relDir.trim().isEmpty() ? "/" + relDir.trim() : ""));
-                    if (!gofileDir.exists()) {
-                        gofileDir.mkdirs();
-                    }
-                    targetFile = new File(gofileDir, resolvedFilename);
-                    out = new FileOutputStream(targetFile);
-                    targetUri = FileProvider.getUriForFile(ctx, ctx.getPackageName() + ".fileprovider", targetFile);
-                }
-
-                if (out == null) {
-                    throw new Exception("Gagal membuka stream penulisan file");
-                }
-
                 long downloadedBytes = 0;
-                boolean multiConnectionSuccess = false;
+                long totalBytes = 0;
+                boolean isResuming = false;
 
-                // Simultaneous Connections (4-6 parallel Range segments) for files >= 10 MB supporting Range
-                if (supportsRange && totalBytes >= 10L * 1024 * 1024) {
-                    File cacheDir = ctx.getExternalCacheDir() != null ? ctx.getExternalCacheDir() : ctx.getCacheDir();
-                    if (cacheDir != null && cacheDir.getUsableSpace() > (totalBytes + 150L * 1024 * 1024)) {
-                        File stageFile = new File(cacheDir, "stage_" + taskId + ".tmp");
-                        try {
-                            try { conn.disconnect(); } catch (Exception ignored) {}
-
-                            multiConnectionSuccess = downloadSimultaneousSegments(
-                                    currentUrl, isGofile, token, totalBytes, taskId, resolvedFilename, stageFile, ctx
-                            );
-                            if (multiConnectionSuccess && stageFile.exists() && stageFile.length() == totalBytes) {
-                                try (FileInputStream fis = new FileInputStream(stageFile)) {
-                                    byte[] copyBuf = new byte[262144];
-                                    int n;
-                                    while ((n = fis.read(copyBuf)) != -1) {
-                                        out.write(copyBuf, 0, n);
-                                    }
-                                    out.flush();
-                                }
-                                downloadedBytes = totalBytes;
-                            } else {
-                                multiConnectionSuccess = false;
-                            }
-                        } catch (Exception mEx) {
-                            multiConnectionSuccess = false;
-                        } finally {
-                            if (stageFile.exists()) {
-                                stageFile.delete();
-                            }
-                        }
-                    }
-                }
-
-                // Resilient Single Stream (Fresh Connection) if multi-connection not applicable or skipped
-                if (!multiConnectionSuccess) {
-                    URL fbUrl = new URL(currentUrl);
-                    HttpURLConnection fbConn = (HttpURLConnection) fbUrl.openConnection();
-                    fbConn.setInstanceFollowRedirects(false);
-                    fbConn.setRequestProperty("User-Agent", APP_USER_AGENT);
-                    fbConn.setRequestProperty("Accept", "*/*");
-                    fbConn.setRequestProperty("Accept-Encoding", "identity");
-
-                    if (isGofile) {
-                        fbConn.setRequestProperty("Referer", "https://gofile.io/");
-                        fbConn.setRequestProperty("Origin", "https://gofile.io");
-                        if (token != null && !token.trim().isEmpty()) {
-                            fbConn.setRequestProperty("Cookie", "accountToken=" + token);
-                        }
-                    }
-
-                    fbConn.setConnectTimeout(25000);
-                    fbConn.setReadTimeout(35000);
-                    fbConn.connect();
-                    activeConnections.put(taskId, fbConn);
-
-                    in = fbConn.getInputStream();
-                    byte[] buffer = new byte[262144]; // 256 KB high-throughput buffer
-                    int bytesRead;
+                if (statusCode == 206 && existingBytes > 0) {
+                    // Resuming existing stage file via HTTP Range
+                    isResuming = true;
+                    downloadedBytes = existingBytes;
+                    long serverLen = conn.getContentLengthLong();
+                    totalBytes = (serverLen > 0) ? (existingBytes + serverLen) : (expectedSize > 0 ? expectedSize : 0);
+                    out = new FileOutputStream(stageFile, true);
+                } else {
+                    // Fresh download from 0
+                    isResuming = false;
                     downloadedBytes = 0;
-                    long startTime = System.currentTimeMillis();
-                    long lastNotifyTime = 0;
+                    totalBytes = conn.getContentLengthLong() > 0 ? conn.getContentLengthLong() : (expectedSize > 0 ? expectedSize : 0);
+                    if (stageFile.exists()) {
+                        stageFile.delete();
+                    }
+                    out = new FileOutputStream(stageFile, false);
+                }
 
-                    while ((bytesRead = in.read(buffer)) != -1) {
-                        if (Boolean.TRUE.equals(cancelFlags.get(taskId))) {
-                            throw new Exception("Download dibatalkan");
-                        }
+                in = conn.getInputStream();
+                byte[] buffer = new byte[262144]; // 256 KB buffer
+                int bytesRead;
+                long startTime = System.currentTimeMillis();
+                long lastNotifyTime = 0;
+                boolean isPaused = false;
+                boolean isCancelled = false;
 
-                        out.write(buffer, 0, bytesRead);
-                        downloadedBytes += bytesRead;
+                while ((bytesRead = in.read(buffer)) != -1) {
+                    if (Boolean.TRUE.equals(pauseFlags.get(taskId))) {
+                        isPaused = true;
+                        break;
+                    }
+                    if (Boolean.TRUE.equals(cancelFlags.get(taskId))) {
+                        isCancelled = true;
+                        break;
+                    }
 
-                        long now = System.currentTimeMillis();
-                        if (now - lastNotifyTime > 200) {
-                            double elapsedSec = Math.max(0.1, (now - startTime) / 1000.0);
-                            double speed = downloadedBytes / elapsedSec;
-                            double pct = (totalBytes > 0) ? ((double) downloadedBytes / totalBytes) * 100.0 : 0.0;
+                    out.write(buffer, 0, bytesRead);
+                    downloadedBytes += bytesRead;
 
-                            JSObject prog = new JSObject();
-                            prog.put("id", taskId);
-                            prog.put("filename", resolvedFilename);
-                            prog.put("status", "downloading");
-                            prog.put("progress", Math.min(100.0, Math.round(pct * 10.0) / 10.0));
-                            prog.put("downloaded", downloadedBytes);
-                            prog.put("total", totalBytes > 0 ? totalBytes : downloadedBytes);
-                            prog.put("speed", speed);
+                    long now = System.currentTimeMillis();
+                    if (now - lastNotifyTime > 200) {
+                        double elapsedSec = Math.max(0.1, (now - startTime) / 1000.0);
+                        long sessionBytes = downloadedBytes - (isResuming ? existingBytes : 0);
+                        double speed = sessionBytes / elapsedSec;
+                        double pct = (totalBytes > 0) ? ((double) downloadedBytes / totalBytes) * 100.0 : 0.0;
 
-                            notifyListeners("downloadProgress", prog);
-                            DownloadService.update(ctx, resolvedFilename, (int) Math.round(pct), formatSpeed(speed));
-                            lastNotifyTime = now;
-                        }
+                        JSObject prog = new JSObject();
+                        prog.put("id", taskId);
+                        prog.put("filename", resolvedFilename);
+                        prog.put("status", "downloading");
+                        prog.put("progress", Math.min(100.0, Math.round(pct * 10.0) / 10.0));
+                        prog.put("downloaded", downloadedBytes);
+                        prog.put("total", totalBytes > 0 ? totalBytes : downloadedBytes);
+                        prog.put("speed", speed);
+
+                        notifyListeners("downloadProgress", prog);
+                        DownloadService.update(ctx, resolvedFilename, (int) Math.round(pct), formatSpeed(speed));
+                        lastNotifyTime = now;
                     }
                 }
 
-                out.flush();
-                out.close();
-                out = null;
+                try { if (out != null) { out.flush(); out.close(); out = null; } } catch (Exception ignored) {}
+                try { if (in != null) { in.close(); in = null; } } catch (Exception ignored) {}
+
+                if (isPaused) {
+                    double pct = (totalBytes > 0) ? ((double) downloadedBytes / totalBytes) * 100.0 : 0.0;
+                    JSObject pauseData = new JSObject();
+                    pauseData.put("id", taskId);
+                    pauseData.put("filename", resolvedFilename);
+                    pauseData.put("status", "paused");
+                    pauseData.put("progress", Math.min(100.0, Math.round(pct * 10.0) / 10.0));
+                    pauseData.put("downloaded", downloadedBytes);
+                    pauseData.put("total", totalBytes > 0 ? totalBytes : downloadedBytes);
+                    pauseData.put("speed", 0);
+                    notifyListeners("downloadProgress", pauseData);
+
+                    JSObject callRes = new JSObject();
+                    callRes.put("success", false);
+                    callRes.put("paused", true);
+                    callRes.put("id", taskId);
+                    callRes.put("filename", resolvedFilename);
+                    callRes.put("downloaded", downloadedBytes);
+                    callRes.put("total", totalBytes > 0 ? totalBytes : downloadedBytes);
+                    call.resolve(callRes);
+                    return;
+                }
+
+                if (isCancelled) {
+                    if (stageFile.exists()) stageFile.delete();
+                    JSObject cancelData = new JSObject();
+                    cancelData.put("id", taskId);
+                    cancelData.put("filename", resolvedFilename);
+                    cancelData.put("status", "cancelled");
+                    cancelData.put("progress", 0);
+                    cancelData.put("downloaded", 0);
+                    cancelData.put("total", totalBytes > 0 ? totalBytes : 0);
+                    cancelData.put("speed", 0);
+                    notifyListeners("downloadProgress", cancelData);
+
+                    JSObject callRes = new JSObject();
+                    callRes.put("success", false);
+                    callRes.put("cancelled", true);
+                    callRes.put("id", taskId);
+                    call.resolve(callRes);
+                    return;
+                }
 
                 if (downloadedBytes == 0) {
                     throw new Exception("File kosong (0 bytes diterima dari server)");
@@ -621,18 +669,14 @@ public class AndroidDownloaderPlugin extends Plugin {
                     throw new Exception("Unduhan tidak lengkap (hanya terunduh " + downloadedBytes + " dari " + totalBytes + " bytes)");
                 }
 
-                // Mark file as complete in MediaStore (Android 10+)
-                if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q && targetUri != null) {
-                    ContentValues finishValues = new ContentValues();
-                    finishValues.put(MediaStore.Downloads.IS_PENDING, 0);
-                    resolver.update(targetUri, finishValues, null, null);
+                // Commit stage file into destination MediaStore or Download directory
+                Uri targetUri = commitStageFile(ctx, stageFile, resolvedFilename, relDir, effectiveMime);
+                if (stageFile.exists()) {
+                    stageFile.delete();
                 }
 
-                // Notify Android Media Scanner so file appears in Gallery/Videos/Files immediately
                 try {
-                    if (targetFile != null) {
-                        MediaScannerConnection.scanFile(ctx, new String[]{targetFile.getAbsolutePath()}, new String[]{effectiveMime}, null);
-                    } else if (targetUri != null) {
+                    if (targetUri != null) {
                         ctx.sendBroadcast(new Intent(Intent.ACTION_MEDIA_SCANNER_SCAN_FILE, targetUri));
                     }
                 } catch (Exception ignored) {}
@@ -659,20 +703,10 @@ public class AndroidDownloaderPlugin extends Plugin {
                 call.resolve(callRes);
 
             } catch (Exception e) {
-                // Cleanup on failure
-                try {
-                    if (out != null) out.close();
-                } catch (Exception ignored) {}
-                if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q && targetUri != null) {
-                    try {
-                        getContext().getContentResolver().delete(targetUri, null, null);
-                    } catch (Exception ignored) {}
-                } else if (targetFile != null && targetFile.exists()) {
-                    try {
-                        targetFile.delete();
-                    } catch (Exception ignored) {}
-                }
+                try { if (out != null) out.close(); } catch (Exception ignored) {}
+                try { if (in != null) in.close(); } catch (Exception ignored) {}
 
+                // NOTE: We do NOT delete stageFile on error so the user can resume without restarting!
                 JSObject failData = new JSObject();
                 failData.put("id", taskId);
                 failData.put("filename", filename);
@@ -684,6 +718,7 @@ public class AndroidDownloaderPlugin extends Plugin {
             } finally {
                 DownloadService.stop(getContext());
                 cancelFlags.remove(taskId);
+                pauseFlags.remove(taskId);
                 activeConnections.remove(taskId);
                 if (activeConnections.isEmpty()) {
                     DownloadService.forceStop(getContext());
@@ -805,6 +840,25 @@ public class AndroidDownloaderPlugin extends Plugin {
     }
 
     @PluginMethod
+    public void pauseDownload(PluginCall call) {
+        String id = call.getString("id");
+        if (id != null) {
+            pauseFlags.put(id, true);
+            HttpURLConnection c = activeConnections.remove(id);
+            if (c != null) {
+                try { c.disconnect(); } catch (Exception ignored) {}
+            }
+        }
+        if (activeConnections.isEmpty()) {
+            DownloadService.stop(getContext());
+        }
+        JSObject ret = new JSObject();
+        ret.put("success", true);
+        ret.put("id", id);
+        call.resolve(ret);
+    }
+
+    @PluginMethod
     public void cancelDownload(PluginCall call) {
         String id = call.getString("id");
         if (id != null) {
@@ -813,6 +867,10 @@ public class AndroidDownloaderPlugin extends Plugin {
             if (c != null) {
                 try { c.disconnect(); } catch (Exception ignored) {}
             }
+            try {
+                File sf = getStageFile(getContext(), id);
+                if (sf.exists()) sf.delete();
+            } catch (Exception ignored) {}
         }
         if (activeConnections.isEmpty()) {
             DownloadService.forceStop(getContext());
@@ -822,8 +880,8 @@ public class AndroidDownloaderPlugin extends Plugin {
 
     @PluginMethod
     public void stopAll(PluginCall call) {
-        for (String id : cancelFlags.keySet()) {
-            cancelFlags.put(id, true);
+        for (String id : activeConnections.keySet()) {
+            pauseFlags.put(id, true);
         }
         for (HttpURLConnection c : activeConnections.values()) {
             try { c.disconnect(); } catch (Exception ignored) {}
