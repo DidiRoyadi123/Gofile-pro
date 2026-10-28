@@ -59,5 +59,12 @@
   - [x] 11.1 In `ui/admin.html` & `ui/js/admin.js`, build Adsterra / Monetag Direct Link injector, Social Bar controller, Interstitial celebration manager, and raw script tag runner.
   - [x] 11.2 In `ui/js/app.js` & `ui/index.html`, implement `AdNetworkEngine` with frequency capping, download start trigger, download completion celebration, and floating social bar.
   - [x] 11.3 In `desktop_app.py` & `api.js`, enable external browser ad redirection for Windows EXE.
-  - [x] 11.4 QA test, compile both APK editions, and sync commits across `admin` and `main` branches.
+- [x] 12. v2.4.0 Mobile Refinements & User Feedback Overhaul
+  - [x] 12.1 Video Player Hamburger Menu Sheet (☰) replacing crowded inline buttons (`[Auto] [1x] [PiP] [Fullscreen]`) with a bottom sheet containing speed chips, aspect ratio chips, loop, shuffle, pip, and lock.
+  - [x] 12.2 Anti-Kill Battery manual override confirmation button ("Saya Sudah Aktifkan Manual ✓") and SharedPreferences fallback to prevent false positives on aggressive OEM skins.
+  - [x] 12.3 Physical / Gesture Back Button handling: Intercepts back key during video playback to return cleanly to the file list without exiting the app. Home button smoothly transitions into PiP.
+  - [x] 12.4 Watched history tracking (`gf_video_watched_history`) with visual badges (`✓ Ditonton` vs `Baru`) and Prioritized Shuffle Playback (prioritizes unwatched files before cycling watched files).
+  - [x] 12.5 Complete Admin APK isolation: Removed client switcher and user app header links. Hardened update checker to ignore admin APK assets.
+  - [x] 12.6 Real Real-time Admin Telemetry: Replaced dummy increments with real GoFile API server latency probe (ms), real completed download tracking, and real storage metrics.
+  - [x] 12.7 QA verification, clean rebuild of User APK & Admin APK, git sync across `main` and `admin` branches, and published to GitHub Release `v2.4.0`.
 
