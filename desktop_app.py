@@ -479,6 +479,26 @@ class DesktopAPI:
         except Exception as e:
             return {"valid": False, "status": "error", "message": str(e)}
 
+    def open_network_settings(self) -> bool:
+        """Opens Windows Network & Internet Settings for manual or quick IP reset."""
+        try:
+            import os
+            os.system("start ms-settings:network")
+            return True
+        except Exception:
+            return False
+
+    def purge_network_cache(self) -> bool:
+        """Flushes DNS cache and resets requests session socket pool."""
+        try:
+            import requests
+            # Recreate clean session
+            self.engine.session.close()
+            self.engine.session = requests.Session()
+            return True
+        except Exception:
+            return False
+
     def stop_all(self):
         """Stops all active download tasks."""
         self.engine.stop_all()
