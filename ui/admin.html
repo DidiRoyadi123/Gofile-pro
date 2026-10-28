@@ -1,0 +1,207 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+  <meta name="theme-color" content="#07090e">
+  <title>GoFile Pro - Admin Dashboard Suite</title>
+
+  <!-- Google Fonts -->
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;600;700&family=Outfit:wght@400;500;600;700;800;900&display=swap" rel="stylesheet">
+
+  <link rel="stylesheet" href="css/admin.css">
+</head>
+<body>
+  <!-- Ambient Backdrop Lights -->
+  <div class="admin-ambient"></div>
+  <div class="admin-ambient-2"></div>
+
+  <div class="admin-container">
+    <!-- Header -->
+    <header class="admin-header">
+      <div class="admin-brand">
+        <div class="admin-badge-logo">⚡</div>
+        <div class="admin-brand-info">
+          <h1>GoFile Pro Admin</h1>
+          <div class="admin-status-pill">
+            <span class="admin-status-dot"></span>
+            <span>SERVER BROADCAST AKTIF • v2.4.0</span>
+          </div>
+        </div>
+      </div>
+
+      <div class="admin-header-actions">
+        <a href="index.html" class="btn-admin btn-admin-secondary" title="Buka Mode Pengguna">
+          <span>📱 Mode Klien</span>
+        </a>
+        <button type="button" class="btn-admin btn-admin-gold" id="btn-export-config">
+          <span>🚀 Siarkan Config</span>
+        </button>
+      </div>
+    </header>
+
+    <!-- Metrics Grid -->
+    <div class="admin-metrics-grid">
+      <div class="metric-card">
+        <div class="metric-label">Perangkat Aktif</div>
+        <div class="metric-val" id="stat-active-devices">1,428</div>
+        <div class="metric-sub">▲ +12% dari minggu lalu</div>
+      </div>
+      <div class="metric-card">
+        <div class="metric-label">Unduhan Hari Ini</div>
+        <div class="metric-val" id="stat-downloads">14,892</div>
+        <div class="metric-sub">▲ 18 berkas/menit</div>
+      </div>
+      <div class="metric-card">
+        <div class="metric-label">Bandwidth Tersalur</div>
+        <div class="metric-val" id="stat-bandwidth">48.6 TB</div>
+        <div class="metric-sub">Multi-thread 8x</div>
+      </div>
+      <div class="metric-card">
+        <div class="metric-label">Tingkat Keberhasilan</div>
+        <div class="metric-val" id="stat-success">99.4%</div>
+        <div class="metric-sub">142 IP 429 Termitigasi</div>
+      </div>
+    </div>
+
+    <!-- Tab Navigation -->
+    <div class="admin-nav-tabs">
+      <button type="button" class="admin-nav-tab active" data-target="tab-analytics">
+        <span>📊 Analitik & Telemetri</span>
+      </button>
+      <button type="button" class="admin-nav-tab" data-target="tab-ads">
+        <span>📢 Kontrol Iklan & Sponsor</span>
+      </button>
+      <button type="button" class="admin-nav-tab" data-target="tab-tokens">
+        <span>🔑 Pool Token GoFile</span>
+      </button>
+      <button type="button" class="admin-nav-tab" data-target="tab-broadcast">
+        <span>🚀 Siaran & Ekspor JSON</span>
+      </button>
+    </div>
+
+    <!-- 1. ANALYTICS SECTION -->
+    <div class="admin-section active" id="tab-analytics">
+      <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(300px,1fr));gap:1rem;margin-bottom:1rem;">
+        <div class="admin-card">
+          <div class="admin-card-header">
+            <span class="admin-card-title">📱 Distribusi Sistem Operasi Klien</span>
+          </div>
+          <div id="dist-os"></div>
+        </div>
+
+        <div class="admin-card">
+          <div class="admin-card-header">
+            <span class="admin-card-title">🌐 Top Penyedia Jaringan / ISP Klien</span>
+          </div>
+          <div id="dist-isp"></div>
+        </div>
+      </div>
+
+      <div class="admin-card">
+        <div class="admin-card-header">
+          <span class="admin-card-title">📡 Live Activity Feed (Real-time Telemetry)</span>
+          <span style="font-size:0.75rem;color:var(--admin-text-muted);">Auto-streaming</span>
+        </div>
+        <div class="event-feed" id="event-feed"></div>
+      </div>
+    </div>
+
+    <!-- 2. ADS & ANNOUNCEMENTS SECTION -->
+    <div class="admin-section" id="tab-ads">
+      <div class="admin-card">
+        <div class="admin-card-header">
+          <span class="admin-card-title">📢 Siaran Pengumuman Mendesak (Urgent Broadcast)</span>
+        </div>
+        <div class="form-group" style="display:flex;align-items:center;gap:0.5rem;">
+          <input type="checkbox" id="ann-enabled" style="width:18px;height:18px;accent-color:var(--admin-gold);">
+          <label for="ann-enabled" style="font-size:0.85rem;font-weight:700;color:#fff;">Aktifkan Pengumuman di Semua Aplikasi Klien</label>
+        </div>
+        <div class="form-group">
+          <label class="form-label">Tingkat Kepentingan (Severity)</label>
+          <select class="form-select" id="ann-level">
+            <option value="info">Informasi (Biru)</option>
+            <option value="warning">Peringatan (Kuning)</option>
+            <option value="urgent">Mendesak / Maintenance (Merah)</option>
+          </select>
+        </div>
+        <div class="form-group">
+          <label class="form-label">Judul Pengumuman</label>
+          <input type="text" class="form-input" id="ann-title" placeholder="Contoh: Server GoFile Sedang Maintenance">
+        </div>
+        <div class="form-group">
+          <label class="form-label">Pesan Pengumuman</label>
+          <textarea class="form-textarea" id="ann-message" placeholder="Tuliskan pesan yang akan muncul di layar pengguna..."></textarea>
+        </div>
+        <button type="button" class="btn-admin btn-admin-gold" id="btn-save-announcement">Simpan & Siarkan Pengumuman</button>
+      </div>
+
+      <div class="admin-card">
+        <div class="admin-card-header">
+          <span class="admin-card-title">💎 Kartu Sponsor & Iklan Aktif</span>
+        </div>
+        <div class="ad-preview-box">
+          <div class="ad-preview-badge">Pratinjau Banner Klien</div>
+          <div style="font-weight:700;font-size:0.95rem;color:#fff;">Cloudflare WARP 1.1.1.1</div>
+          <div style="font-size:0.8rem;color:var(--admin-text-muted);margin:4px 0 8px 0;">Bypass Sensor & Blokir ISP — Gunakan WARP gratis untuk bebas download GoFile tanpa blokir IndiHome/Telkomsel!</div>
+          <a href="#" class="btn-admin btn-admin-gold" style="font-size:0.75rem;padding:4px 10px;">Pasang Gratis ⚡</a>
+        </div>
+      </div>
+    </div>
+
+    <!-- 3. TOKEN POOL HUB -->
+    <div class="admin-section" id="tab-tokens">
+      <div class="admin-card">
+        <div class="admin-card-header">
+          <span class="admin-card-title">🔑 Tambah Token GoFile ke Pool Bersama</span>
+        </div>
+        <div class="form-group">
+          <label class="form-label">Token Akun GoFile</label>
+          <div style="display:flex;gap:0.5rem;">
+            <input type="text" class="form-input" id="input-new-token" placeholder="Tempel token GoFile baru di sini...">
+            <button type="button" class="btn-admin btn-admin-gold" id="btn-add-token" style="flex-shrink:0;">Tambah & Uji</button>
+          </div>
+        </div>
+      </div>
+
+      <div class="admin-card">
+        <div class="admin-card-header">
+          <span class="admin-card-title">📋 Daftar Pool Token & Status Kesehatan</span>
+        </div>
+        <div style="overflow-x:auto;">
+          <table class="token-table">
+            <thead>
+              <tr>
+                <th>Token</th>
+                <th>Tingkat Akun</th>
+                <th>Status</th>
+                <th>Pemeriksaan Terakhir</th>
+                <th>Aksi</th>
+              </tr>
+            </thead>
+            <tbody id="token-tbody"></tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+
+    <!-- 4. BROADCAST & EXPORT -->
+    <div class="admin-section" id="tab-broadcast">
+      <div class="admin-card">
+        <div class="admin-card-header">
+          <span class="admin-card-title">📄 Ekspor & Siarkan remote_config.json</span>
+        </div>
+        <p style="font-size:0.82rem;color:var(--admin-text-muted);margin-bottom:1rem;">
+          Konfigurasi ini disinkronkan secara otomatis ke pengguna lokal. Anda juga dapat menyalin JSON di bawah untuk di-host di Cloudflare Workers, GitHub Pages, atau Supabase Storage.
+        </p>
+        <textarea class="form-textarea" id="config-json-output" style="height:220px;" readonly></textarea>
+      </div>
+    </div>
+
+  </div>
+
+  <script src="js/admin.js"></script>
+</body>
+</html>

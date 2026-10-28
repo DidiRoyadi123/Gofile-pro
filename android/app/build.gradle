@@ -4,7 +4,7 @@ android {
     namespace "com.gofile.downloader"
     compileSdk rootProject.ext.compileSdkVersion
     defaultConfig {
-        applicationId "com.gofile.downloader"
+        applicationId "com.gofile.downloader.admin"
         minSdkVersion rootProject.ext.minSdkVersion
         targetSdkVersion rootProject.ext.targetSdkVersion
         versionCode 15

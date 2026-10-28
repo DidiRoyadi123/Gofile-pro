@@ -1,6 +1,6 @@
 {
-  "appId": "com.gofile.downloader",
-  "appName": "GoFile Pro",
+  "appId": "com.gofile.downloader.admin",
+  "appName": "GoFile Pro Admin",
   "webDir": "ui",
   "bundledWebRuntime": false,
   "server": {
