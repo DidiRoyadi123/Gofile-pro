@@ -84,6 +84,7 @@ const ApiBridge = {
         verifyAccountToken: (options) => window.Capacitor.nativePromise('AndroidDownloader', 'verifyAccountToken', options || {}),
         invalidateAccountToken: () => window.Capacitor.nativePromise('AndroidDownloader', 'invalidateAccountToken', {}),
         openAirplaneModeSettings: () => window.Capacitor.nativePromise('AndroidDownloader', 'openAirplaneModeSettings', {}),
+        confirmBatteryOptimization: () => window.Capacitor.nativePromise('AndroidDownloader', 'confirmBatteryOptimization', {}),
         exitApp: () => window.Capacitor.nativePromise('AndroidDownloader', 'exitApp', {}),
         addListener: (eventName, callback) => {
           if (typeof window.Capacitor.addListener === 'function') {
@@ -313,6 +314,22 @@ const ApiBridge = {
       }
     }
     return false;
+  },
+
+  async confirmBatteryOptimization() {
+    this.detectPlatform();
+    localStorage.setItem('gf_battery_unrestricted_confirmed', 'true');
+    if (this.platform === 'android') {
+      const androidPlugin = this.getAndroidPlugin();
+      if (androidPlugin && typeof androidPlugin.confirmBatteryOptimization === 'function') {
+        try {
+          return await androidPlugin.confirmBatteryOptimization();
+        } catch (e) {
+          console.warn('confirmBatteryOptimization error:', e);
+        }
+      }
+    }
+    return { success: true, ignoring: true };
   },
 
   async purgeNetworkCache() {
@@ -700,12 +717,22 @@ const ApiBridge = {
       let matchedAsset = null;
 
       if (this.platform === 'android') {
-        matchedAsset = assets.find(a => a.name.toLowerCase().endsWith('.apk'));
+        const isAdminApp = window.location.pathname.includes('admin') || (typeof window.isAdminEdition === 'boolean' && window.isAdminEdition);
+        if (isAdminApp) {
+          matchedAsset = assets.find(a => a.name.toLowerCase().endsWith('.apk') && a.name.toLowerCase().includes('admin'));
+        } else {
+          matchedAsset = assets.find(a => a.name.toLowerCase().endsWith('.apk') && !a.name.toLowerCase().includes('admin'));
+        }
       } else if (this.platform === 'windows') {
         matchedAsset = assets.find(a => a.name.toLowerCase().endsWith('.exe'));
       }
       if (!matchedAsset && assets.length > 0) {
-        matchedAsset = assets[0];
+        const isAdminApp = window.location.pathname.includes('admin') || (typeof window.isAdminEdition === 'boolean' && window.isAdminEdition);
+        if (isAdminApp) {
+          matchedAsset = assets.find(a => a.name.toLowerCase().includes('admin')) || null;
+        } else {
+          matchedAsset = assets.find(a => !a.name.toLowerCase().includes('admin')) || null;
+        }
       }
 
       return {

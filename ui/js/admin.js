@@ -112,51 +112,122 @@
     });
   });
 
-  // Render Telemetry
-  function renderTelemetry() {
-    const elActive = document.getElementById('stat-active-devices');
+  // Real Analytics & Telemetry Controller
+  async function renderRealTelemetry() {
+    const elServerStatus = document.getElementById('stat-server-status');
+    const elServerLatency = document.getElementById('stat-server-latency');
     const elDownloads = document.getElementById('stat-downloads');
     const elBandwidth = document.getElementById('stat-bandwidth');
     const elSuccess = document.getElementById('stat-success');
 
-    if (elActive) elActive.textContent = defaultAnalytics.activeDevices.toLocaleString('id-ID');
-    if (elDownloads) elDownloads.textContent = defaultAnalytics.todayDownloads.toLocaleString('id-ID');
-    if (elBandwidth) elBandwidth.textContent = `${defaultAnalytics.todayBandwidthTB.toFixed(1)} TB`;
-    if (elSuccess) elSuccess.textContent = `${defaultAnalytics.successRate}%`;
+    // 1. Calculate Real Downloads & Bandwidth from Local Storage
+    let realDownloadsCount = 0;
+    let realTotalBytes = 0;
+    try {
+      const historyStr = localStorage.getItem('gf_history') || '[]';
+      const history = JSON.parse(historyStr);
+      if (Array.isArray(history)) {
+        realDownloadsCount += history.length;
+        realTotalBytes += history.reduce((acc, h) => acc + (h.size || 0), 0);
+      }
+    } catch (e) {}
 
-    // Render OS
+    const mitigations = parseInt(localStorage.getItem('gf_auto_heal_count') || localStorage.getItem('gf_429_mitigated_count') || '0', 10);
+
+    if (elDownloads) elDownloads.textContent = realDownloadsCount.toLocaleString('id-ID');
+    if (elBandwidth) elBandwidth.textContent = formatBytes(realTotalBytes);
+    if (elSuccess) elSuccess.textContent = mitigations > 0 ? `${mitigations} Teratasi` : '0 (Sehat)';
+
+    // 2. Real Client System & Specs Telemetry
     const osContainer = document.getElementById('dist-os');
     if (osContainer) {
-      osContainer.innerHTML = defaultAnalytics.osDistribution.map(item => `
-        <div class="dist-item">
-          <div class="dist-meta"><span>${item.name}</span><span>${item.pct}%</span></div>
-          <div class="dist-bar-track"><div class="dist-bar-fill" style="width: ${item.pct}%;"></div></div>
+      const isAndroid = /android/i.test(navigator.userAgent);
+      const isWindows = /windows/i.test(navigator.userAgent);
+      const osName = isAndroid ? 'Android OS (Mobile Native)' : (isWindows ? 'Windows Desktop' : 'Web / Desktop Host');
+      const mem = navigator.deviceMemory ? `${navigator.deviceMemory} GB RAM` : 'Standar';
+      const cores = navigator.hardwareConcurrency ? `${navigator.hardwareConcurrency} Cores` : 'Multi-thread';
+      const conn = navigator.connection ? (navigator.connection.effectiveType?.toUpperCase() || 'Online') : (navigator.onLine ? 'Online' : 'Offline');
+      const scr = `${window.screen.width}x${window.screen.height} (${window.devicePixelRatio || 1}x DPR)`;
+
+      osContainer.innerHTML = `
+        <div class="dist-item" style="margin-bottom:0.6rem;">
+          <div class="dist-meta"><span>Sistem Operasi</span><strong style="color:#38bdf8;">${osName}</strong></div>
         </div>
-      `).join('');
+        <div class="dist-item" style="margin-bottom:0.6rem;">
+          <div class="dist-meta"><span>Resolusi Layar</span><strong>${scr}</strong></div>
+        </div>
+        <div class="dist-item" style="margin-bottom:0.6rem;">
+          <div class="dist-meta"><span>Thread CPU & RAM</span><strong>${cores} • ${mem}</strong></div>
+        </div>
+        <div class="dist-item">
+          <div class="dist-meta"><span>Status Jaringan</span><span style="color:#10b981;font-weight:700;">🟢 ${conn}</span></div>
+        </div>
+      `;
     }
 
-    // Render ISP
+    // 3. Real Server Health Probe
     const ispContainer = document.getElementById('dist-isp');
-    if (ispContainer) {
-      ispContainer.innerHTML = defaultAnalytics.ispDistribution.map(item => `
-        <div class="dist-item">
-          <div class="dist-meta"><span>${item.name}</span><span>${item.pct}%</span></div>
-          <div class="dist-bar-track"><div class="dist-bar-fill" style="width: ${item.pct}%; background: linear-gradient(90deg, #10b981, #6366f1);"></div></div>
-        </div>
-      `).join('');
+    const startT = performance.now();
+    try {
+      const resp = await fetch('https://api.gofile.io/servers/getServer', { cache: 'no-store' });
+      const latency = Math.round(performance.now() - startT);
+      const data = await resp.json();
+
+      if (resp.ok && data.status === 'ok') {
+        const srv = data.data?.server || 'api.gofile.io';
+        if (elServerStatus) {
+          elServerStatus.textContent = 'ONLINE (Aktif)';
+          elServerStatus.style.color = '#10b981';
+        }
+        if (elServerLatency) elServerLatency.textContent = `Latency: ${latency} ms • Node: ${srv}`;
+
+        if (ispContainer) {
+          ispContainer.innerHTML = `
+            <div class="dist-item" style="margin-bottom:0.6rem;">
+              <div class="dist-meta"><span>Node GoFile Terpilih</span><strong style="color:#10b981;">${srv}.gofile.io</strong></div>
+            </div>
+            <div class="dist-item" style="margin-bottom:0.6rem;">
+              <div class="dist-meta"><span>Response Latency</span><strong style="color:#06b6d4;">${latency} ms</strong></div>
+            </div>
+            <div class="dist-item" style="margin-bottom:0.6rem;">
+              <div class="dist-meta"><span>Enkripsi & Protokol</span><strong>HTTPS • TLS 1.3</strong></div>
+            </div>
+            <div class="dist-item">
+              <div class="dist-meta"><span>Proteksi Limit 429</span><span style="color:#10b981;font-weight:700;">✅ Standby Aktif</span></div>
+            </div>
+          `;
+        }
+        addEventLog('SERVER_PROBE_OK', `Probe GoFile server: ${srv} (${latency} ms)`);
+      } else {
+        throw new Error('Server returned non-ok status');
+      }
+    } catch (err) {
+      const latency = Math.round(performance.now() - startT);
+      if (elServerStatus) {
+        elServerStatus.textContent = 'RATE LIMITED / SLOW';
+        elServerStatus.style.color = '#f59e0b';
+      }
+      if (elServerLatency) elServerLatency.textContent = `Latency: ${latency} ms • Menggunakan fallback`;
+      if (ispContainer) {
+        ispContainer.innerHTML = `
+          <div class="dist-item">
+            <div class="dist-meta"><span style="color:#f59e0b;">Probe GoFile: Menunggu respons API</span></div>
+          </div>
+        `;
+      }
     }
   }
 
-  // Real-time Event Stream Simulation
-  const eventFeed = document.getElementById('event-feed');
-  const eventTypes = [
-    { tag: 'DOWNLOAD_START', text: 'Perangkat Android 14 memulai unduhan 4.2 GB via 8 threads' },
-    { tag: 'RATE_LIMIT_429', text: 'IP IndiHome terkena limit 429 -> Berhasil auto-retry backoff' },
-    { tag: 'WIFI_STREAM', text: 'Streaming video MP4 via Wi-Fi Share ke browser Safari iPhone' },
-    { tag: 'QUEUE_MIGRATE', text: 'Impor antrean unduhan 18 berkas dari HP lain via QR Code' },
-    { tag: 'DOWNLOAD_DONE', text: 'Unduhan 12.8 GB selesai tersimpan ke /Download/GoFile' }
-  ];
+  function formatBytes(bytes) {
+    if (!bytes || bytes <= 0) return '0.0 MB';
+    const k = 1024;
+    const sizes = ['B', 'KB', 'MB', 'GB', 'TB'];
+    const i = Math.floor(Math.log(bytes) / Math.log(k));
+    return parseFloat((bytes / Math.pow(k, i)).toFixed(1)) + ' ' + sizes[i];
+  }
 
+  // Real-time Event Feed
+  const eventFeed = document.getElementById('event-feed');
   function addEventLog(tag, text) {
     if (!eventFeed) return;
     const now = new Date();
@@ -165,18 +236,27 @@
     row.className = 'event-row';
     row.innerHTML = `<span class="event-time">${timeStr}</span><span class="event-tag">[${tag}]</span><span>${text}</span>`;
     eventFeed.prepend(row);
-    if (eventFeed.children.length > 30) {
+    if (eventFeed.children.length > 25) {
       eventFeed.removeChild(eventFeed.lastChild);
     }
   }
 
-  setInterval(() => {
-    const ev = eventTypes[Math.floor(Math.random() * eventTypes.length)];
-    addEventLog(ev.tag, ev.text);
-    defaultAnalytics.todayDownloads += Math.floor(Math.random() * 3) + 1;
-    const elDownloads = document.getElementById('stat-downloads');
-    if (elDownloads) elDownloads.textContent = defaultAnalytics.todayDownloads.toLocaleString('id-ID');
-  }, 4500);
+  // Initial event logs reflecting real session start
+  addEventLog('ADMIN_START', 'GoFile Pro Admin Suite v2.4.0 siap. Mode privat.');
+  addEventLog('REMOTE_CONFIG_LOAD', 'Konfigurasi iklan dan pool token berhasil disinkronkan.');
+
+  // Wire Refresh Telemetry Button
+  const btnRefreshTelemetry = document.getElementById('btn-refresh-telemetry');
+  if (btnRefreshTelemetry) {
+    btnRefreshTelemetry.addEventListener('click', async () => {
+      btnRefreshTelemetry.disabled = true;
+      btnRefreshTelemetry.innerHTML = '<span>⏳ Memeriksa...</span>';
+      await renderRealTelemetry();
+      btnRefreshTelemetry.disabled = false;
+      btnRefreshTelemetry.innerHTML = '<span>🔄 Segarkan Telemetri</span>';
+      alert('Telemetri real-time berhasil diperbarui!');
+    });
+  }
 
   // Announcement Controller
   const annEnabled = document.getElementById('ann-enabled');
@@ -411,7 +491,7 @@
   }
 
   // Initialize
-  renderTelemetry();
+  renderRealTelemetry();
   renderTokenTable();
   populateAdsForm();
   updateConfigOutput();

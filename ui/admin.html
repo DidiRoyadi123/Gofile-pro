@@ -33,43 +33,43 @@
       </div>
 
       <div class="admin-header-actions">
-        <a href="index.html" class="btn-admin btn-admin-secondary" title="Buka Mode Pengguna">
-          <span>📱 Mode Klien</span>
-        </a>
+        <button type="button" class="btn-admin btn-admin-secondary" id="btn-refresh-telemetry" title="Segarkan Telemetri Real-Time">
+          <span>🔄 Segarkan Telemetri</span>
+        </button>
         <button type="button" class="btn-admin btn-admin-gold" id="btn-export-config">
           <span>🚀 Siarkan Config</span>
         </button>
       </div>
     </header>
 
-    <!-- Metrics Grid -->
+    <!-- Real Metrics Grid -->
     <div class="admin-metrics-grid">
       <div class="metric-card">
-        <div class="metric-label">Perangkat Aktif</div>
-        <div class="metric-val" id="stat-active-devices">1,428</div>
-        <div class="metric-sub">▲ +12% dari minggu lalu</div>
+        <div class="metric-label">Status Server GoFile API</div>
+        <div class="metric-val" id="stat-server-status" style="font-size: 1.25rem; color: #10b981;">Memeriksa...</div>
+        <div class="metric-sub" id="stat-server-latency">Latency: -- ms</div>
       </div>
       <div class="metric-card">
-        <div class="metric-label">Unduhan Hari Ini</div>
-        <div class="metric-val" id="stat-downloads">14,892</div>
-        <div class="metric-sub">▲ 18 berkas/menit</div>
+        <div class="metric-label">Total Unduhan Selesai</div>
+        <div class="metric-val" id="stat-downloads">0</div>
+        <div class="metric-sub" id="stat-downloads-sub">Data riwayat lokal & tersinkron</div>
       </div>
       <div class="metric-card">
         <div class="metric-label">Bandwidth Tersalur</div>
-        <div class="metric-val" id="stat-bandwidth">48.6 TB</div>
-        <div class="metric-sub">Multi-thread 8x</div>
+        <div class="metric-val" id="stat-bandwidth">0.0 MB</div>
+        <div class="metric-sub" id="stat-bandwidth-sub">Total data tersimpan</div>
       </div>
       <div class="metric-card">
-        <div class="metric-label">Tingkat Keberhasilan</div>
-        <div class="metric-val" id="stat-success">99.4%</div>
-        <div class="metric-sub">142 IP 429 Termitigasi</div>
+        <div class="metric-label">Mitigasi Batasan IP 429</div>
+        <div class="metric-val" id="stat-success" style="color: #06b6d4;">0</div>
+        <div class="metric-sub" id="stat-success-sub">Auto-healing bypass terdeteksi</div>
       </div>
     </div>
 
     <!-- Tab Navigation -->
     <div class="admin-nav-tabs">
       <button type="button" class="admin-nav-tab active" data-target="tab-analytics">
-        <span>📊 Analitik & Telemetri</span>
+        <span>📊 Analitik Real-Time</span>
       </button>
       <button type="button" class="admin-nav-tab" data-target="tab-ads">
         <span>📢 Kontrol Iklan & Sponsor</span>
@@ -87,14 +87,14 @@
       <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(300px,1fr));gap:1rem;margin-bottom:1rem;">
         <div class="admin-card">
           <div class="admin-card-header">
-            <span class="admin-card-title">📱 Distribusi Sistem Operasi Klien</span>
+            <span class="admin-card-title">📱 Telemetri Perangkat & Sistem Klien (Real)</span>
           </div>
           <div id="dist-os"></div>
         </div>
 
         <div class="admin-card">
           <div class="admin-card-header">
-            <span class="admin-card-title">🌐 Top Penyedia Jaringan / ISP Klien</span>
+            <span class="admin-card-title">🌐 Health Check Jaringan & Server GoFile (Real)</span>
           </div>
           <div id="dist-isp"></div>
         </div>
