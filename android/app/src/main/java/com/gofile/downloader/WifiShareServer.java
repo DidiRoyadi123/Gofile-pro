@@ -283,6 +283,8 @@ public class WifiShareServer {
 
             if (path.equals("/") || path.equals("/index.html")) {
                 serveIndexPage(out);
+            } else if (path.equals("/play")) {
+                servePlayPage(out, queryParams.get("f"));
             } else if (path.equals("/api/files")) {
                 serveApiFiles(out);
             } else if (path.equals("/file") || path.equals("/download") || path.equals("/stream")) {
@@ -409,7 +411,8 @@ public class WifiShareServer {
                 .append("<a href=\"/download?f=").append(encPath).append("&dl=1\" class=\"btn btn-primary\" download>Unduh</a>");
 
             if ("true".equals(isPlayable)) {
-                rows.append("<a href=\"/stream?f=").append(encPath).append("\" target=\"_blank\" class=\"btn btn-secondary\">Putar</a>");
+                rows.append("<button type=\"button\" onclick=\"openPlayer('/stream?f=").append(encPath).append("', '").append(escapeHtml(it.name)).append("')\" class=\"btn btn-play\">▶ Putar</button>");
+                rows.append("<a href=\"/play?f=").append(encPath).append("\" target=\"_blank\" class=\"btn btn-secondary\" title=\"Buka di tab terpisah\">↗</a>");
             } else if ("true".equals(isImage)) {
                 rows.append("<a href=\"/file?f=").append(encPath).append("\" target=\"_blank\" class=\"btn btn-secondary\">Lihat</a>");
             }
@@ -436,28 +439,121 @@ public class WifiShareServer {
             + ".file-list{display:flex;flex-direction:column;gap:0.75rem;}"
             + ".file-card{background:var(--card);border:1px solid var(--border);border-radius:12px;padding:0.85rem 1.1rem;display:flex;align-items:center;justify-content:space-between;gap:1rem;backdrop-filter:blur(10px);transition:transform 0.15s,border-color 0.15s;}"
             + ".file-card:hover{border-color:rgba(99,102,241,0.4);transform:translateY(-1px);}"
-            + ".file-header{display:flex;align-items:center;gap:0.85rem;min-width:0;flex:1;}"
+            + ".file-header{display:flex;align-items:center;gap:0.85rem;min-width:0;flex:1;cursor:pointer;}"
             + ".f-icon{width:28px;height:28px;flex-shrink:0;}"
             + ".file-info{min-width:0;flex:1;}"
             + ".file-title{font-weight:600;font-size:0.95rem;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;color:#fff;}"
             + ".file-meta{font-size:0.75rem;color:var(--muted);margin-top:2px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}"
             + ".folder-tag{color:#818cf8;}"
-            + ".file-actions{display:flex;gap:0.5rem;flex-shrink:0;}"
-            + ".btn{text-decoration:none;font-size:0.8rem;font-weight:600;padding:0.45rem 0.85rem;border-radius:8px;display:inline-flex;align-items:center;justify-content:center;transition:background 0.15s;}"
+            + ".file-actions{display:flex;gap:0.5rem;flex-shrink:0;align-items:center;}"
+            + ".btn{text-decoration:none;font-size:0.8rem;font-weight:600;padding:0.45rem 0.85rem;border-radius:8px;display:inline-flex;align-items:center;justify-content:center;transition:all 0.15s;cursor:pointer;border:none;outline:none;}"
             + ".btn-primary{background:var(--primary);color:#fff;}"
             + ".btn-primary:hover{background:var(--primary-hover);}"
+            + ".btn-play{background:linear-gradient(135deg,#6366f1,#8b5cf6);color:#fff;box-shadow:0 2px 8px rgba(99,102,241,0.35);}"
+            + ".btn-play:hover{background:linear-gradient(135deg,#4f46e5,#7c3aed);transform:scale(1.02);}"
             + ".btn-secondary{background:rgba(255,255,255,0.08);color:var(--text);border:1px solid var(--border);}"
             + ".btn-secondary:hover{background:rgba(255,255,255,0.14);}"
             + "@media(max-width:640px){.file-card{flex-direction:column;align-items:flex-start;}.file-actions{width:100%;justify-content:flex-end;margin-top:0.4rem;}}"
+            + ".player-modal{display:none;position:fixed;top:0;left:0;width:100%;height:100%;background:rgba(0,0,0,0.85);backdrop-filter:blur(8px);z-index:9999;align-items:center;justify-content:center;padding:1rem;}"
+            + ".player-modal.active{display:flex;}"
+            + ".player-box{background:#111625;border:1px solid rgba(255,255,255,0.12);border-radius:16px;width:100%;max-width:880px;overflow:hidden;box-shadow:0 25px 50px -12px rgba(0,0,0,0.7);display:flex;flex-direction:column;animation:popIn 0.2s cubic-bezier(0.16,1,0.3,1);}"
+            + "@keyframes popIn{from{opacity:0;transform:scale(0.96);}to{opacity:1;transform:scale(1);}}"
+            + ".player-header{padding:0.9rem 1.25rem;display:flex;align-items:center;justify-content:space-between;border-bottom:1px solid rgba(255,255,255,0.08);background:rgba(255,255,255,0.02);}"
+            + ".player-title{font-weight:700;font-size:0.95rem;color:#fff;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:80%;}"
+            + ".player-close{background:none;border:none;color:#94a3b8;font-size:1.2rem;cursor:pointer;padding:0.2rem 0.5rem;border-radius:6px;transition:all 0.15s;}"
+            + ".player-close:hover{color:#fff;background:rgba(255,255,255,0.1);}"
+            + ".player-video-wrap{position:relative;background:#000;width:100%;}"
+            + ".player-video{width:100%;max-height:68vh;display:block;outline:none;background:#000;}"
+            + ".player-toolbar{padding:0.75rem 1.25rem;display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:0.75rem;background:rgba(18,24,38,0.95);border-top:1px solid rgba(255,255,255,0.08);}"
+            + ".speed-group{display:flex;align-items:center;gap:0.35rem;}"
+            + ".speed-btn{background:rgba(255,255,255,0.06);border:1px solid rgba(255,255,255,0.1);color:#cbd5e1;padding:0.25rem 0.55rem;border-radius:6px;font-size:0.75rem;font-weight:600;cursor:pointer;transition:all 0.15s;}"
+            + ".speed-btn.active,.speed-btn:hover{background:var(--primary);color:#fff;border-color:transparent;}"
             + "</style></head><body>"
             + "<div class=\"container\">"
-            + "<div class=\"header\"><div class=\"brand\"><div class=\"logo-badge\">G</div><div><h2>GoFile Pro Share</h2><div style=\"font-size:0.8rem;color:var(--muted);\">Server Berbagi Berkas Wi-Fi Lokal</div></div></div>"
+            + "<div class=\"header\"><div class=\"brand\"><div class=\"logo-badge\">G</div><div><h2>GoFile Pro Share</h2><div style=\"font-size:0.8rem;color:var(--muted);\">Streaming & Berbagi Berkas Wi-Fi Lokal</div></div></div>"
             + "<div class=\"stats\"><div class=\"stat-pill\">" + files.size() + " Berkas</div><div class=\"stat-pill\">" + formatBytes(totalSize) + "</div></div></div>"
             + "<div class=\"search-bar\"><input type=\"text\" class=\"search-input\" id=\"filter\" placeholder=\"Cari berkas...\" oninput=\"filterFiles()\"></div>"
             + "<div class=\"file-list\" id=\"fileList\">" + rows.toString() + "</div>"
             + "</div>"
-            + "<script>function filterFiles(){const q=document.getElementById('filter').value.toLowerCase();document.querySelectorAll('.file-card').forEach(el=>{el.style.display=el.getAttribute('data-name').includes(q)?'flex':'none';});}</script>"
+            + "<div id=\"playerModal\" class=\"player-modal\" onclick=\"onBackdropClick(event)\">"
+            + "<div class=\"player-box\">"
+            + "<div class=\"player-header\"><span class=\"player-title\" id=\"pTitle\">Video</span><button class=\"player-close\" onclick=\"closePlayer()\" title=\"Tutup (Esc)\">✕</button></div>"
+            + "<div class=\"player-video-wrap\"><video id=\"pVideo\" class=\"player-video\" controls autoplay playsinline></video></div>"
+            + "<div class=\"player-toolbar\">"
+            + "<div class=\"speed-group\"><span style=\"font-size:0.75rem;color:var(--muted);margin-right:2px;\">Speed:</span>"
+            + "<button class=\"speed-btn\" onclick=\"setSpeed(0.75)\">0.75x</button>"
+            + "<button class=\"speed-btn active\" onclick=\"setSpeed(1)\">1x</button>"
+            + "<button class=\"speed-btn\" onclick=\"setSpeed(1.25)\">1.25x</button>"
+            + "<button class=\"speed-btn\" onclick=\"setSpeed(1.5)\">1.5x</button>"
+            + "<button class=\"speed-btn\" onclick=\"setSpeed(2)\">2x</button></div>"
+            + "<div style=\"display:flex;gap:0.5rem;\">"
+            + "<a id=\"pPopout\" href=\"#\" target=\"_blank\" class=\"btn btn-secondary\" title=\"Buka di Tab Baru\">↗ Layar Penuh</a>"
+            + "<a id=\"pDownload\" href=\"#\" class=\"btn btn-primary\" download>Unduh Berkas</a>"
+            + "</div></div></div></div>"
+            + "<script>"
+            + "function filterFiles(){const q=document.getElementById('filter').value.toLowerCase();document.querySelectorAll('.file-card').forEach(el=>{el.style.display=el.getAttribute('data-name').includes(q)?'flex':'none';});}"
+            + "function openPlayer(url,name){const m=document.getElementById('playerModal');const v=document.getElementById('pVideo');const t=document.getElementById('pTitle');const d=document.getElementById('pDownload');const p=document.getElementById('pPopout');t.textContent=name;v.src=url;d.href=url+'&dl=1';p.href='/play?f='+url.split('f=')[1];m.classList.add('active');document.body.style.overflow='hidden';v.play().catch(e=>console.log(e));}"
+            + "function closePlayer(){const m=document.getElementById('playerModal');const v=document.getElementById('pVideo');v.pause();v.removeAttribute('src');v.load();m.classList.remove('active');document.body.style.overflow='';}"
+            + "function onBackdropClick(e){if(e.target.id==='playerModal')closePlayer();}"
+            + "function setSpeed(s){const v=document.getElementById('pVideo');v.playbackRate=s;document.querySelectorAll('.speed-btn').forEach(b=>b.classList.toggle('active',b.textContent===(s+'x')));}"
+            + "document.addEventListener('keydown',e=>{if(e.key==='Escape')closePlayer();if(e.code==='Space'&&document.getElementById('playerModal').classList.contains('active')&&e.target.tagName!=='INPUT'){e.preventDefault();const v=document.getElementById('pVideo');v.paused?v.play():v.pause();}});"
+            + "</script>"
             + "</body></html>";
+
+        byte[] body = html.getBytes(StandardCharsets.UTF_8);
+        String header = "HTTP/1.1 200 OK\r\n"
+            + "Content-Type: text/html; charset=UTF-8\r\n"
+            + "Content-Length: " + body.length + "\r\n"
+            + "Connection: close\r\n\r\n";
+        sendResponse(out, header.getBytes(StandardCharsets.UTF_8));
+        out.write(body);
+        out.flush();
+    }
+
+    private void servePlayPage(OutputStream out, String targetRel) throws IOException {
+        String safeName = escapeHtml(targetRel != null ? targetRel : "Video Player");
+        String encPath = "";
+        try { encPath = URLEncoder.encode(targetRel != null ? targetRel : "", "UTF-8"); } catch (Exception ignored) {}
+
+        String html = "<!DOCTYPE html><html lang=\"id\"><head><meta charset=\"UTF-8\">"
+            + "<meta name=\"viewport\" content=\"width=device-width,initial-scale=1\">"
+            + "<title>" + safeName + " - GoFile Pro Player</title>"
+            + "<style>"
+            + ":root{--bg:#07090e;--text:#f8fafc;--primary:#6366f1;--primary-hover:#4f46e5;}"
+            + "* {box-sizing:border-box;margin:0;padding:0;font-family:-apple-system,BlinkMacSystemFont,\"Segoe UI\",Roboto,sans-serif;}"
+            + "body{background:var(--bg);color:var(--text);display:flex;flex-direction:column;min-height:100vh;align-items:center;justify-content:center;padding:1rem;}"
+            + ".header{width:100%;max-width:960px;display:flex;align-items:center;justify-content:space-between;margin-bottom:1rem;gap:1rem;}"
+            + ".title{font-size:1.1rem;font-weight:700;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:70%;color:#fff;}"
+            + ".back-link{color:#94a3b8;text-decoration:none;font-size:0.85rem;display:flex;align-items:center;gap:0.4rem;padding:0.4rem 0.8rem;background:rgba(255,255,255,0.06);border-radius:8px;border:1px solid rgba(255,255,255,0.08);}"
+            + ".back-link:hover{color:#fff;background:rgba(255,255,255,0.12);}"
+            + ".video-card{width:100%;max-width:960px;background:#0d111a;border-radius:16px;border:1px solid rgba(255,255,255,0.08);overflow:hidden;box-shadow:0 20px 40px rgba(0,0,0,0.6);}"
+            + "video{width:100%;max-height:75vh;display:block;background:#000;outline:none;}"
+            + ".controls{padding:0.85rem 1.2rem;display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:0.75rem;background:rgba(18,24,38,0.9);border-top:1px solid rgba(255,255,255,0.06);}"
+            + ".speed-bar{display:flex;align-items:center;gap:0.4rem;font-size:0.8rem;color:#94a3b8;}"
+            + ".sp-btn{background:rgba(255,255,255,0.05);color:#cbd5e1;border:1px solid rgba(255,255,255,0.1);padding:0.3rem 0.6rem;border-radius:6px;font-size:0.75rem;cursor:pointer;}"
+            + ".sp-btn.active,.sp-btn:hover{background:var(--primary);color:#fff;border-color:transparent;}"
+            + ".btn-dl{background:var(--primary);color:#fff;text-decoration:none;font-weight:600;font-size:0.85rem;padding:0.45rem 1rem;border-radius:8px;}"
+            + ".btn-dl:hover{background:var(--primary-hover);}"
+            + "</style></head><body>"
+            + "<div class=\"header\">"
+            + "<a href=\"/\" class=\"back-link\">← Kembali ke Berkas</a>"
+            + "<div class=\"title\">" + safeName + "</div>"
+            + "</div>"
+            + "<div class=\"video-card\">"
+            + "<video id=\"v\" controls autoplay playsinline src=\"/stream?f=" + encPath + "\"></video>"
+            + "<div class=\"controls\">"
+            + "<div class=\"speed-bar\"><span>Kecepatan:</span>"
+            + "<button class=\"sp-btn\" onclick=\"setSp(0.75)\">0.75x</button>"
+            + "<button class=\"sp-btn active\" onclick=\"setSp(1)\">1x</button>"
+            + "<button class=\"sp-btn\" onclick=\"setSp(1.25)\">1.25x</button>"
+            + "<button class=\"sp-btn\" onclick=\"setSp(1.5)\">1.5x</button>"
+            + "<button class=\"sp-btn\" onclick=\"setSp(2)\">2x</button>"
+            + "</div>"
+            + "<a href=\"/download?f=" + encPath + "&dl=1\" class=\"btn-dl\" download>Unduh Video</a>"
+            + "</div></div>"
+            + "<script>"
+            + "function setSp(r){const v=document.getElementById('v');v.playbackRate=r;document.querySelectorAll('.sp-btn').forEach(b=>b.classList.toggle('active',b.textContent===(r+'x')));}"
+            + "</script></body></html>";
 
         byte[] body = html.getBytes(StandardCharsets.UTF_8);
         String header = "HTTP/1.1 200 OK\r\n"

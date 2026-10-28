@@ -118,6 +118,15 @@ public class MainActivity extends BridgeActivity {
     }
 
     @Override
+    public void onPause() {
+        super.onPause();
+        // Prevent background throttling of WebView timers so background downloads queue seamlessly
+        if (getBridge() != null && getBridge().getWebView() != null) {
+            getBridge().getWebView().resumeTimers();
+        }
+    }
+
+    @Override
     public void onStop() {
         super.onStop();
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.N) {

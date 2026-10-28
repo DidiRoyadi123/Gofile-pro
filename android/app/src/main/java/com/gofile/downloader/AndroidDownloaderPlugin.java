@@ -514,7 +514,8 @@ public class AndroidDownloaderPlugin extends Plugin {
                         conn.setRequestProperty("Referer", "https://gofile.io/");
                         conn.setRequestProperty("Origin", "https://gofile.io");
                         if (token != null && !token.trim().isEmpty()) {
-                            conn.setRequestProperty("Cookie", "accountToken=" + token);
+                            conn.setRequestProperty("Cookie", "accountToken=" + token.trim());
+                            conn.setRequestProperty("Authorization", "Bearer " + token.trim());
                         }
                     }
 
@@ -543,6 +544,41 @@ public class AndroidDownloaderPlugin extends Plugin {
                 }
 
                 int statusCode = conn.getResponseCode();
+
+                // Handle HTTP 429 Rate Limit with exponential backoff retries
+                int retry429 = 0;
+                while (statusCode == 429 && retry429 < 3 && !Boolean.TRUE.equals(cancelFlags.get(taskId))) {
+                    retry429++;
+                    try { conn.disconnect(); } catch (Exception ignored) {}
+                    Thread.sleep(1500L * retry429);
+                    URL retryUrl = new URL(currentUrl);
+                    conn = (HttpURLConnection) retryUrl.openConnection();
+                    conn.setInstanceFollowRedirects(true);
+                    conn.setRequestProperty("User-Agent", APP_USER_AGENT);
+                    conn.setRequestProperty("Accept", "*/*");
+                    conn.setRequestProperty("Accept-Encoding", "identity");
+                    if (isGofile) {
+                        conn.setRequestProperty("Referer", "https://gofile.io/");
+                        conn.setRequestProperty("Origin", "https://gofile.io");
+                        if (token != null && !token.trim().isEmpty()) {
+                            conn.setRequestProperty("Cookie", "accountToken=" + token.trim());
+                            conn.setRequestProperty("Authorization", "Bearer " + token.trim());
+                        }
+                    }
+                    if (existingBytes > 0) {
+                        conn.setRequestProperty("Range", "bytes=" + existingBytes + "-");
+                    }
+                    conn.setConnectTimeout(25000);
+                    conn.setReadTimeout(35000);
+                    conn.connect();
+                    activeConnections.put(taskId, conn);
+                    statusCode = conn.getResponseCode();
+                }
+
+                if (statusCode == 429) {
+                    throw new Exception("IP Anda dibatasi sementara oleh GoFile (HTTP 429 Rate Limit). Aktifkan Mode Pesawat di HP selama 3 detik lalu matikan lagi untuk mendapatkan IP baru.");
+                }
+
                 if (statusCode < 200 || statusCode >= 300) {
                     throw new Exception("HTTP error " + statusCode + " dari server unduhan");
                 }
@@ -1086,7 +1122,8 @@ public class AndroidDownloaderPlugin extends Plugin {
                                 segConn.setRequestProperty("Referer", "https://gofile.io/");
                                 segConn.setRequestProperty("Origin", "https://gofile.io");
                                 if (token != null && !token.trim().isEmpty()) {
-                                    segConn.setRequestProperty("Cookie", "accountToken=" + token);
+                                    segConn.setRequestProperty("Cookie", "accountToken=" + token.trim());
+                                    segConn.setRequestProperty("Authorization", "Bearer " + token.trim());
                                 }
                             }
 
@@ -1098,7 +1135,7 @@ public class AndroidDownloaderPlugin extends Plugin {
                             // Strict requirement: must return 206 Partial Content
                             if (code != 206) {
                                 retryCount++;
-                                Thread.sleep(500);
+                                Thread.sleep(code == 429 ? 2000L * retryCount : 500L);
                                 continue;
                             }
 
@@ -1931,6 +1968,88 @@ public class AndroidDownloaderPlugin extends Plugin {
         if (streamingServer != null) {
             streamingServer.stop();
         }
+    }
+
+    @PluginMethod
+    public void verifyAccountToken(PluginCall call) {
+        String token = call.getString("token", "");
+        executor.execute(() -> {
+            try {
+                String checkToken = (token != null && !token.trim().isEmpty()) ? token.trim() : ensureAccountToken("");
+                if (checkToken == null || checkToken.isEmpty()) {
+                    JSObject fail = new JSObject();
+                    fail.put("valid", false);
+                    fail.put("status", "error-noToken");
+                    fail.put("message", "Token tidak ditemukan");
+                    call.resolve(fail);
+                    return;
+                }
+
+                URL url = new URL("https://api.gofile.io/accounts/getAccountDetails");
+                HttpURLConnection conn = (HttpURLConnection) url.openConnection();
+                conn.setRequestMethod("GET");
+                conn.setRequestProperty("User-Agent", APP_USER_AGENT);
+                conn.setRequestProperty("Authorization", "Bearer " + checkToken);
+                conn.setRequestProperty("Cookie", "accountToken=" + checkToken);
+                conn.setRequestProperty("Accept", "*/*");
+                conn.setRequestProperty("Origin", "https://gofile.io");
+                conn.setRequestProperty("Referer", "https://gofile.io/");
+                conn.setConnectTimeout(8000);
+                conn.setReadTimeout(8000);
+
+                int code = conn.getResponseCode();
+                if (code == 200) {
+                    StringBuilder sb = new StringBuilder();
+                    try (InputStream is = conn.getInputStream();
+                         BufferedReader reader = new BufferedReader(new InputStreamReader(is, StandardCharsets.UTF_8))) {
+                        String line;
+                        while ((line = reader.readLine()) != null) sb.append(line);
+                    }
+                    JSONObject parsed = new JSONObject(sb.toString());
+                    if ("ok".equals(parsed.optString("status"))) {
+                        JSONObject data = parsed.optJSONObject("data");
+                        JSObject res = new JSObject();
+                        res.put("valid", true);
+                        res.put("status", "ok");
+                        res.put("token", checkToken);
+                        if (data != null) {
+                            res.put("email", data.optString("email", ""));
+                            res.put("tier", data.optString("tier", "standard"));
+                            res.put("rootFolder", data.optString("rootFolder", ""));
+                        }
+                        call.resolve(res);
+                        return;
+                    }
+                }
+
+                if (checkToken.equals(cachedAccountToken)) {
+                    cachedAccountToken = "";
+                    saveTokenToPrefs("");
+                }
+
+                JSObject res = new JSObject();
+                res.put("valid", false);
+                res.put("status", "error-invalidToken");
+                res.put("httpCode", code);
+                res.put("message", "Token tidak valid atau kedaluwarsa (HTTP " + code + ")");
+                call.resolve(res);
+            } catch (Exception e) {
+                JSObject res = new JSObject();
+                res.put("valid", false);
+                res.put("status", "error");
+                res.put("message", e.getMessage());
+                call.resolve(res);
+            }
+        });
+    }
+
+    @PluginMethod
+    public void invalidateAccountToken(PluginCall call) {
+        cachedAccountToken = "";
+        saveTokenToPrefs("");
+        JSObject ret = new JSObject();
+        ret.put("success", true);
+        call.resolve(ret);
     }
 
     @PluginMethod

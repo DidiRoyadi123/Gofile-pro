@@ -448,6 +448,37 @@ class DesktopAPI:
         except Exception:
             return False
 
+    def verify_account_token(self, token: str = "") -> dict:
+        """Verifies a GoFile account token against the GoFile API."""
+        try:
+            active_token = token.strip() if token else (self.engine.account_token or "")
+            if not active_token:
+                return {"valid": False, "status": "no_token", "message": "Token tidak ditemukan"}
+
+            headers = {
+                "User-Agent": self.engine.user_agent,
+                "Authorization": f"Bearer {active_token}",
+                "Accept": "*/*",
+                "Origin": "https://gofile.io",
+                "Referer": "https://gofile.io/"
+            }
+            resp = self.engine.session.get("https://api.gofile.io/accounts/getAccountDetails", headers=headers, timeout=8.0)
+            if resp.status_code == 200:
+                data = resp.json()
+                if data.get("status") == "ok":
+                    account_data = data.get("data", {})
+                    return {
+                        "valid": True,
+                        "status": "ok",
+                        "token": active_token,
+                        "email": account_data.get("email", ""),
+                        "tier": account_data.get("tier", "standard"),
+                        "rootFolder": account_data.get("rootFolder", "")
+                    }
+            return {"valid": False, "status": "invalid", "message": f"Token tidak valid (HTTP {resp.status_code})"}
+        except Exception as e:
+            return {"valid": False, "status": "error", "message": str(e)}
+
     def stop_all(self):
         """Stops all active download tasks."""
         self.engine.stop_all()

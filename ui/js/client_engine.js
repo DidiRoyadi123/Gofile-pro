@@ -246,10 +246,15 @@ class GoFileClientEngine {
 
     try {
       // Trigger browser/mobile download
+      const headers = {
+        'Accept': '*/*'
+      };
+      if (this.accountToken) {
+        headers['Authorization'] = `Bearer ${this.accountToken}`;
+        headers['Cookie'] = `accountToken=${this.accountToken}`;
+      }
       const response = await fetch(url, {
-        headers: {
-          'Authorization': `Bearer ${this.accountToken}`
-        }
+        headers
       });
 
       if (!response.ok) {

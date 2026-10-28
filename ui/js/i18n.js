@@ -181,7 +181,78 @@ const I18n = {
       'toast.history_cleared': 'Riwayat unduhan dibersihkan',
       'toast.dir_selected': 'Folder dipilih: {path}',
       'toast.file_deleted': 'File "{name}" berhasil dihapus.',
-      'toast.all_deleted': '{count} file berhasil dihapus dari penyimpanan.'
+      'toast.all_deleted': '{count} file berhasil dihapus dari penyimpanan.',
+      'toast.auto_cat_enabled': 'Kategori Folder Otomatis: Diaktifkan',
+      'toast.auto_cat_disabled': 'Kategori Folder Otomatis: Dinonaktifkan',
+      'toast.initial_sync': 'Sinkronisasi awal: {count} file terdeteksi di folder unduhan.',
+      'toast.batch_pasted': 'Link batch berhasil ditempel.',
+      'toast.batch_cleared': 'Semua inputan batch berhasil dihapus.',
+      'toast.fetching_files': 'Mengambil daftar semua file...',
+      'toast.no_downloadable': 'Tidak ada file yang dapat diunduh.',
+      'toast.no_video': 'Tidak ada file video di folder ini.',
+      'toast.selected_video': 'Memilih {count} file video.',
+      'toast.no_photo': 'Tidak ada file foto di folder ini.',
+      'toast.selected_photo': 'Memilih {count} file foto.',
+      'toast.no_audio': 'Tidak ada file audio di folder ini.',
+      'toast.selected_audio': 'Memilih {count} file audio.',
+      'toast.select_at_least_one': 'Pilih setidaknya 1 file untuk diunduh',
+      'toast.password_required': 'Link ini memerlukan password!',
+      'toast.server_copied': 'Tautan server berhasil disalin ke clipboard!',
+      'toast.queue_exported': 'Data antrean berhasil disalin ke clipboard!',
+      'toast.queue_imported': 'Berhasil menambahkan {count} link antrean!',
+      'toast.perm_storage_opening': 'Membuka pengaturan izin akses penyimpanan...',
+      'toast.perm_battery_opening': 'Membuka pengaturan optimasi baterai (Unrestricted)...',
+      'toast.rate_limit_429': 'IP dibatasi sementara oleh GoFile (HTTP 429). Aktifkan Mode Pesawat di HP selama 3 detik untuk ganti IP baru!',
+
+      // Permissions Onboarding Modal
+      'perm.modal_title': 'Persetujuan Izin & Antikill Sistem',
+      'perm.modal_desc': 'Aktifkan izin berikut agar GoFile Pro dapat mengunduh di latar belakang saat HP terkunci/sleep:',
+      'perm.storage_title': 'Akses Penyimpanan File Penuh',
+      'perm.storage_desc': 'Wajib agar file unduhan dapat disimpan ke folder Download & dibaca oleh galeri/aplikasi lain.',
+      'perm.storage_btn': 'Beri Izin File',
+      'perm.battery_title': 'Antikill Baterai (Unrestricted)',
+      'perm.battery_desc': 'Sangat penting agar proses unduhan TIDAK dimatikan Android saat HP sleep, layar mati, atau membuka aplikasi lain.',
+      'perm.battery_btn': 'Beri Izin Antikill',
+      'perm.notif_title': 'Notifikasi Bilah Status',
+      'perm.notif_desc': 'Memastikan bilah progres unduhan tetap aktif dan proses aman dari kill OS.',
+      'perm.status_granted': 'Sudah Aktif ✅',
+      'perm.status_pending': 'Belum Aktif ⚠️',
+      'perm.continue_btn': 'Lanjutkan ke Aplikasi',
+      'perm.later_btn': 'Nanti Saja (Mode Terbatas)',
+
+      // Token Validation in Settings
+      'settings.token_test_btn': 'Tes Validitas Token',
+      'settings.token_verifying': 'Memeriksa ke server GoFile...',
+      'settings.token_valid_premium': 'Token Valid: GoFile Premium ✅',
+      'settings.token_valid_free': 'Token Valid: Akun Standard ⚡',
+      'settings.token_invalid': 'Token Tidak Valid atau Kedaluwarsa ❌',
+
+      // Cross-Device Transfer
+      'transfer.btn_title': 'Kirim ke HP Lain',
+      'transfer.modal_title': 'Pindah & Bagikan ke HP Lain',
+      'transfer.tab_wifi': 'Kirim File via Wi-Fi',
+      'transfer.tab_queue': 'Salin Antrean Unduhan',
+      'transfer.queue_summary': 'Ekspor seluruh antrean ({count} link) untuk dilanjutkan di HP lain:',
+      'transfer.copy_queue': 'Salin Data Antrean',
+      'transfer.import_placeholder': 'Tempel data antrean dari HP lain di sini...',
+      'transfer.import_btn': 'Impor & Mulai Unduh',
+
+      // IP Limit Modal
+      'ip.modal_title': 'Solusi Cepat: IP Dibatasi GoFile',
+      'ip.airplane_step': '1. Mode Pesawat (HP): Aktifkan Mode Pesawat selama 3 detik lalu matikan lagi untuk mendapatkan IP baru dari operator.',
+      'ip.warp_step': '2. Wi-Fi / IndiHome: Sambungkan ke Cloudflare 1.1.1.1 (WARP) atau VPN gratis untuk bypass IP limit.',
+      'ip.token_step': '3. Token Akun: Masukkan token GoFile Anda di tab Pengaturan untuk batas kuota unduhan yang lebih besar.',
+      'ip.close_btn': 'Mengerti & Coba Lagi',
+
+      // ExoVideoView Media Player
+      'player.locked': 'Layar Terkunci • Ketuk untuk Membuka',
+      'player.locked_toast': 'Layar Terkunci (Sentuhan Dinonaktifkan)',
+      'player.unlocked_toast': 'Layar Terbuka',
+      'player.aspect_fit': 'Sesuai Layar (Fit)',
+      'player.aspect_fill': 'Penuhi Layar (Crop/Zoom)',
+      'player.aspect_16_9': 'Rasio 16:9',
+      'player.aspect_4_3': 'Rasio 4:3',
+      'player.aspect_stretch': 'Regang (Stretch)'
     },
 
     en: {
@@ -357,7 +428,78 @@ const I18n = {
       'toast.history_cleared': 'Download history cleared',
       'toast.dir_selected': 'Directory selected: {path}',
       'toast.file_deleted': 'File "{name}" deleted.',
-      'toast.all_deleted': '{count} file(s) deleted from storage.'
+      'toast.all_deleted': '{count} file(s) deleted from storage.',
+      'toast.auto_cat_enabled': 'Smart Subfolders: Enabled',
+      'toast.auto_cat_disabled': 'Smart Subfolders: Disabled',
+      'toast.initial_sync': 'Initial sync: {count} file(s) found in downloads.',
+      'toast.batch_pasted': 'Batch links pasted successfully.',
+      'toast.batch_cleared': 'Batch inputs cleared.',
+      'toast.fetching_files': 'Fetching file list...',
+      'toast.no_downloadable': 'No downloadable files found.',
+      'toast.no_video': 'No video files in this folder.',
+      'toast.selected_video': 'Selected {count} video file(s).',
+      'toast.no_photo': 'No photo files in this folder.',
+      'toast.selected_photo': 'Selected {count} photo file(s).',
+      'toast.no_audio': 'No audio files in this folder.',
+      'toast.selected_audio': 'Selected {count} audio file(s).',
+      'toast.select_at_least_one': 'Please select at least 1 file to download',
+      'toast.password_required': 'This link requires a password!',
+      'toast.server_copied': 'Server link copied to clipboard!',
+      'toast.queue_exported': 'Queue data copied to clipboard!',
+      'toast.queue_imported': 'Successfully imported {count} queue links!',
+      'toast.perm_storage_opening': 'Opening storage permission settings...',
+      'toast.perm_battery_opening': 'Opening battery optimization settings (Unrestricted)...',
+      'toast.rate_limit_429': 'IP temporarily rate-limited by GoFile (HTTP 429). Toggle Airplane Mode on phone for 3s to get a fresh IP!',
+
+      // Permissions Onboarding Modal
+      'perm.modal_title': 'System Permissions & Anti-Kill Setup',
+      'perm.modal_desc': 'Grant the following permissions so GoFile Pro can download in the background even when screen sleeps:',
+      'perm.storage_title': 'All Files Storage Access',
+      'perm.storage_desc': 'Required so downloaded files can be saved to public Download folder & opened by media players.',
+      'perm.storage_btn': 'Grant File Access',
+      'perm.battery_title': 'Battery Anti-Kill (Unrestricted)',
+      'perm.battery_desc': 'Critical to prevent Android from killing downloads when screen sleeps or when switching apps.',
+      'perm.battery_btn': 'Grant Anti-Kill Access',
+      'perm.notif_title': 'Foreground Notification',
+      'perm.notif_desc': 'Ensures download progress remains active and service is protected from OS termination.',
+      'perm.status_granted': 'Granted ✅',
+      'perm.status_pending': 'Pending ⚠️',
+      'perm.continue_btn': 'Continue to App',
+      'perm.later_btn': 'Later (Limited Mode)',
+
+      // Token Validation in Settings
+      'settings.token_test_btn': 'Verify Token',
+      'settings.token_verifying': 'Verifying with GoFile servers...',
+      'settings.token_valid_premium': 'Valid Token: GoFile Premium ✅',
+      'settings.token_valid_free': 'Valid Token: Standard Account ⚡',
+      'settings.token_invalid': 'Invalid or Expired Token ❌',
+
+      // Cross-Device Transfer
+      'transfer.btn_title': 'Send to Other Phone',
+      'transfer.modal_title': 'Transfer & Share to Other Device',
+      'transfer.tab_wifi': 'Send Files via Wi-Fi',
+      'transfer.tab_queue': 'Export / Import Queue',
+      'transfer.queue_summary': 'Export entire queue ({count} links) to resume on another phone:',
+      'transfer.copy_queue': 'Copy Queue Data',
+      'transfer.import_placeholder': 'Paste queue data from other phone here...',
+      'transfer.import_btn': 'Import & Start Download',
+
+      // IP Limit Modal
+      'ip.modal_title': 'Quick Fix: GoFile IP Rate Limited',
+      'ip.airplane_step': '1. Airplane Mode (Mobile): Turn on Airplane Mode for 3 seconds then turn off to get a fresh IP from mobile carrier.',
+      'ip.warp_step': '2. Wi-Fi / ISP: Connect to Cloudflare 1.1.1.1 (WARP) or a free VPN to bypass IP limits and ISP censorship.',
+      'ip.token_step': '3. Account Token: Enter your GoFile token in Settings for higher download quotas.',
+      'ip.close_btn': 'Understood & Retry',
+
+      // ExoVideoView Media Player
+      'player.locked': 'Screen Locked • Tap to Unlock',
+      'player.locked_toast': 'Screen Locked (Touch Gestures Disabled)',
+      'player.unlocked_toast': 'Screen Unlocked',
+      'player.aspect_fit': 'Fit to Screen',
+      'player.aspect_fill': 'Fill / Crop Screen',
+      'player.aspect_16_9': '16:9 Ratio',
+      'player.aspect_4_3': '4:3 Ratio',
+      'player.aspect_stretch': 'Stretch Fullscreen'
     }
   },
 
@@ -385,6 +527,7 @@ const I18n = {
     localStorage.setItem('gf_lang', setting);
     this.currentLang = this.resolveLanguage(setting);
     this.applyLanguage(this.currentLang);
+    window.dispatchEvent(new CustomEvent('languageChanged', { detail: { lang: this.currentLang } }));
   },
 
   t(key, params = {}) {

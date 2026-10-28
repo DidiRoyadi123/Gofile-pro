@@ -114,6 +114,26 @@
     <!-- In-App Update Notification Banner (Injected dynamically when update exists) -->
     <div id="update-banner-container"></div>
 
+    <!-- Remote Announcement Strip (Managed by Admin Config) -->
+    <div id="remote-announcement-strip" class="remote-announcement-strip" style="display: none;">
+      <div style="display: flex; align-items: center; gap: 8px;">
+        <span id="remote-announcement-icon">📢</span>
+        <span id="remote-announcement-text" style="font-weight: 500;">Pengumuman server GoFile</span>
+      </div>
+      <button type="button" class="btn-icon" id="btn-close-announcement" style="padding: 2px; color: var(--text-muted);">
+        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="18" y1="6" x2="6" y2="18"></line><line x1="6" y1="6" x2="18" y2="18"></line></svg>
+      </button>
+    </div>
+
+    <!-- Remote Sponsored Ad Banner (Top Position) -->
+    <a id="remote-ad-banner-top" class="remote-ad-card" href="#" target="_blank" style="display: none;">
+      <div style="display: flex; align-items: center; gap: 10px;">
+        <span class="badge" style="background: rgba(99,102,241,0.2); color: var(--indigo-400); font-size: 0.68rem; font-weight: 700;">SPONSORED</span>
+        <span id="remote-ad-title-top" style="font-size: 0.82rem; font-weight: 600; color: var(--text-primary);">Dukungan GoFile Pro</span>
+      </div>
+      <span style="font-size: 0.75rem; color: var(--cyan-400); font-weight: 600;">Lihat &rarr;</span>
+    </a>
+
     <!-- Compact Sleek Telemetry Strip (Single Horizontal Row) -->
     <section class="telemetry-strip" id="stats-banner">
       <div class="telemetry-pill">
@@ -373,6 +393,13 @@
               <button class="btn btn-secondary btn-sm" id="btn-open-folder-queue" title="Buka Folder Penyimpanan">
                 <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z"></path></svg>
                 <span data-i18n="downloads.open_folder">Buka Folder</span>
+              </button>
+              <button class="btn btn-secondary btn-sm" id="btn-transfer-queue" title="Pindah antrean ke HP Lain">
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M17 1l4 4-4 4"></path><path d="M3 11V9a4 4 0 0 1 4-4h14"></path><path d="M7 23l-4-4 4-4"></path><path d="M21 13v2a4 4 0 0 1-4 4H3"></path></svg>
+                <span data-i18n="transfer.btn_title">Pindah ke HP Lain</span>
+              </button>
+              <button class="btn btn-secondary btn-sm" id="btn-open-ip-helper" title="Bypass Pembatasan IP GoFile (HTTP 429)">
+                <span>✈️ Bypass IP</span>
               </button>
               <button class="btn btn-danger btn-sm" id="btn-clear-queue" data-i18n="downloads.clear_queue">Bersihkan</button>
             </div>
@@ -727,7 +754,11 @@
 
           <div class="form-group" style="grid-column: 1 / -1;">
             <label class="form-label" for="setting-token" data-i18n="settings.token_label">Custom GoFile Account Token (Opsional)</label>
-            <input type="text" class="form-input" id="setting-token" placeholder="Optional. If you have a premium/registered GoFile account token" data-i18n-placeholder="settings.token_placeholder">
+            <div style="display:flex; gap:0.5rem; align-items:center;">
+              <input type="text" class="form-input" id="setting-token" style="flex:1;" placeholder="Optional. If you have a premium/registered GoFile account token" data-i18n-placeholder="settings.token_placeholder">
+              <button type="button" class="btn btn-secondary btn-sm" id="btn-verify-token" style="white-space:nowrap; padding:0.6rem 0.9rem;" data-i18n="settings.token_test_btn">Tes Validitas</button>
+            </div>
+            <div id="token-status-badge" style="display:none; margin-top:6px; font-size:0.8rem; font-weight:600; padding:4px 8px; border-radius:6px; width:fit-content;"></div>
             <span style="font-size:0.75rem; color:var(--text-muted); margin-top:4px; display:block;" data-i18n="settings.token_help">
               Biarkan kosong untuk otomatis membuat dan memakai sesi guest gratis.
             </span>
@@ -1124,6 +1155,25 @@
                 <span class="video-top-badge" id="video-top-badge">MP4</span>
               </div>
               <div class="video-top-actions">
+                <!-- Aspect Ratio Switcher (Fit / Fill / 16:9 / 4:3 / Stretch) -->
+                <button type="button" class="btn-media-overlay-icon" id="btn-video-aspect" title="Rasio Layar (Fit / 16:9 / Fill / Stretch)">
+                  <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                    <rect x="3" y="5" width="18" height="14" rx="2"></rect>
+                    <polyline points="7 9 10 9 10 12"></polyline>
+                    <polyline points="17 15 14 15 14 12"></polyline>
+                  </svg>
+                  <span class="video-aspect-tag" id="video-aspect-tag">FIT</span>
+                </button>
+                <!-- Lock Screen Button -->
+                <button type="button" class="btn-media-overlay-icon" id="btn-video-lock" title="Kunci Layar (Cegah Sentuhan)">
+                  <svg id="icon-lock-open" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                    <rect x="3" y="11" width="18" height="11" rx="2" ry="2"></rect>
+                    <path d="M7 11V7a5 5 0 0 1 9.9-1"></path>
+                  </svg>
+                  <svg id="icon-lock-closed" width="18" height="18" viewBox="0 0 24 24" fill="currentColor" stroke="none" style="display:none;color:#f59e0b;">
+                    <path d="M19 11h-1V7A6 6 0 0 0 6 7v4H5a2 2 0 0 0-2 2v8a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-8a2 2 0 0 0-2-2zm-8 7a2 2 0 1 1 2-2 2 2 0 0 1-2 2zm3.1-7H9.9V7a2.1 2.1 0 0 1 4.2 0z"/>
+                  </svg>
+                </button>
                 <button type="button" class="btn-media-overlay-icon" id="btn-video-top-pip" title="Putar Mengambang (PiP)">
                   <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
                     <rect x="2" y="3" width="20" height="14" rx="2"></rect>
@@ -1137,6 +1187,12 @@
                   </svg>
                 </button>
               </div>
+            </div>
+
+            <!-- Lock Screen Indicator & Unlock Trigger -->
+            <div class="video-locked-pill" id="video-locked-pill">
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor"><path d="M19 11h-1V7A6 6 0 0 0 6 7v4H5a2 2 0 0 0-2 2v8a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-8a2 2 0 0 0-2-2z"/></svg>
+              <span id="video-locked-text">Layar Terkunci • Ketuk untuk Membuka</span>
             </div>
 
             <!-- B. Double-Tap Skip Gesture Zones (Left = -10s, Right = +10s) -->
@@ -1172,6 +1228,7 @@
             <!-- D. Modern Bottom Overlay Bar -->
             <div class="video-controls-overlay" id="video-controls-overlay">
               <div class="video-seek-container">
+                <div class="video-buffered-bar" id="video-buffered-bar" style="width: 0%;"></div>
                 <input type="range" class="media-range-slider" id="video-seek-bar" min="0" max="100" value="0" step="0.1">
               </div>
               <div class="video-control-row">
@@ -1438,6 +1495,167 @@
 
       <div class="modal-footer" style="justify-content:flex-end;">
         <button type="button" class="btn btn-secondary" id="btn-close-wifi-share-bottom">Tutup</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Mandatory System Permissions & Anti-Kill Guard Modal -->
+  <div class="modal-backdrop" id="modal-permissions-guard" style="display: none; z-index: 99999;">
+    <div class="modal-window" style="max-width: 500px;">
+      <div class="modal-header">
+        <div style="display: flex; align-items: center; gap: 0.6rem;">
+          <div style="width: 36px; height: 36px; border-radius: 10px; background: rgba(99,102,241,0.2); display: flex; align-items: center; justify-content: center; color: var(--indigo-400); font-size: 1.25rem;">
+            🛡️
+          </div>
+          <div>
+            <h3 style="margin: 0; font-size: 1.05rem;" data-i18n="perm.modal_title">Persetujuan Izin & Antikill Sistem</h3>
+            <span style="font-size: 0.75rem; color: var(--text-muted);" data-i18n="perm.modal_desc">Aktifkan izin berikut agar GoFile Pro dapat mengunduh di latar belakang saat HP terkunci/sleep:</span>
+          </div>
+        </div>
+      </div>
+
+      <div class="modal-body" style="display: flex; flex-direction: column; gap: 0.85rem;">
+        <!-- Card 1: Storage Permission -->
+        <div class="perm-guard-card">
+          <div style="display: flex; align-items: center; gap: 0.75rem;">
+            <div class="perm-guard-icon" style="background: rgba(14, 165, 233, 0.15); color: #0ea5e9;">📁</div>
+            <div style="text-align: left;">
+              <div style="font-weight: 600; font-size: 0.88rem;" data-i18n="perm.storage_title">Akses Penyimpanan File Penuh</div>
+              <div style="font-size: 0.74rem; color: var(--text-muted); line-height: 1.35;" data-i18n="perm.storage_desc">Wajib agar file unduhan dapat disimpan ke folder Download & dibaca oleh galeri/aplikasi lain.</div>
+              <div style="margin-top: 4px;">
+                <span class="perm-badge pending" id="perm-badge-storage" data-i18n="perm.status_pending">Belum Aktif ⚠️</span>
+              </div>
+            </div>
+          </div>
+          <button type="button" class="btn btn-secondary btn-sm" id="btn-perm-grant-storage" data-i18n="perm.storage_btn" style="white-space: nowrap;">Beri Izin File</button>
+        </div>
+
+        <!-- Card 2: Battery Optimization (Anti-Kill) -->
+        <div class="perm-guard-card">
+          <div style="display: flex; align-items: center; gap: 0.75rem;">
+            <div class="perm-guard-icon" style="background: rgba(245, 158, 11, 0.15); color: #f59e0b;">⚡</div>
+            <div style="text-align: left;">
+              <div style="font-weight: 600; font-size: 0.88rem;" data-i18n="perm.battery_title">Antikill Baterai (Unrestricted)</div>
+              <div style="font-size: 0.74rem; color: var(--text-muted); line-height: 1.35;" data-i18n="perm.battery_desc">Sangat penting agar proses unduhan TIDAK dimatikan Android saat HP sleep, layar mati, atau membuka aplikasi lain.</div>
+              <div style="margin-top: 4px;">
+                <span class="perm-badge pending" id="perm-badge-battery" data-i18n="perm.status_pending">Belum Aktif ⚠️</span>
+              </div>
+            </div>
+          </div>
+          <button type="button" class="btn btn-secondary btn-sm" id="btn-perm-grant-battery" data-i18n="perm.battery_btn" style="white-space: nowrap;">Beri Izin Antikill</button>
+        </div>
+
+        <!-- Card 3: Notification (Android 13+) -->
+        <div class="perm-guard-card">
+          <div style="display: flex; align-items: center; gap: 0.75rem;">
+            <div class="perm-guard-icon" style="background: rgba(16, 185, 129, 0.15); color: #10b981;">🔔</div>
+            <div style="text-align: left;">
+              <div style="font-weight: 600; font-size: 0.88rem;" data-i18n="perm.notif_title">Notifikasi Bilah Status</div>
+              <div style="font-size: 0.74rem; color: var(--text-muted); line-height: 1.35;" data-i18n="perm.notif_desc">Memastikan bilah progres unduhan tetap aktif dan proses aman dari kill OS.</div>
+              <div style="margin-top: 4px;">
+                <span class="perm-badge pending" id="perm-badge-notif" data-i18n="perm.status_pending">Belum Aktif ⚠️</span>
+              </div>
+            </div>
+          </div>
+          <button type="button" class="btn btn-secondary btn-sm" id="btn-perm-grant-notif" style="white-space: nowrap;">Beri Izin</button>
+        </div>
+      </div>
+
+      <div class="modal-footer" style="display: flex; justify-content: space-between; align-items: center;">
+        <button type="button" class="btn btn-secondary btn-sm" id="btn-perm-dismiss" data-i18n="perm.later_btn" style="font-size: 0.78rem;">Nanti Saja (Mode Terbatas)</button>
+        <button type="button" class="btn btn-primary btn-sm" id="btn-perm-finish" data-i18n="perm.continue_btn" style="font-weight: 600;">Lanjutkan ke Aplikasi</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- GoFile IP Rate Limit & Restriction Bypass Modal -->
+  <div class="modal-backdrop" id="modal-ip-helper" style="display: none;">
+    <div class="modal-window" style="max-width: 480px;">
+      <div class="modal-header">
+        <div style="display: flex; align-items: center; gap: 0.6rem;">
+          <div style="width: 36px; height: 36px; border-radius: 10px; background: rgba(239,68,68,0.18); display: flex; align-items: center; justify-content: center; color: #ef4444; font-size: 1.25rem;">
+            ✈️
+          </div>
+          <div>
+            <h3 style="margin: 0; font-size: 1.05rem;" data-i18n="ip.modal_title">Solusi Cepat: IP Dibatasi GoFile</h3>
+            <span style="font-size: 0.75rem; color: var(--text-muted);">HTTP 429 Rate Limit / Blokir ISP Indonesia</span>
+          </div>
+        </div>
+        <button class="btn-icon" id="btn-close-ip-helper">
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="18" y1="6" x2="6" y2="18"></line><line x1="6" y1="6" x2="18" y2="18"></line></svg>
+        </button>
+      </div>
+
+      <div class="modal-body" style="display: flex; flex-direction: column; gap: 0.75rem;">
+        <div class="ip-tip-card">
+          <div class="ip-tip-icon">📶</div>
+          <div>
+            <strong style="color: var(--cyan-400);" data-i18n="ip.airplane_step">1. Mode Pesawat (HP)</strong>: Aktifkan Mode Pesawat selama 3 detik lalu matikan lagi untuk mendapatkan IP baru dari operator.
+          </div>
+        </div>
+
+        <div class="ip-tip-card">
+          <div class="ip-tip-icon">🛡️</div>
+          <div>
+            <strong style="color: var(--indigo-400);" data-i18n="ip.warp_step">2. Wi-Fi / IndiHome</strong>: Sambungkan ke Cloudflare 1.1.1.1 (WARP) atau VPN gratis untuk bypass IP limit dan sensor ISP.
+          </div>
+        </div>
+
+        <div class="ip-tip-card">
+          <div class="ip-tip-icon">🔑</div>
+          <div>
+            <strong style="color: #10b981;" data-i18n="ip.token_step">3. Token Akun</strong>: Masukkan token akun GoFile Anda di tab Pengaturan untuk batas kuota unduhan yang lebih besar.
+          </div>
+        </div>
+      </div>
+
+      <div class="modal-footer" style="display: flex; justify-content: flex-end;">
+        <button type="button" class="btn btn-primary btn-sm" id="btn-close-ip-helper-ok" data-i18n="ip.close_btn">Mengerti & Coba Lagi</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Cross-Device Queue Export & Import Modal -->
+  <div class="modal-backdrop" id="modal-queue-transfer" style="display: none;">
+    <div class="modal-window" style="max-width: 480px;">
+      <div class="modal-header">
+        <div style="display: flex; align-items: center; gap: 0.6rem;">
+          <div style="width: 36px; height: 36px; border-radius: 10px; background: rgba(99,102,241,0.2); display: flex; align-items: center; justify-content: center; color: var(--indigo-400); font-size: 1.25rem;">
+            📲
+          </div>
+          <div>
+            <h3 style="margin: 0; font-size: 1.05rem;" data-i18n="transfer.modal_title">Pindah & Bagikan ke HP Lain</h3>
+            <span style="font-size: 0.75rem; color: var(--text-muted);">Lanjutkan unduhan atau kirim file ke perangkat lain</span>
+          </div>
+        </div>
+        <button class="btn-icon" id="btn-close-transfer-modal">
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="18" y1="6" x2="6" y2="18"></line><line x1="6" y1="6" x2="18" y2="18"></line></svg>
+        </button>
+      </div>
+
+      <div class="modal-body" style="display: flex; flex-direction: column; gap: 0.85rem;">
+        <div style="display: flex; gap: 0.5rem;">
+          <button type="button" class="btn btn-primary btn-sm" id="btn-subtab-queue-export" style="flex: 1;" data-i18n="transfer.tab_queue">Salin Antrean</button>
+          <button type="button" class="btn btn-secondary btn-sm" id="btn-open-wifi-share-from-transfer" style="flex: 1;" data-i18n="transfer.tab_wifi">Kirim File via Wi-Fi</button>
+        </div>
+
+        <div id="transfer-export-panel">
+          <span style="font-size: 0.78rem; color: var(--text-secondary); display: block; margin-bottom: 0.4rem;" data-i18n="transfer.queue_summary">Ekspor antrean aktif untuk dilanjutkan di HP lain:</span>
+          <textarea class="queue-transfer-area" id="transfer-export-text" readonly></textarea>
+          <div style="display: flex; gap: 0.5rem; margin-top: 0.5rem;">
+            <button type="button" class="btn btn-secondary btn-sm" id="btn-copy-transfer-data" style="flex: 1;" data-i18n="transfer.copy_queue">Salin Data Antrean</button>
+          </div>
+
+          <div style="margin-top: 1rem; border-top: 1px solid var(--glass-border); padding-top: 0.75rem;">
+            <span style="font-size: 0.78rem; font-weight: 600; color: var(--text-secondary); display: block; margin-bottom: 0.4rem;">Punya data antrean dari HP lain?</span>
+            <textarea class="queue-transfer-area" id="transfer-import-text" placeholder="Tempel data antrean dari HP lain di sini..." data-i18n-placeholder="transfer.import_placeholder"></textarea>
+            <button type="button" class="btn btn-primary btn-sm" id="btn-import-queue" style="width: 100%; margin-top: 0.5rem;" data-i18n="transfer.import_btn">Impor & Mulai Unduh</button>
+          </div>
+        </div>
+      </div>
+
+      <div class="modal-footer" style="display: flex; justify-content: flex-end;">
+        <button type="button" class="btn btn-secondary btn-sm" id="btn-close-transfer-bottom">Tutup</button>
       </div>
     </div>
   </div>

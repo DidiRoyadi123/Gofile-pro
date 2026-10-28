@@ -3,7 +3,7 @@
  */
 
 document.addEventListener('DOMContentLoaded', () => {
-  const CURRENT_VERSION = 'v2.3.1';
+  const CURRENT_VERSION = 'v2.4.0';
 
   // Ensure native Android PiP is strictly disarmed until a video is played
   if (window.ApiBridge && typeof window.ApiBridge.setVideoPlaybackState === 'function') {
@@ -276,6 +276,17 @@ document.addEventListener('DOMContentLoaded', () => {
   }
 
   function showToast(message, type = 'info', duration = 3000) {
+    let resolvedMessage = message;
+    if (window.I18n && typeof message === 'string') {
+      if (message.startsWith('toast.') || message.startsWith('perm.') || message.startsWith('ip.') || message.startsWith('settings.')) {
+        resolvedMessage = I18n.t(message);
+      }
+    }
+    if (typeof message === 'string' && (message.includes('429') || message.includes('Rate Limit'))) {
+      type = 'error';
+      duration = 8000;
+    }
+
     // Keep max 2 toasts on screen to prevent visual clutter
     while (toastContainer.children.length >= 2) {
       toastContainer.firstElementChild.remove();
@@ -293,7 +304,7 @@ document.addEventListener('DOMContentLoaded', () => {
       iconSvg = `<span class="toast-icon"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><circle cx="12" cy="12" r="10"></circle><line x1="12" y1="16" x2="12" y2="12"></line><line x1="12" y1="8" x2="12.01" y2="8"></line></svg></span>`;
     }
 
-    toast.innerHTML = `${iconSvg}<span>${escapeHtml(message)}</span>`;
+    toast.innerHTML = `${iconSvg}<span>${escapeHtml(resolvedMessage)}</span>`;
     toastContainer.appendChild(toast);
 
     setTimeout(() => {
@@ -419,6 +430,12 @@ document.addEventListener('DOMContentLoaded', () => {
     } catch (err) {
       console.warn('Initial storage scan non-fatal error:', err);
     }
+
+    // Check mandatory storage & battery anti-kill permissions on Android
+    setTimeout(() => {
+      checkPermissionsOnboarding(false);
+      initRemoteConfigAndAds();
+    }, 600);
 
     // Auto-check for updates silently in background (delayed 2.5s)
     setTimeout(() => {
@@ -555,13 +572,13 @@ document.addEventListener('DOMContentLoaded', () => {
         const text = await ApiBridge.readClipboard();
         if (text && text.trim()) {
           singleUrlInput.value = text.trim();
-          showToast('Link berhasil ditempel.', 'info', 1500);
+          showToast('toast.pasted', 'info', 1500);
         } else {
-          showToast('Clipboard kosong atau belum ada link yang disalin.', 'warning', 2000);
+          showToast('toast.clipboard_empty', 'warning', 2000);
         }
       } catch (err) {
         console.warn('Paste URL error:', err);
-        showToast('Gagal membaca clipboard.', 'error', 2000);
+        showToast('toast.clipboard_error', 'error', 2000);
       }
     });
   }
@@ -571,7 +588,7 @@ document.addEventListener('DOMContentLoaded', () => {
     debounceClick(btnClearUrl, () => {
       singleUrlInput.value = '';
       singleUrlInput.focus();
-      showToast('Input link berhasil dibersihkan.', 'info', 1500);
+      showToast('toast.cleared', 'info', 1500);
     });
   }
 
@@ -644,7 +661,7 @@ document.addEventListener('DOMContentLoaded', () => {
     setKeyboardState(false);
     const url = singleUrlInput.value.trim();
     if (!url) {
-      showToast('Masukkan link GoFile atau Content ID terlebih dahulu', 'error');
+      showToast('toast.enter_url', 'error');
       return;
     }
 
@@ -653,7 +670,7 @@ document.addEventListener('DOMContentLoaded', () => {
     btnInspectUrl.innerHTML = `<span class="spin-ring" style="width:14px;height:14px;display:inline-block;vertical-align:middle;margin-right:6px;"></span> Exploring...`;
 
     try {
-      showToast('Menghubungi server GoFile... (Pastikan VPN/WARP aktif jika diblokir ISP)', 'info', 3500);
+      showToast('toast.connecting', 'info', 3500);
 
       const fetchPromise = ApiBridge.inspectContent(url, password);
       const timeoutPromise = new Promise((_, reject) => {
@@ -666,7 +683,7 @@ document.addEventListener('DOMContentLoaded', () => {
       state.inspectedData = data;
 
       if (!data.files || data.files.length === 0) {
-        showToast('Tidak ada file ditemukan dalam folder ini', 'error');
+        showToast('toast.empty_folder', 'error');
         return;
       }
 
@@ -674,10 +691,11 @@ document.addEventListener('DOMContentLoaded', () => {
     } catch (err) {
       const msg = err.message || String(err);
       if (msg.includes('PASSWORD')) {
-        showToast('Link ini memerlukan password!', 'error');
+        showToast('toast.password_required', 'error');
         singlePwInput.focus();
       } else if (msg.includes('429') || msg.includes('Rate Limit') || msg.includes('error-rateLimit') || msg.includes('Too Many Requests')) {
-        showToast('IP Anda dibatasi sementara oleh GoFile (HTTP 429: Rate Limit). Aktifkan Mode Pesawat di HP selama 3 detik lalu matikan lagi untuk ganti IP baru!', 'error', 9000);
+        showToast('toast.rate_limit_429', 'error', 9000);
+        showIpHelperModal();
       } else {
         showToast(msg, 'error', 6000);
       }
@@ -701,7 +719,7 @@ document.addEventListener('DOMContentLoaded', () => {
     setKeyboardState(false);
     const url = singleUrlInput.value.trim();
     if (!url) {
-      showToast('Masukkan link GoFile atau Content ID terlebih dahulu', 'error');
+      showToast('toast.enter_url', 'error');
       return;
     }
 
@@ -710,7 +728,7 @@ document.addEventListener('DOMContentLoaded', () => {
     btnQuickDownload.innerHTML = `<span class="spin-ring" style="width:14px;height:14px;display:inline-block;vertical-align:middle;margin-right:6px;"></span> Mengambil file...`;
 
     try {
-      showToast('Mengambil daftar semua file...', 'info', 3000);
+      showToast('toast.fetching_files', 'info', 3000);
 
       const fetchPromise = ApiBridge.inspectContent(url, password);
       const timeoutPromise = new Promise((_, reject) => {
@@ -722,15 +740,16 @@ document.addEventListener('DOMContentLoaded', () => {
       const data = await Promise.race([fetchPromise, timeoutPromise]);
       if (data && data.files && data.files.length > 0) {
         enqueueFiles(data.files);
-        showToast(`Berhasil menambahkan ${data.files.length} file ke antrean!`, 'success');
+        showToast(window.I18n ? I18n.t('toast.queue_added', { count: data.files.length }) : `Berhasil menambahkan ${data.files.length} file ke antrean!`, 'success');
         showDownloadsTab('queue');
       } else {
-        showToast('Tidak ada file yang dapat diunduh.', 'error');
+        showToast('toast.no_downloadable', 'error');
       }
     } catch (err) {
       const msg = err.message || String(err);
       if (msg.includes('429') || msg.includes('Rate Limit') || msg.includes('error-rateLimit') || msg.includes('Too Many Requests')) {
-        showToast('IP Anda dibatasi sementara oleh GoFile (HTTP 429: Rate Limit). Aktifkan Mode Pesawat di HP selama 3 detik lalu matikan lagi untuk ganti IP baru!', 'error', 9000);
+        showToast('toast.rate_limit_429', 'error', 9000);
+        showIpHelperModal();
       } else {
         showToast(msg, 'error', 6000);
       }
@@ -1237,14 +1256,14 @@ document.addEventListener('DOMContentLoaded', () => {
 
   btnConfirmDownloadModal.addEventListener('click', () => {
     if (!state.inspectedData || state.selectedItemIds.size === 0) {
-      showToast('Pilih setidaknya 1 file untuk diunduh', 'error');
+      showToast('toast.select_at_least_one', 'error');
       return;
     }
 
     const selectedFiles = state.inspectedData.files.filter(f => state.selectedItemIds.has(f.id));
     enqueueFiles(selectedFiles, true);
     closeModal();
-    showToast(`Berhasil menambahkan ${selectedFiles.length} file ke antrean!`, 'success');
+    showToast(window.I18n ? I18n.t('toast.queue_added', { count: selectedFiles.length }) : `Berhasil menambahkan ${selectedFiles.length} file ke antrean!`, 'success');
     showDownloadsTab('queue');
   });
 
@@ -2313,33 +2332,383 @@ document.addEventListener('DOMContentLoaded', () => {
     });
   }
 
-  // Android Storage Permission & Battery Optimization Actions
-  if (btnRequestStoragePerm) {
-    btnRequestStoragePerm.addEventListener('click', async () => {
-      showToast('Membuka pengaturan izin akses penyimpanan...', 'info', 2000);
+  // ----------------------------------------------------
+  // Mandatory System Permissions & Anti-Kill Guard (Onboarding)
+  // ----------------------------------------------------
+  const modalPermGuard = document.getElementById('modal-permissions-guard');
+  const badgePermStorage = document.getElementById('perm-badge-storage');
+  const badgePermBattery = document.getElementById('perm-badge-battery');
+  const badgePermNotif = document.getElementById('perm-badge-notif');
+  const btnPermGrantStorage = document.getElementById('btn-perm-grant-storage');
+  const btnPermGrantBattery = document.getElementById('btn-perm-grant-battery');
+  const btnPermGrantNotif = document.getElementById('btn-perm-grant-notif');
+  const btnPermDismiss = document.getElementById('btn-perm-dismiss');
+  const btnPermFinish = document.getElementById('btn-perm-finish');
+
+  let permStorageGranted = false;
+  let permBatteryIgnored = false;
+
+  async function checkPermissionsOnboarding(isManual = false) {
+    const isAndroid = ApiBridge.platform === 'android' || (window.Capacitor && (typeof window.Capacitor.isNativePlatform === 'function' ? window.Capacitor.isNativePlatform() : window.Capacitor.getPlatform?.() === 'android'));
+    if (!isAndroid) return;
+
+    try {
+      const storageStatus = await ApiBridge.checkStoragePermissions();
+      permStorageGranted = !!(storageStatus && storageStatus.granted);
+
+      const batteryStatus = await ApiBridge.isIgnoringBatteryOptimizations();
+      permBatteryIgnored = !!(batteryStatus && batteryStatus.ignoring);
+
+      if (badgePermStorage) {
+        if (permStorageGranted) {
+          badgePermStorage.className = 'perm-badge granted';
+          badgePermStorage.textContent = window.I18n ? I18n.t('perm.status_granted') : 'Sudah Aktif ✅';
+          if (btnPermGrantStorage) btnPermGrantStorage.style.display = 'none';
+        } else {
+          badgePermStorage.className = 'perm-badge pending';
+          badgePermStorage.textContent = window.I18n ? I18n.t('perm.status_pending') : 'Belum Aktif ⚠️';
+          if (btnPermGrantStorage) btnPermGrantStorage.style.display = 'inline-block';
+        }
+      }
+
+      if (badgePermBattery) {
+        if (permBatteryIgnored) {
+          badgePermBattery.className = 'perm-badge granted';
+          badgePermBattery.textContent = window.I18n ? I18n.t('perm.status_granted') : 'Sudah Aktif ✅';
+          if (btnPermGrantBattery) btnPermGrantBattery.style.display = 'none';
+        } else {
+          badgePermBattery.className = 'perm-badge pending';
+          badgePermBattery.textContent = window.I18n ? I18n.t('perm.status_pending') : 'Belum Aktif ⚠️';
+          if (btnPermGrantBattery) btnPermGrantBattery.style.display = 'inline-block';
+        }
+      }
+
+      if (badgePermNotif) {
+        badgePermNotif.className = 'perm-badge granted';
+        badgePermNotif.textContent = window.I18n ? I18n.t('perm.status_granted') : 'Sudah Aktif ✅';
+        if (btnPermGrantNotif) btnPermGrantNotif.style.display = 'none';
+      }
+
+      const allGranted = permStorageGranted && permBatteryIgnored;
+      const dismissed = localStorage.getItem('gf_perm_dismissed') === 'true';
+
+      if (!allGranted && !dismissed && modalPermGuard) {
+        modalPermGuard.style.display = 'flex';
+      } else if (allGranted && modalPermGuard) {
+        modalPermGuard.style.display = 'none';
+      }
+    } catch (e) {
+      console.warn('Error checking permissions:', e);
+    }
+  }
+  window.checkPermissionsOnboarding = checkPermissionsOnboarding;
+
+  if (btnPermGrantStorage) {
+    btnPermGrantStorage.addEventListener('click', async () => {
+      showToast(window.I18n ? I18n.t('toast.perm_storage_opening') : 'Membuka pengaturan izin akses penyimpanan...', 'info', 2000);
       await ApiBridge.requestStoragePermissions();
-      setTimeout(loadStoredFiles, 1200);
+      setTimeout(checkPermissionsOnboarding, 1200);
     });
   }
 
-  if (btnSettingsStoragePerm) {
-    btnSettingsStoragePerm.addEventListener('click', async () => {
-      showToast('Membuka pengaturan izin akses file...', 'info', 2000);
-      await ApiBridge.requestStoragePermissions();
-      setTimeout(loadStoredFiles, 1200);
-    });
-  }
-
-  if (btnRequestBatteryOpt) {
-    btnRequestBatteryOpt.addEventListener('click', async () => {
-      showToast('Membuka pengaturan optimasi baterai (Unrestricted)...', 'info', 2000);
+  if (btnPermGrantBattery) {
+    btnPermGrantBattery.addEventListener('click', async () => {
+      showToast(window.I18n ? I18n.t('toast.perm_battery_opening') : 'Membuka pengaturan optimasi baterai (Unrestricted)...', 'info', 2000);
       await ApiBridge.requestIgnoreBatteryOptimizations();
-      setTimeout(loadStoredFiles, 1200);
+      setTimeout(checkPermissionsOnboarding, 1200);
     });
   }
+
+  if (btnPermGrantNotif) {
+    btnPermGrantNotif.addEventListener('click', async () => {
+      await ApiBridge.requestStoragePermissions();
+      setTimeout(checkPermissionsOnboarding, 1200);
+    });
+  }
+
+  if (btnPermDismiss) {
+    btnPermDismiss.addEventListener('click', () => {
+      localStorage.setItem('gf_perm_dismissed', 'true');
+      if (modalPermGuard) modalPermGuard.style.display = 'none';
+      showToast('toast.perm_battery_opening', 'warning', 4000);
+    });
+  }
+
+  if (btnPermFinish) {
+    btnPermFinish.addEventListener('click', async () => {
+      await checkPermissionsOnboarding(true);
+      if (modalPermGuard) modalPermGuard.style.display = 'none';
+      showToast(permStorageGranted && permBatteryIgnored ? 'Izin lengkap! GoFile Pro siap mengunduh tanpa henti.' : 'Mode terbatas aktif.', 'info', 2500);
+    });
+  }
+
+  // ----------------------------------------------------
+  // Token Validation in Settings
+  // ----------------------------------------------------
+  const btnVerifyToken = document.getElementById('btn-verify-token');
+  const tokenStatusBadge = document.getElementById('token-status-badge');
+
+  if (btnVerifyToken) {
+    btnVerifyToken.addEventListener('click', async () => {
+      const token = settingToken ? settingToken.value.trim() : '';
+      if (!token) {
+        showToast(window.I18n ? I18n.t('toast.enter_url') : 'Masukkan token akun terlebih dahulu', 'warning', 2500);
+        return;
+      }
+      if (tokenStatusBadge) {
+        tokenStatusBadge.style.display = 'inline-block';
+        tokenStatusBadge.className = 'loading';
+        tokenStatusBadge.textContent = window.I18n ? I18n.t('settings.token_verifying') : 'Memeriksa ke server GoFile...';
+      }
+
+      try {
+        const res = await ApiBridge.verifyAccountToken(token);
+        if (res && res.valid) {
+          const isPrem = res.tier === 'premium';
+          tokenStatusBadge.className = 'valid';
+          tokenStatusBadge.textContent = isPrem
+            ? (window.I18n ? I18n.t('settings.token_valid_premium') : 'Token Valid (GoFile Premium) ✅')
+            : (window.I18n ? I18n.t('settings.token_valid_free') : 'Token Valid (Akun Bebas) ⚡');
+          showToast(`Akun terverifikasi: ${res.email || 'GoFile Account'} (${res.tier || 'standard'})`, 'success', 3500);
+        } else {
+          tokenStatusBadge.className = 'invalid';
+          tokenStatusBadge.textContent = window.I18n ? I18n.t('settings.token_invalid') : 'Token Tidak Valid / Kedaluwarsa ❌';
+          showToast(res.message || 'Token tidak valid', 'error', 3500);
+        }
+      } catch (err) {
+        if (tokenStatusBadge) {
+          tokenStatusBadge.className = 'invalid';
+          tokenStatusBadge.textContent = err.message || 'Error validasi';
+        }
+      }
+    });
+  }
+
+  // ----------------------------------------------------
+  // IP Bypass & Rate Limit Modal
+  // ----------------------------------------------------
+  const modalIpHelper = document.getElementById('modal-ip-helper');
+  const btnOpenIpHelper = document.getElementById('btn-open-ip-helper');
+  const btnCloseIpHdr = document.getElementById('btn-close-ip-helper');
+  const btnCloseIpOk = document.getElementById('btn-close-ip-helper-ok');
+
+  function showIpHelperModal() {
+    if (modalIpHelper) modalIpHelper.style.display = 'flex';
+  }
+  function hideIpHelperModal() {
+    if (modalIpHelper) modalIpHelper.style.display = 'none';
+  }
+
+  if (btnOpenIpHelper) btnOpenIpHelper.addEventListener('click', showIpHelperModal);
+  if (btnCloseIpHdr) btnCloseIpHdr.addEventListener('click', hideIpHelperModal);
+  if (btnCloseIpOk) btnCloseIpOk.addEventListener('click', hideIpHelperModal);
+
+  // ----------------------------------------------------
+  // Cross-Device Queue Transfer & Migration
+  // ----------------------------------------------------
+  const modalQueueTransfer = document.getElementById('modal-queue-transfer');
+  const btnTransferQueue = document.getElementById('btn-transfer-queue');
+  const btnCloseTransferHdr = document.getElementById('btn-close-transfer-modal');
+  const btnCloseTransferBtm = document.getElementById('btn-close-transfer-bottom');
+  const transferExportText = document.getElementById('transfer-export-text');
+  const transferImportText = document.getElementById('transfer-import-text');
+  const btnCopyTransferData = document.getElementById('btn-copy-transfer-data');
+  const btnImportQueue = document.getElementById('btn-import-queue');
+  const btnOpenWifiShareFromTransfer = document.getElementById('btn-open-wifi-share-from-transfer');
+
+  function openQueueTransferModal() {
+    if (!modalQueueTransfer) return;
+    const queuedItems = (state.queue || []).map(q => ({
+      id: q.id,
+      name: q.name,
+      link: q.link,
+      size: q.size,
+      relDir: q.relDir || ''
+    }));
+    if (transferExportText) {
+      transferExportText.value = JSON.stringify(queuedItems, null, 2);
+    }
+    modalQueueTransfer.style.display = 'flex';
+  }
+
+  function closeQueueTransferModal() {
+    if (modalQueueTransfer) modalQueueTransfer.style.display = 'none';
+  }
+
+  if (btnTransferQueue) btnTransferQueue.addEventListener('click', openQueueTransferModal);
+  if (btnCloseTransferHdr) btnCloseTransferHdr.addEventListener('click', closeQueueTransferModal);
+  if (btnCloseTransferBtm) btnCloseTransferBtm.addEventListener('click', closeQueueTransferModal);
+
+  if (btnCopyTransferData) {
+    btnCopyTransferData.addEventListener('click', async () => {
+      if (transferExportText && transferExportText.value) {
+        try {
+          await navigator.clipboard.writeText(transferExportText.value);
+          showToast('toast.queue_exported', 'success', 2500);
+        } catch (e) {
+          transferExportText.select();
+          document.execCommand('copy');
+          showToast('toast.queue_exported', 'success', 2500);
+        }
+      }
+    });
+  }
+
+  if (btnImportQueue) {
+    btnImportQueue.addEventListener('click', () => {
+      const raw = transferImportText ? transferImportText.value.trim() : '';
+      if (!raw) return;
+      try {
+        let imported = [];
+        if (raw.startsWith('[') || raw.startsWith('{')) {
+          const parsed = JSON.parse(raw);
+          imported = Array.isArray(parsed) ? parsed : [parsed];
+        } else {
+          const lines = raw.split(/\r?\n/).map(l => l.trim()).filter(Boolean);
+          imported = lines.map((l, i) => ({
+            id: 'imp_' + Date.now() + '_' + i,
+            name: l.split('/').pop() || 'file',
+            link: l,
+            size: 0
+          }));
+        }
+
+        let addedCount = 0;
+        imported.forEach(item => {
+          if (item && item.link) {
+            state.queue.push({
+              id: item.id || ('imp_' + Date.now() + '_' + Math.random().toString(36).substr(2, 5)),
+              name: item.name || 'file',
+              link: item.link,
+              size: item.size || 0,
+              downloaded: 0,
+              speed: 0,
+              status: 'queued',
+              relDir: item.relDir || ''
+            });
+            addedCount++;
+          }
+        });
+
+        saveQueue();
+        renderQueue();
+        updateQueueCounters();
+        closeQueueTransferModal();
+        showToast(window.I18n ? I18n.t('toast.queue_imported', { count: addedCount }) : `Berhasil menambahkan ${addedCount} link antrean!`, 'success', 3000);
+        processQueue();
+      } catch (err) {
+        showToast('Format data antrean tidak valid', 'error', 3000);
+      }
+    });
+  }
+
+  if (btnOpenWifiShareFromTransfer) {
+    btnOpenWifiShareFromTransfer.addEventListener('click', () => {
+      closeQueueTransferModal();
+      const modalWifi = document.getElementById('wifi-share-modal');
+      if (modalWifi) modalWifi.style.display = 'flex';
+    });
+  }
+
+  // ----------------------------------------------------
+  // Remote Announcement & Ad Injection System
+  // ----------------------------------------------------
+  async function initRemoteConfigAndAds() {
+    const remoteStrip = document.getElementById('remote-announcement-strip');
+    const remoteText = document.getElementById('remote-announcement-text');
+    const btnCloseAnn = document.getElementById('btn-close-announcement');
+    const adTop = document.getElementById('remote-ad-banner-top');
+    const adTitleTop = document.getElementById('remote-ad-title-top');
+
+    const configUrl = localStorage.getItem('gf_admin_config_url') || '';
+    let config = null;
+
+    if (configUrl) {
+      try {
+        const resp = await fetch(configUrl, { cache: 'no-store' });
+        if (resp.ok) {
+          config = await resp.json();
+          localStorage.setItem('gf_cached_remote_config', JSON.stringify(config));
+        }
+      } catch (e) {
+        console.warn('Failed to fetch remote config:', e);
+      }
+    }
+
+    if (!config) {
+      try {
+        const cached = localStorage.getItem('gf_cached_remote_config');
+        if (cached) config = JSON.parse(cached);
+      } catch (e) {}
+    }
+
+    if (config) {
+      if (config.announcement && config.announcement.enabled && remoteStrip && remoteText) {
+        remoteText.textContent = config.announcement.message || config.announcement.title || '';
+        remoteStrip.style.display = 'flex';
+      }
+
+      if (config.ads && config.ads.enabled && config.ads.banner && config.ads.banner.enabled && adTop) {
+        if (adTitleTop && config.ads.banner.title) {
+          adTitleTop.textContent = config.ads.banner.title;
+        }
+        if (config.ads.banner.targetUrl) {
+          adTop.href = config.ads.banner.targetUrl;
+        }
+        adTop.style.display = 'flex';
+      }
+
+      if (Array.isArray(config.tokenPool) && config.tokenPool.length > 0) {
+        const currentToken = localStorage.getItem('gf_token');
+        if (!currentToken) {
+          localStorage.setItem('gf_token', config.tokenPool[0]);
+        }
+      }
+    }
+
+    if (btnCloseAnn && remoteStrip) {
+      btnCloseAnn.addEventListener('click', () => {
+        remoteStrip.style.display = 'none';
+      });
+    }
+
+    // Lightweight anonymous telemetry ping
+    try {
+      const telemetryUrl = config?.telemetryEndpoint || localStorage.getItem('gf_telemetry_endpoint');
+      if (telemetryUrl) {
+        const payload = {
+          appVersion: CURRENT_VERSION,
+          platform: ApiBridge.platform,
+          lang: window.I18n ? I18n.currentLang : 'id',
+          completedDownloads: (state.history || []).length,
+          timestamp: Date.now()
+        };
+        fetch(telemetryUrl, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(payload)
+        }).catch(() => {});
+      }
+    } catch (e) {}
+  }
+
+  // ----------------------------------------------------
+  // Dynamic Language Changed Listener
+  // ----------------------------------------------------
+  window.addEventListener('languageChanged', (e) => {
+    renderQueue();
+    renderHistory();
+    if (state.activeTab === 'tab-files') {
+      renderStoredFiles();
+    }
+    updateBatchSummary();
+    updateGlobalMetrics();
+    checkPermissionsOnboarding(false);
+  });
 
   // Auto-refresh when app regains focus (e.g. returning from Android system settings)
   window.addEventListener('focus', () => {
+    checkPermissionsOnboarding(false);
     if (state.activeTab === 'tab-files' || state.activeTab === 'tab-settings') {
       loadStoredFiles();
     }
@@ -3132,6 +3501,15 @@ document.addEventListener('DOMContentLoaded', () => {
   const videoTopTitle = document.getElementById('video-top-title');
   const videoTopBadge = document.getElementById('video-top-badge');
 
+  // ExoVideoView Inspired Video Elements
+  const btnVideoAspect = document.getElementById('btn-video-aspect');
+  const videoAspectTag = document.getElementById('video-aspect-tag');
+  const btnVideoLock = document.getElementById('btn-video-lock');
+  const iconLockOpen = document.getElementById('icon-lock-open');
+  const iconLockClosed = document.getElementById('icon-lock-closed');
+  const videoLockedPill = document.getElementById('video-locked-pill');
+  const videoBufferedBar = document.getElementById('video-buffered-bar');
+
   // Video View Elements
   const mediaVideoContainer = document.getElementById('media-video-container');
   const mediaVideoEl = document.getElementById('media-video-element');
@@ -3155,6 +3533,54 @@ document.addEventListener('DOMContentLoaded', () => {
   const hudVolumeFill = document.getElementById('hud-volume-fill');
   const hudVolumeText = document.getElementById('hud-volume-text');
   const hudVolumeIcon = document.getElementById('hud-volume-icon');
+
+  // ExoVideoView: Aspect Ratio Modes & Screen Lock State
+  const aspectModes = [
+    { id: 'fit', label: 'FIT', name: 'Sesuai Layar (Fit)' },
+    { id: 'fill', label: 'CROP', name: 'Penuhi Layar (Crop/Zoom)' },
+    { id: '16-9', label: '16:9', name: 'Rasio 16:9' },
+    { id: '4-3', label: '4:3', name: 'Rasio 4:3' },
+    { id: 'stretch', label: 'FULL', name: 'Regang (Stretch)' }
+  ];
+  let aspectIndex = 0;
+  let isVideoScreenLocked = false;
+  let lockedPillTimeout = null;
+
+  function setVideoAspect(idx) {
+    aspectIndex = (idx + aspectModes.length) % aspectModes.length;
+    const mode = aspectModes[aspectIndex];
+    if (mediaVideoEl) {
+      mediaVideoEl.className = `video-aspect-${mode.id}`;
+    }
+    if (videoAspectTag) videoAspectTag.textContent = mode.label;
+    showToast(mode.name, 'info', 1200);
+  }
+
+  function toggleVideoScreenLock() {
+    isVideoScreenLocked = !isVideoScreenLocked;
+    if (mediaVideoContainer) {
+      mediaVideoContainer.classList.toggle('is-locked', isVideoScreenLocked);
+    }
+    if (iconLockOpen) iconLockOpen.style.display = isVideoScreenLocked ? 'none' : 'block';
+    if (iconLockClosed) iconLockClosed.style.display = isVideoScreenLocked ? 'block' : 'none';
+
+    if (isVideoScreenLocked) {
+      showToast(I18n.t('player.locked_toast', 'Layar Terkunci (Sentuhan Dinonaktifkan)'), 'warning', 1600);
+      clearTimeout(controlsHideTimeout);
+    } else {
+      showToast(I18n.t('player.unlocked_toast', 'Layar Terbuka'), 'success', 1200);
+      resetControlsTimeout();
+    }
+  }
+
+  function showLockedPill() {
+    if (!isVideoScreenLocked || !videoLockedPill) return;
+    videoLockedPill.classList.add('visible');
+    clearTimeout(lockedPillTimeout);
+    lockedPillTimeout = setTimeout(() => {
+      if (videoLockedPill) videoLockedPill.classList.remove('visible');
+    }, 2200);
+  }
 
   // Swipe Brightness & Volume State & Helpers
   let currentBrightness = parseFloat(localStorage.getItem('gofile_video_brightness') || '1.0');
@@ -3486,7 +3912,18 @@ document.addEventListener('DOMContentLoaded', () => {
 
     if (type === 'video') {
       buildVideoPlaylist(fileOrItem);
-      if (mediaVideoContainer) mediaVideoContainer.style.display = 'flex';
+      if (mediaVideoContainer) {
+        mediaVideoContainer.style.display = 'flex';
+        mediaVideoContainer.classList.remove('is-locked');
+      }
+      isVideoScreenLocked = false;
+      if (iconLockOpen) iconLockOpen.style.display = 'block';
+      if (iconLockClosed) iconLockClosed.style.display = 'none';
+      if (videoBufferedBar) videoBufferedBar.style.width = '0%';
+      aspectIndex = 0;
+      if (mediaVideoEl) mediaVideoEl.className = 'video-aspect-fit';
+      if (videoAspectTag) videoAspectTag.textContent = 'FIT';
+
       setVideoBrightness(currentBrightness, false);
       if (btnMediaPip) btnMediaPip.style.display = 'inline-flex';
       if (mediaVideoEl) {
@@ -3529,7 +3966,12 @@ document.addEventListener('DOMContentLoaded', () => {
 
   function closeMediaPlayer() {
     clearTimeout(controlsHideTimeout);
-    if (mediaVideoContainer) mediaVideoContainer.classList.remove('controls-hidden');
+    isVideoScreenLocked = false;
+    if (mediaVideoContainer) {
+      mediaVideoContainer.classList.remove('controls-hidden');
+      mediaVideoContainer.classList.remove('is-locked');
+    }
+    if (videoLockedPill) videoLockedPill.classList.remove('visible');
     if (audioPlayerCard) audioPlayerCard.classList.remove('playing');
     if (mediaVideoEl) {
       mediaVideoEl.pause();
@@ -3620,13 +4062,13 @@ document.addEventListener('DOMContentLoaded', () => {
   let controlsHideTimeout = null;
 
   function resetControlsTimeout() {
-    if (!mediaVideoContainer) return;
+    if (!mediaVideoContainer || isVideoScreenLocked) return;
     mediaVideoContainer.classList.remove('controls-hidden');
     clearTimeout(controlsHideTimeout);
 
     if (mediaState.isPlaying && mediaState.mediaType === 'video') {
       controlsHideTimeout = setTimeout(() => {
-        if (mediaState.isPlaying && mediaState.mediaType === 'video') {
+        if (mediaState.isPlaying && mediaState.mediaType === 'video' && !isVideoScreenLocked) {
           mediaVideoContainer.classList.add('controls-hidden');
         }
       }, 3000);
@@ -3634,7 +4076,7 @@ document.addEventListener('DOMContentLoaded', () => {
   }
 
   function toggleControlsVisibility() {
-    if (!mediaVideoContainer) return;
+    if (!mediaVideoContainer || isVideoScreenLocked) return;
     if (mediaVideoContainer.classList.contains('controls-hidden')) {
       resetControlsTimeout();
     } else {
@@ -3685,6 +4127,16 @@ document.addEventListener('DOMContentLoaded', () => {
       const h = mediaVideoEl.videoHeight || 9;
       if (mediaState.isPlaying) {
         ApiBridge.setVideoPlaybackState(true, w, h);
+      }
+    });
+
+    mediaVideoEl.addEventListener('progress', () => {
+      if (mediaVideoEl.duration > 0 && mediaVideoEl.buffered && mediaVideoEl.buffered.length > 0) {
+        try {
+          const bufferedEnd = mediaVideoEl.buffered.end(mediaVideoEl.buffered.length - 1);
+          const pct = Math.min(100, Math.max(0, (bufferedEnd / mediaVideoEl.duration) * 100));
+          if (videoBufferedBar) videoBufferedBar.style.width = `${pct}%`;
+        } catch (ignored) {}
       }
     });
 
@@ -3784,6 +4236,25 @@ document.addEventListener('DOMContentLoaded', () => {
   if (btnVideoBack) btnVideoBack.addEventListener('click', closeMediaPlayer);
   if (btnVideoTopClose) btnVideoTopClose.addEventListener('click', closeMediaPlayer);
   if (btnVideoTopPip) btnVideoTopPip.addEventListener('click', triggerPictureInPicture);
+  if (btnVideoAspect) {
+    btnVideoAspect.addEventListener('click', (e) => {
+      e.stopPropagation();
+      setVideoAspect(aspectIndex + 1);
+      resetControlsTimeout();
+    });
+  }
+  if (btnVideoLock) {
+    btnVideoLock.addEventListener('click', (e) => {
+      e.stopPropagation();
+      toggleVideoScreenLock();
+    });
+  }
+  if (videoLockedPill) {
+    videoLockedPill.addEventListener('click', (e) => {
+      e.stopPropagation();
+      toggleVideoScreenLock();
+    });
+  }
 
   // Vertical Swipe Gesture Engine (Left: Brightness, Right: Volume) with Disambiguation
   let touchSwipeState = {
@@ -3798,6 +4269,10 @@ document.addEventListener('DOMContentLoaded', () => {
 
   if (videoWrapper) {
     videoWrapper.addEventListener('touchstart', (e) => {
+      if (isVideoScreenLocked) {
+        showLockedPill();
+        return;
+      }
       if (e.touches.length !== 1) return;
       const touch = e.touches[0];
       const rect = videoWrapper.getBoundingClientRect();
@@ -3810,7 +4285,7 @@ document.addEventListener('DOMContentLoaded', () => {
     }, { passive: true });
 
     videoWrapper.addEventListener('touchmove', (e) => {
-      if (e.touches.length !== 1) return;
+      if (isVideoScreenLocked || e.touches.length !== 1) return;
       const touch = e.touches[0];
       const rect = videoWrapper.getBoundingClientRect();
       const dx = touch.clientX - touchSwipeState.startX;
@@ -3858,6 +4333,10 @@ document.addEventListener('DOMContentLoaded', () => {
   if (videoGestureLeft) {
     videoGestureLeft.addEventListener('click', (e) => {
       e.stopPropagation();
+      if (isVideoScreenLocked) {
+        showLockedPill();
+        return;
+      }
       if (Date.now() < touchSwipeState.suppressUntil) return;
       const now = Date.now();
       if (now - lastTapLeft < 300) {
@@ -3881,6 +4360,10 @@ document.addEventListener('DOMContentLoaded', () => {
   if (videoGestureRight) {
     videoGestureRight.addEventListener('click', (e) => {
       e.stopPropagation();
+      if (isVideoScreenLocked) {
+        showLockedPill();
+        return;
+      }
       if (Date.now() < touchSwipeState.suppressUntil) return;
       const now = Date.now();
       if (now - lastTapRight < 300) {
@@ -3903,10 +4386,10 @@ document.addEventListener('DOMContentLoaded', () => {
 
   if (mediaVideoContainer) {
     mediaVideoContainer.addEventListener('mousemove', () => {
-      resetControlsTimeout();
+      if (!isVideoScreenLocked) resetControlsTimeout();
     });
     mediaVideoContainer.addEventListener('touchstart', () => {
-      resetControlsTimeout();
+      if (!isVideoScreenLocked) resetControlsTimeout();
     }, { passive: true });
   }
 

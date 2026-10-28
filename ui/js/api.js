@@ -81,6 +81,8 @@ const ApiBridge = {
         startWifiShareServer: (options) => window.Capacitor.nativePromise('AndroidDownloader', 'startWifiShareServer', options),
         stopWifiShareServer: () => window.Capacitor.nativePromise('AndroidDownloader', 'stopWifiShareServer', {}),
         getWifiShareStatus: () => window.Capacitor.nativePromise('AndroidDownloader', 'getWifiShareStatus', {}),
+        verifyAccountToken: (options) => window.Capacitor.nativePromise('AndroidDownloader', 'verifyAccountToken', options || {}),
+        invalidateAccountToken: () => window.Capacitor.nativePromise('AndroidDownloader', 'invalidateAccountToken', {}),
         exitApp: () => window.Capacitor.nativePromise('AndroidDownloader', 'exitApp', {}),
         addListener: (eventName, callback) => {
           if (typeof window.Capacitor.addListener === 'function') {
@@ -417,6 +419,65 @@ const ApiBridge = {
       }
     }
     return { success: true };
+  },
+
+  async verifyAccountToken(token) {
+    this.detectPlatform();
+    const androidPlugin = this.getAndroidPlugin();
+    if (androidPlugin && typeof androidPlugin.verifyAccountToken === 'function') {
+      try {
+        return await androidPlugin.verifyAccountToken({ token: token || '' });
+      } catch (e) {
+        return { valid: false, error: e.message };
+      }
+    }
+
+    if (window.pywebview && window.pywebview.api && typeof window.pywebview.api.verify_account_token === 'function') {
+      try {
+        return await window.pywebview.api.verify_account_token(token || '');
+      } catch (e) {
+        return { valid: false, error: e.message };
+      }
+    }
+
+    // Web Browser fallback
+    try {
+      const activeToken = token || localStorage.getItem('gf_token') || '';
+      if (!activeToken) {
+        return { valid: false, message: 'No token provided' };
+      }
+      const res = await fetch('https://api.gofile.io/accounts/getAccountDetails', {
+        headers: {
+          'Authorization': `Bearer ${activeToken}`,
+          'Accept': '*/*'
+        }
+      });
+      const data = await res.json();
+      if (data && data.status === 'ok') {
+        return {
+          valid: true,
+          status: 'ok',
+          token: activeToken,
+          email: data.data?.email || '',
+          tier: data.data?.tier || 'standard',
+          rootFolder: data.data?.rootFolder || ''
+        };
+      }
+      return { valid: false, status: data?.status || 'invalid', message: 'Token invalid or expired' };
+    } catch (err) {
+      return { valid: false, error: err.message };
+    }
+  },
+
+  async invalidateAccountToken() {
+    this.detectPlatform();
+    const androidPlugin = this.getAndroidPlugin();
+    if (androidPlugin && typeof androidPlugin.invalidateAccountToken === 'function') {
+      try {
+        await androidPlugin.invalidateAccountToken();
+      } catch (e) {}
+    }
+    localStorage.removeItem('gf_token');
   },
 
   async deleteFile(item) {
