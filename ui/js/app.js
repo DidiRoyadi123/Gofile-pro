@@ -2841,22 +2841,146 @@ document.addEventListener('DOMContentLoaded', () => {
         const cached = localStorage.getItem('gofile_remote_config') || localStorage.getItem('gofile_admin_config');
         if (cached) {
           this.config = JSON.parse(cached);
+          this.renderAll();
         }
       } catch (e) {}
 
+      // Fetch live cloud configuration from GitHub
+      await this.refreshFromCloud();
+
+      // Periodic check every 10 minutes to sync fresh ads from GitHub without restarting
+      setInterval(() => {
+        this.refreshFromCloud();
+      }, 10 * 60 * 1000);
+
+      // Re-check when app regains focus / visibility
+      document.addEventListener('visibilitychange', () => {
+        if (!document.hidden) {
+          this.refreshFromCloud();
+        }
+      });
+
+      this.initEventListeners();
+    },
+
+    async refreshFromCloud() {
       try {
         const latest = await ApiBridge.fetchRemoteConfig();
         if (latest) {
           this.config = latest;
+          this.renderAll();
         }
       } catch (e) {}
+    },
 
+    renderAll() {
+      this.renderBroadcast();
       this.renderSocialBar();
-      this.initEventListeners();
+      this.renderRawBanners();
     },
 
     getAdsConfig() {
       return (this.config && this.config.ads) ? this.config.ads : null;
+    },
+
+    renderBroadcast() {
+      const banner = document.getElementById('broadcast-banner');
+      const titleEl = document.getElementById('broadcast-title');
+      const msgEl = document.getElementById('broadcast-message');
+      const iconEl = document.getElementById('broadcast-icon');
+      const stripLegacy = document.getElementById('remote-announcement-strip');
+
+      const ann = this.config && this.config.announcement;
+      if (!ann || !ann.enabled || !ann.message) {
+        if (banner) banner.style.display = 'none';
+        if (stripLegacy) stripLegacy.style.display = 'none';
+        return;
+      }
+
+      // Check if user previously dismissed this announcement
+      const dismissedHash = localStorage.getItem('gf_dismissed_broadcast');
+      const currentHash = (ann.title || '') + ':' + ann.message;
+      if (dismissedHash === currentHash) {
+        if (banner) banner.style.display = 'none';
+        return;
+      }
+
+      if (banner) {
+        banner.className = 'broadcast-banner ' + (ann.level || 'info');
+        if (iconEl) iconEl.textContent = ann.level === 'urgent' ? '🚨' : (ann.level === 'warning' ? '⚠️' : '📢');
+        if (titleEl) titleEl.textContent = ann.title || 'Pengumuman';
+        if (msgEl) msgEl.textContent = ann.message;
+        banner.style.display = 'flex';
+      }
+    },
+
+    renderRawBanners() {
+      const ads = this.getAdsConfig();
+      const raw = ads && ads.rawBanners;
+
+      const headerSlot = document.getElementById('ad-slot-header');
+      const headerInner = document.getElementById('ad-slot-header-inner');
+      const footerSlot = document.getElementById('ad-slot-footer');
+      const footerInner = document.getElementById('ad-slot-footer-inner');
+
+      if (!ads || !ads.enabled) {
+        if (headerSlot) headerSlot.style.display = 'none';
+        if (footerSlot) footerSlot.style.display = 'none';
+        return;
+      }
+
+      this.injectAdContent(headerInner, headerSlot, raw ? raw.headerScript : '');
+      this.injectAdContent(footerInner, footerSlot, raw ? raw.footerScript : '');
+    },
+
+    injectAdContent(innerEl, containerEl, code) {
+      if (!innerEl || !containerEl) return;
+      if (!code || !code.trim()) {
+        containerEl.style.display = 'none';
+        innerEl.innerHTML = '';
+        return;
+      }
+
+      const cleanCode = code.trim();
+      containerEl.style.display = 'flex';
+
+      // Avoid re-injecting if same code
+      if (innerEl.dataset.injectedCode === cleanCode) {
+        return;
+      }
+      innerEl.dataset.injectedCode = cleanCode;
+      innerEl.innerHTML = '';
+
+      // Parse HTML and extract scripts
+      const temp = document.createElement('div');
+      temp.innerHTML = cleanCode;
+
+      const nonScripts = [];
+      const scripts = [];
+
+      Array.from(temp.childNodes).forEach(node => {
+        if (node.tagName === 'SCRIPT') {
+          scripts.push(node);
+        } else {
+          nonScripts.push(node);
+        }
+      });
+
+      nonScripts.forEach(node => {
+        innerEl.appendChild(node.cloneNode(true));
+      });
+
+      // Re-create scripts as real DOM HTMLScriptElements so browser executes them
+      scripts.forEach(oldScript => {
+        const newScript = document.createElement('script');
+        Array.from(oldScript.attributes).forEach(attr => {
+          newScript.setAttribute(attr.name, attr.value);
+        });
+        if (oldScript.innerHTML) {
+          newScript.text = oldScript.innerHTML;
+        }
+        innerEl.appendChild(newScript);
+      });
     },
 
     maybeTriggerDirectLink(actionType = 'download_start') {
@@ -2954,6 +3078,20 @@ document.addEventListener('DOMContentLoaded', () => {
     },
 
     initEventListeners() {
+      // 1. Broadcast Banner Close
+      const btnCloseBroadcast = document.getElementById('btn-broadcast-close');
+      if (btnCloseBroadcast) {
+        btnCloseBroadcast.addEventListener('click', () => {
+          const banner = document.getElementById('broadcast-banner');
+          if (banner) banner.style.display = 'none';
+          const ann = this.config && this.config.announcement;
+          if (ann) {
+            localStorage.setItem('gf_dismissed_broadcast', (ann.title || '') + ':' + (ann.message || ''));
+          }
+        });
+      }
+
+      // 2. Celebration Modal Listeners
       const modal = document.getElementById('modal-download-celebration');
       const btnClose = document.getElementById('btn-close-celebration');
       const btnDismiss = document.getElementById('btn-celebration-dismiss');
@@ -2984,6 +3122,7 @@ document.addEventListener('DOMContentLoaded', () => {
         });
       }
 
+      // 3. Social Bar Listeners
       const barEl = document.getElementById('social-bar-floating');
       const socialCta = document.getElementById('social-bar-cta');
       const socialClose = document.getElementById('social-bar-close');

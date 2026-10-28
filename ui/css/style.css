@@ -5170,5 +5170,306 @@ body.pip-mode #media-video-element {
   color: #38bdf8;
 }
 
+/* ====================================================
+   Ad Slots, Remote Broadcast & Monetization Styling
+   ==================================================== */
+
+/* 1. Broadcast Banner (Cloud Alert from GitHub) */
+.broadcast-banner {
+  margin: 0.75rem 1rem 0.25rem 1rem;
+  padding: 0.75rem 1rem;
+  border-radius: 12px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.75rem;
+  background: rgba(15, 23, 42, 0.85);
+  backdrop-filter: blur(12px);
+  border: 1px solid rgba(56, 189, 248, 0.3);
+  box-shadow: 0 4px 20px rgba(0, 0, 0, 0.35);
+  animation: slideDownFade 0.3s ease;
+  z-index: 50;
+}
+
+.broadcast-banner.info {
+  border-color: rgba(56, 189, 248, 0.4);
+  background: linear-gradient(135deg, rgba(14, 165, 233, 0.15), rgba(15, 23, 42, 0.9));
+}
+
+.broadcast-banner.warning {
+  border-color: rgba(245, 158, 11, 0.45);
+  background: linear-gradient(135deg, rgba(245, 158, 11, 0.15), rgba(15, 23, 42, 0.9));
+}
+
+.broadcast-banner.urgent {
+  border-color: rgba(239, 68, 68, 0.5);
+  background: linear-gradient(135deg, rgba(239, 68, 68, 0.2), rgba(15, 23, 42, 0.9));
+}
+
+.broadcast-content {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  flex: 1;
+  min-width: 0;
+}
+
+.broadcast-icon {
+  font-size: 1.25rem;
+  flex-shrink: 0;
+}
+
+.broadcast-text {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+}
+
+.broadcast-title {
+  font-size: 0.85rem;
+  font-weight: 700;
+  color: #fff;
+}
+
+.broadcast-message {
+  font-size: 0.76rem;
+  color: var(--text-secondary);
+  line-height: 1.35;
+  word-break: break-word;
+}
+
+.broadcast-close {
+  background: none;
+  border: none;
+  color: var(--text-muted);
+  font-size: 1.25rem;
+  cursor: pointer;
+  padding: 4px;
+  line-height: 1;
+  border-radius: 6px;
+  transition: color 0.2s;
+}
+
+.broadcast-close:hover {
+  color: #fff;
+}
+
+/* 2. Cloud-Controlled Ad Slots (Header & Footer) */
+.ad-slot-container {
+  position: relative;
+  margin: 0.75rem 1rem;
+  padding: 0.6rem 0.75rem;
+  background: rgba(15, 23, 42, 0.65);
+  backdrop-filter: blur(10px);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  border-radius: 12px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  overflow: hidden;
+  transition: all 0.3s ease;
+}
+
+.ad-slot-container:hover {
+  border-color: rgba(255, 255, 255, 0.16);
+}
+
+.ad-slot-badge {
+  align-self: flex-start;
+  font-size: 0.62rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  padding: 2px 6px;
+  border-radius: 4px;
+  background: rgba(255, 255, 255, 0.08);
+  color: var(--text-muted);
+  margin-bottom: 0.4rem;
+}
+
+.ad-slot-inner {
+  width: 100%;
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  min-height: 50px;
+}
+
+.ad-slot-inner img {
+  max-width: 100%;
+  height: auto;
+  border-radius: 8px;
+}
+
+/* 3. Celebration Modal (Download Finished Interstitial) */
+.celebration-window {
+  border: 1px solid rgba(245, 158, 11, 0.35) !important;
+  box-shadow: 0 10px 40px rgba(0, 0, 0, 0.75), 0 0 25px rgba(245, 158, 11, 0.15) !important;
+}
+
+.celebration-file-pill {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.5rem;
+  background: rgba(255, 255, 255, 0.05);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  padding: 0.55rem 0.85rem;
+  border-radius: 10px;
+}
+
+.celebration-sponsor-card {
+  position: relative;
+  background: linear-gradient(145deg, rgba(30, 41, 59, 0.85) 0%, rgba(15, 23, 42, 0.95) 100%);
+  border: 1px solid rgba(245, 158, 11, 0.3);
+  border-radius: 14px;
+  overflow: hidden;
+  box-shadow: 0 6px 20px rgba(0, 0, 0, 0.4);
+}
+
+.celebration-sponsor-badge {
+  position: absolute;
+  top: 8px;
+  left: 8px;
+  background: rgba(245, 158, 11, 0.9);
+  color: #0f172a;
+  font-size: 0.65rem;
+  font-weight: 800;
+  text-transform: uppercase;
+  padding: 3px 8px;
+  border-radius: 6px;
+  z-index: 2;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.3);
+}
+
+.celebration-banner-img-box {
+  width: 100%;
+  height: 140px;
+  overflow: hidden;
+  position: relative;
+  background: #090d16;
+}
+
+.celebration-banner-img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  transition: transform 0.4s ease;
+}
+
+.celebration-sponsor-card:hover .celebration-banner-img {
+  transform: scale(1.03);
+}
+
+.celebration-sponsor-content {
+  padding: 0.85rem 1rem;
+  display: flex;
+  flex-direction: column;
+  gap: 0.45rem;
+}
+
+.celebration-sponsor-title {
+  font-size: 0.95rem;
+  font-weight: 700;
+  color: #fff;
+}
+
+.celebration-sponsor-desc {
+  font-size: 0.78rem;
+  color: var(--text-secondary);
+  line-height: 1.35;
+}
+
+.celebration-ad-btn {
+  margin-top: 0.35rem;
+  background: linear-gradient(135deg, #f59e0b, #d97706);
+  color: #0f172a;
+  font-weight: 800;
+  border: none;
+  border-radius: 10px;
+  padding: 0.65rem 1rem;
+  cursor: pointer;
+  box-shadow: 0 4px 14px rgba(245, 158, 11, 0.35);
+  transition: all 0.2s ease;
+}
+
+.celebration-ad-btn:hover {
+  transform: translateY(-1px);
+  box-shadow: 0 6px 18px rgba(245, 158, 11, 0.5);
+}
+
+/* 4. Floating Social Bar (In-Page Push Pill) */
+.social-bar-floating {
+  position: fixed;
+  bottom: 76px;
+  left: 50%;
+  transform: translateX(-50%);
+  z-index: 800;
+  max-width: 92%;
+  width: 440px;
+  animation: bounceFadeIn 0.4s cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+.social-bar-pill {
+  display: flex;
+  align-items: center;
+  gap: 0.65rem;
+  background: rgba(15, 23, 42, 0.92);
+  backdrop-filter: blur(16px);
+  border: 1px solid rgba(245, 158, 11, 0.4);
+  padding: 0.5rem 0.85rem;
+  border-radius: 999px;
+  box-shadow: 0 8px 30px rgba(0, 0, 0, 0.5), 0 0 15px rgba(245, 158, 11, 0.2);
+}
+
+.social-bar-icon {
+  font-size: 1.15rem;
+  flex-shrink: 0;
+}
+
+.social-bar-text {
+  flex: 1;
+  font-size: 0.78rem;
+  font-weight: 600;
+  color: #fff;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.social-bar-cta {
+  background: linear-gradient(135deg, #fbbf24, #f59e0b);
+  border: none;
+  color: #0f172a;
+  font-size: 0.72rem;
+  font-weight: 800;
+  padding: 0.35rem 0.75rem;
+  border-radius: 999px;
+  cursor: pointer;
+  white-space: nowrap;
+  box-shadow: 0 2px 8px rgba(245, 158, 11, 0.4);
+  transition: transform 0.2s;
+}
+
+.social-bar-cta:hover {
+  transform: scale(1.05);
+}
+
+.social-bar-close {
+  background: none;
+  border: none;
+  color: var(--text-muted);
+  font-size: 1.15rem;
+  cursor: pointer;
+  padding: 0 4px;
+  line-height: 1;
+}
+
+.social-bar-close:hover {
+  color: #fff;
+}
+
 
 
