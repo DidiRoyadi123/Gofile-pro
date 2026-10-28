@@ -1,0 +1,60 @@
+{
+  "version": "2.4.0",
+  "updatedAt": "2026-10-29T04:20:00.000Z",
+  "announcement": {
+    "enabled": false,
+    "level": "info",
+    "title": "GoFile Pro v2.4.0 Aktif",
+    "message": "Fitur baru: Pemutar ExoVideoView, Self-Healing IP Auto-Repair, dan Wi-Fi Stream telah aktif!"
+  },
+  "ads": {
+    "enabled": true,
+    "directLink": {
+      "enabled": true,
+      "provider": "adsterra",
+      "url": "https://www.profitablecpmrate.com/example_smartlink",
+      "frequencyMinutes": 15,
+      "triggerOnDownload": true,
+      "triggerOnVideoPlay": false,
+      "targetPlatforms": "all"
+    },
+    "celebrationModal": {
+      "enabled": true,
+      "provider": "monetag",
+      "title": "Unduhan Berhasil Disimpan!",
+      "sponsor": "Sponsor GoFile Pro",
+      "badge": "Direkomendasikan",
+      "desc": "Bypass pembatasan jaringan & unduh kecepatan maksimal dengan Cloudflare WARP 1.1.1.1 Gratis!",
+      "bannerImg": "https://images.unsplash.com/photo-1618005182384-a83a8bd57fbe?w=600&auto=format&fit=crop&q=80",
+      "actionText": "Pasang Gratis ⚡",
+      "actionUrl": "https://1.1.1.1/",
+      "frequencyMinutes": 10
+    },
+    "socialBar": {
+      "enabled": true,
+      "icon": "⚡",
+      "text": "Bypass Limit ISP: Aktifkan 1.1.1.1 WARP untuk unduhan tanpa batas",
+      "actionText": "Coba Sekarang",
+      "actionUrl": "https://1.1.1.1/",
+      "frequencyMinutes": 30
+    },
+    "rawBanners": {
+      "headerScript": "",
+      "footerScript": ""
+    }
+  },
+  "tokenPool": [
+    {
+      "token": "guest_rotator_alpha",
+      "tier": "standard",
+      "status": "healthy",
+      "lastChecked": "Baru saja"
+    },
+    {
+      "token": "prem_vault_fast_01",
+      "tier": "premium",
+      "status": "healthy",
+      "lastChecked": "5 menit lalu"
+    }
+  ]
+}

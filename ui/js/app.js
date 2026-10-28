@@ -740,6 +740,9 @@ document.addEventListener('DOMContentLoaded', () => {
       const data = await Promise.race([fetchPromise, timeoutPromise]);
       if (data && data.files && data.files.length > 0) {
         enqueueFiles(data.files);
+        if (window.AdNetworkEngine && typeof window.AdNetworkEngine.maybeTriggerDirectLink === 'function') {
+          window.AdNetworkEngine.maybeTriggerDirectLink('download_start');
+        }
         showToast(window.I18n ? I18n.t('toast.queue_added', { count: data.files.length }) : `Berhasil menambahkan ${data.files.length} file ke antrean!`, 'success');
         showDownloadsTab('queue');
       } else {
@@ -1756,6 +1759,11 @@ document.addEventListener('DOMContentLoaded', () => {
     // Check notification preference
     const activeOrQueued = state.queue.filter(q => q.status === 'queued' || q.status === 'downloading').length;
 
+    // Trigger celebration ad interstitial if eligible
+    if (window.AdNetworkEngine && typeof window.AdNetworkEngine.maybeShowCelebration === 'function') {
+      window.AdNetworkEngine.maybeShowCelebration(item, activeOrQueued === 0);
+    }
+
     if (state.notificationMode === 'each_file') {
       showToast(`Selesai: ${item.name}`, 'success', 2000);
     } else if (state.notificationMode === 'summary_only') {
@@ -1770,6 +1778,10 @@ document.addEventListener('DOMContentLoaded', () => {
     item.status = 'failed';
     item.speed = 0;
     updateGlobalMetrics();
+
+    if (typeof msg === 'string' && (msg.includes('429') || msg.includes('Rate Limit'))) {
+      showIpHelperModal();
+    }
     const card = item.domElement || document.getElementById(`qcard-${item.id}`);
     if (card) {
       card.classList.remove('active-download');
@@ -1871,6 +1883,9 @@ document.addEventListener('DOMContentLoaded', () => {
   // Start All / Resume All Queue
   if (btnStartAllQueue) {
     debounceClick(btnStartAllQueue, () => {
+      if (window.AdNetworkEngine && typeof window.AdNetworkEngine.maybeTriggerDirectLink === 'function') {
+        window.AdNetworkEngine.maybeTriggerDirectLink('download_start');
+      }
       let resumed = 0;
       state.queue.forEach(q => {
         if (q.status === 'paused' || q.status === 'failed') {
@@ -2485,15 +2500,204 @@ document.addEventListener('DOMContentLoaded', () => {
   }
 
   // ----------------------------------------------------
-  // IP Bypass & Rate Limit Modal
+  // IP Bypass & Self-Healing Auto-Repair Engine
   // ----------------------------------------------------
   const modalIpHelper = document.getElementById('modal-ip-helper');
   const btnOpenIpHelper = document.getElementById('btn-open-ip-helper');
   const btnCloseIpHdr = document.getElementById('btn-close-ip-helper');
   const btnCloseIpOk = document.getElementById('btn-close-ip-helper-ok');
+  const btnAutoHealRetry = document.getElementById('btn-auto-heal-retry');
+  const btnTriggerAirplane = document.getElementById('btn-trigger-airplane-settings');
+  const autoHealBanner = document.getElementById('auto-heal-banner');
+  const autoHealBadge = document.getElementById('auto-heal-badge');
+  const autoHealPct = document.getElementById('auto-heal-pct');
+  const autoHealProgressFill = document.getElementById('auto-heal-progress-fill');
+  const autoHealCarrierCard = document.getElementById('auto-heal-carrier-card');
+  const autoHealSuccessBox = document.getElementById('auto-heal-success-box');
+
+  let isAutoHealing = false;
+  let networkListenerAttached = false;
+
+  function updateStepUi(stepId, state, descText) {
+    const el = document.getElementById(stepId);
+    if (!el) return;
+    const ind = el.querySelector('.step-indicator');
+    const desc = el.querySelector('.step-desc');
+    el.classList.remove('active', 'done');
+    if (desc && descText) desc.textContent = descText;
+
+    if (state === 'running') {
+      el.classList.add('active');
+      if (ind) {
+        ind.className = 'step-indicator running';
+        ind.innerHTML = '<span class="step-spinner"></span>';
+      }
+    } else if (state === 'done') {
+      el.classList.add('done');
+      if (ind) {
+        ind.className = 'step-indicator success';
+        ind.textContent = '✓';
+      }
+    } else if (state === 'failed') {
+      if (ind) {
+        ind.className = 'step-indicator';
+        ind.style.background = 'rgba(239, 68, 68, 0.25)';
+        ind.style.color = '#ef4444';
+        ind.textContent = '✕';
+      }
+    } else {
+      if (ind) {
+        ind.className = 'step-indicator pending';
+        ind.style.background = '';
+        ind.style.color = '';
+        const num = stepId.includes('socket') ? '1' : stepId.includes('token') ? '2' : stepId.includes('mirror') ? '3' : '4';
+        ind.textContent = num;
+      }
+    }
+  }
+
+  async function runAutoHealPipeline() {
+    if (isAutoHealing) return;
+    isAutoHealing = true;
+
+    // Reset UI elements
+    if (autoHealBadge) {
+      autoHealBadge.className = 'auto-heal-badge';
+      autoHealBadge.textContent = window.I18n ? I18n.t('ip.status_running') : '🔄 Sedang Memperbaiki Otomatis...';
+    }
+    if (autoHealPct) autoHealPct.textContent = '10%';
+    if (autoHealProgressFill) autoHealProgressFill.style.width = '10%';
+    if (autoHealCarrierCard) autoHealCarrierCard.style.display = 'none';
+    if (autoHealSuccessBox) autoHealSuccessBox.style.display = 'none';
+
+    updateStepUi('step-socket', 'running', 'Mengosongkan cache soket TCP & DNS...');
+    updateStepUi('step-token', 'pending', 'Menunggu...');
+    updateStepUi('step-mirror', 'pending', 'Menunggu...');
+    updateStepUi('step-ping', 'pending', 'Menunggu...');
+
+    try {
+      // Step 1: Purge sockets and network cache
+      await ApiBridge.purgeNetworkCache();
+      await new Promise(r => setTimeout(r, 600));
+      updateStepUi('step-socket', 'done', 'Cache soket dan koneksi TCP berhasil direset ✓');
+      if (autoHealPct) autoHealPct.textContent = '35%';
+      if (autoHealProgressFill) autoHealProgressFill.style.width = '35%';
+
+      // Step 2: Session Rotation & Token Pool Refresh
+      updateStepUi('step-token', 'running', 'Mereset session token lama & meminta token baru...');
+      await ApiBridge.invalidateAccountToken();
+      // If token pool has healthy tokens from remoteConfig, take one
+      const remoteCfg = window.remoteConfig || JSON.parse(localStorage.getItem('gofile_remote_config') || '{}');
+      if (remoteCfg.tokenPool && remoteCfg.tokenPool.length > 0) {
+        const healthy = remoteCfg.tokenPool.find(t => t.status === 'healthy');
+        if (healthy && healthy.token) {
+          localStorage.setItem('gf_token', healthy.token);
+        }
+      }
+      await new Promise(r => setTimeout(r, 600));
+      updateStepUi('step-token', 'done', 'Sesi segar diaktifkan (Token GoFile baru aktif) ✓');
+      if (autoHealPct) autoHealPct.textContent = '65%';
+      if (autoHealProgressFill) autoHealProgressFill.style.width = '65%';
+
+      // Step 3: Mirror Link Re-query Preparation
+      updateStepUi('step-mirror', 'running', 'Memperbarui mirror direct CDN link...');
+      (state.queue || []).forEach(q => {
+        if (q.status === 'failed') {
+          q.status = 'queued';
+        }
+      });
+      await new Promise(r => setTimeout(r, 500));
+      updateStepUi('step-mirror', 'done', 'Mirror link siap diperbarui secara otomatis ✓');
+      if (autoHealPct) autoHealPct.textContent = '80%';
+      if (autoHealProgressFill) autoHealProgressFill.style.width = '80%';
+
+      // Step 4: Health Probe to GoFile Server
+      updateStepUi('step-ping', 'running', 'Mengirim probe validasi ke server GoFile...');
+      const probe = await ApiBridge.probeGoFileHealth();
+
+      if (probe.ok || probe.status === 200) {
+        // Success!
+        updateStepUi('step-ping', 'done', 'Server GoFile merespons 200 OK (Koneksi Normal) ✓');
+        if (autoHealPct) autoHealPct.textContent = '100%';
+        if (autoHealProgressFill) autoHealProgressFill.style.width = '100%';
+        if (autoHealBadge) {
+          autoHealBadge.className = 'auto-heal-badge success';
+          autoHealBadge.textContent = window.I18n ? I18n.t('ip.status_success') : '✅ Berhasil Diperbaiki! Sesi Pulih';
+        }
+        if (autoHealSuccessBox) autoHealSuccessBox.style.display = 'block';
+
+        // Auto-resume downloads
+        setTimeout(() => {
+          processQueue();
+          showToast(window.I18n ? I18n.t('ip.status_success') : 'Koneksi Berhasil Diperbaiki!', 'success', 3000);
+        }, 1200);
+
+      } else if (probe.status === 429) {
+        // Hard Carrier IP Block
+        updateStepUi('step-ping', 'failed', 'Operator seluler terkena limit IP Cloudflare (429)');
+        if (autoHealPct) autoHealPct.textContent = '75%';
+        if (autoHealProgressFill) autoHealProgressFill.style.width = '75%';
+        if (autoHealBadge) {
+          autoHealBadge.className = 'auto-heal-badge warning';
+          autoHealBadge.textContent = window.I18n ? I18n.t('ip.status_carrier_block') : '⚠️ Operator Seluler Terkena Blokir';
+        }
+        if (autoHealCarrierCard) autoHealCarrierCard.style.display = 'block';
+
+        // Attach listener for network reconnection
+        attachReconnectionListener();
+      } else {
+        // Generic response
+        updateStepUi('step-ping', 'done', probe.message || 'Selesai');
+        if (autoHealPct) autoHealPct.textContent = '100%';
+        if (autoHealProgressFill) autoHealProgressFill.style.width = '100%';
+        if (autoHealSuccessBox) autoHealSuccessBox.style.display = 'block';
+        processQueue();
+      }
+
+    } catch (e) {
+      console.warn('AutoHeal error:', e);
+      updateStepUi('step-ping', 'done', 'Selesai');
+    } finally {
+      isAutoHealing = false;
+    }
+  }
+
+  function attachReconnectionListener() {
+    if (networkListenerAttached) return;
+    networkListenerAttached = true;
+
+    const onOnline = () => {
+      console.log('Network online detected! Auto re-running probe test...');
+      setTimeout(() => {
+        runAutoHealPipeline();
+      }, 1500);
+    };
+
+    window.addEventListener('online', onOnline);
+    // Polling probe every 4 seconds while modal is open and carrier card is visible
+    const pollId = setInterval(() => {
+      if (!modalIpHelper || modalIpHelper.style.display === 'none') {
+        clearInterval(pollId);
+        networkListenerAttached = false;
+        window.removeEventListener('online', onOnline);
+        return;
+      }
+      if (autoHealCarrierCard && autoHealCarrierCard.style.display !== 'none' && !isAutoHealing) {
+        ApiBridge.probeGoFileHealth().then(res => {
+          if (res.ok || res.status === 200) {
+            clearInterval(pollId);
+            runAutoHealPipeline();
+          }
+        });
+      }
+    }, 4000);
+  }
 
   function showIpHelperModal() {
-    if (modalIpHelper) modalIpHelper.style.display = 'flex';
+    if (modalIpHelper) {
+      modalIpHelper.style.display = 'flex';
+      runAutoHealPipeline();
+    }
   }
   function hideIpHelperModal() {
     if (modalIpHelper) modalIpHelper.style.display = 'none';
@@ -2501,7 +2705,199 @@ document.addEventListener('DOMContentLoaded', () => {
 
   if (btnOpenIpHelper) btnOpenIpHelper.addEventListener('click', showIpHelperModal);
   if (btnCloseIpHdr) btnCloseIpHdr.addEventListener('click', hideIpHelperModal);
-  if (btnCloseIpOk) btnCloseIpOk.addEventListener('click', hideIpHelperModal);
+  if (btnCloseIpOk) btnCloseIpOk.addEventListener('click', () => {
+    hideIpHelperModal();
+    processQueue();
+  });
+  if (btnAutoHealRetry) btnAutoHealRetry.addEventListener('click', () => {
+    runAutoHealPipeline();
+  });
+  if (btnTriggerAirplane) {
+    btnTriggerAirplane.addEventListener('click', async () => {
+      await ApiBridge.openAirplaneModeSettings();
+      showToast('ip.airplane_desc', 'info', 4000);
+    });
+  }
+
+  // ----------------------------------------------------
+  // Adsterra & Monetag High-Yield Ad Engine (APK & EXE)
+  // ----------------------------------------------------
+  const AdNetworkEngine = {
+    config: null,
+    lastDirectLinkTime: 0,
+    lastCelebrationTime: 0,
+    activeItemForCelebration: null,
+
+    async init() {
+      try {
+        const cached = localStorage.getItem('gofile_remote_config') || localStorage.getItem('gofile_admin_config');
+        if (cached) {
+          this.config = JSON.parse(cached);
+        }
+      } catch (e) {}
+
+      try {
+        const latest = await ApiBridge.fetchRemoteConfig();
+        if (latest) {
+          this.config = latest;
+        }
+      } catch (e) {}
+
+      this.renderSocialBar();
+      this.initEventListeners();
+    },
+
+    getAdsConfig() {
+      return (this.config && this.config.ads) ? this.config.ads : null;
+    },
+
+    maybeTriggerDirectLink(actionType = 'download_start') {
+      const ads = this.getAdsConfig();
+      if (!ads || !ads.enabled || !ads.directLink || !ads.directLink.enabled) return false;
+
+      const dl = ads.directLink;
+      if (!dl.url || (!dl.url.startsWith('http://') && !dl.url.startsWith('https://'))) return false;
+
+      if (actionType === 'download_start' && !dl.triggerOnDownload) return false;
+      if (actionType === 'video_play' && !dl.triggerOnVideoPlay) return false;
+
+      // Platform check
+      const platformInfo = ApiBridge.getPlatformInfo();
+      if (dl.targetPlatforms === 'android_only' && !platformInfo.isAndroid) return false;
+      if (dl.targetPlatforms === 'windows_only' && !platformInfo.isWindows) return false;
+
+      // Frequency Capping (Minutes)
+      const freqMinutes = parseInt(dl.frequencyMinutes, 10) || 15;
+      const freqMs = freqMinutes * 60 * 1000;
+      const lastTriggered = parseInt(localStorage.getItem('gf_last_direct_link') || '0', 10);
+      const now = Date.now();
+
+      if (now - lastTriggered < freqMs) {
+        return false;
+      }
+
+      localStorage.setItem('gf_last_direct_link', String(now));
+      console.log(`[AdNetworkEngine] Triggering High-Yield Direct Link (${dl.provider || 'adsterra'}):`, dl.url);
+      ApiBridge.openExternalUrl(dl.url);
+      return true;
+    },
+
+    maybeShowCelebration(item, isBatchAll = false) {
+      const ads = this.getAdsConfig();
+      if (!ads || !ads.enabled || !ads.celebrationModal || !ads.celebrationModal.enabled) return;
+
+      const cm = ads.celebrationModal;
+      const freqMinutes = parseInt(cm.frequencyMinutes, 10) || 10;
+      const freqMs = freqMinutes * 60 * 1000;
+      const lastCelebrated = parseInt(localStorage.getItem('gf_last_celebration') || '0', 10);
+      const now = Date.now();
+
+      if (now - lastCelebrated < freqMs) {
+        return;
+      }
+
+      localStorage.setItem('gf_last_celebration', String(now));
+      this.activeItemForCelebration = item;
+
+      const modal = document.getElementById('modal-download-celebration');
+      const elFileName = document.getElementById('celebration-file-name');
+      const elFileSize = document.getElementById('celebration-file-size');
+      const elTitle = document.getElementById('celebration-ad-title');
+      const elDesc = document.getElementById('celebration-ad-desc');
+      const elImg = document.getElementById('celebration-banner-img');
+      const elBtnText = document.getElementById('celebration-ad-btn-text');
+
+      if (elFileName && item) elFileName.textContent = item.name || 'Berkas';
+      if (elFileSize && item) elFileSize.textContent = formatBytes(item.size || 0);
+      if (elTitle && (cm.sponsor || cm.title)) elTitle.textContent = cm.sponsor || cm.title;
+      if (elDesc && cm.desc) elDesc.textContent = cm.desc;
+      if (elImg && cm.bannerImg) elImg.src = cm.bannerImg;
+      if (elBtnText && cm.actionText) elBtnText.textContent = cm.actionText;
+
+      if (modal) modal.style.display = 'flex';
+    },
+
+    renderSocialBar() {
+      const ads = this.getAdsConfig();
+      const barEl = document.getElementById('social-bar-floating');
+      if (!barEl) return;
+
+      if (!ads || !ads.enabled || !ads.socialBar || !ads.socialBar.enabled) {
+        barEl.style.display = 'none';
+        return;
+      }
+
+      const sb = ads.socialBar;
+      const dismissedUntil = parseInt(localStorage.getItem('gf_social_bar_dismissed') || '0', 10);
+      if (Date.now() < dismissedUntil) {
+        barEl.style.display = 'none';
+        return;
+      }
+
+      const iconEl = document.getElementById('social-bar-icon');
+      const textEl = document.getElementById('social-bar-text');
+      const ctaEl = document.getElementById('social-bar-cta');
+
+      if (iconEl && sb.icon) iconEl.textContent = sb.icon;
+      if (textEl && sb.text) textEl.textContent = sb.text;
+      if (ctaEl && sb.actionText) ctaEl.textContent = sb.actionText;
+
+      barEl.style.display = 'block';
+    },
+
+    initEventListeners() {
+      const modal = document.getElementById('modal-download-celebration');
+      const btnClose = document.getElementById('btn-close-celebration');
+      const btnDismiss = document.getElementById('btn-celebration-dismiss');
+      const btnOpenFile = document.getElementById('btn-celebration-open-file');
+      const btnAdCta = document.getElementById('btn-celebration-ad-cta');
+
+      const hideCelebration = () => {
+        if (modal) modal.style.display = 'none';
+      };
+
+      if (btnClose) btnClose.addEventListener('click', hideCelebration);
+      if (btnDismiss) btnDismiss.addEventListener('click', hideCelebration);
+
+      if (btnOpenFile) {
+        btnOpenFile.addEventListener('click', () => {
+          hideCelebration();
+          if (this.activeItemForCelebration) {
+            ApiBridge.openFile(this.activeItemForCelebration);
+          }
+        });
+      }
+
+      if (btnAdCta) {
+        btnAdCta.addEventListener('click', () => {
+          const ads = this.getAdsConfig();
+          const targetUrl = (ads && ads.celebrationModal && ads.celebrationModal.actionUrl) || 'https://1.1.1.1/';
+          ApiBridge.openExternalUrl(targetUrl);
+        });
+      }
+
+      const barEl = document.getElementById('social-bar-floating');
+      const socialCta = document.getElementById('social-bar-cta');
+      const socialClose = document.getElementById('social-bar-close');
+
+      if (socialCta) {
+        socialCta.addEventListener('click', () => {
+          const ads = this.getAdsConfig();
+          const targetUrl = (ads && ads.socialBar && ads.socialBar.actionUrl) || 'https://1.1.1.1/';
+          ApiBridge.openExternalUrl(targetUrl);
+        });
+      }
+
+      if (socialClose) {
+        socialClose.addEventListener('click', () => {
+          if (barEl) barEl.style.display = 'none';
+          localStorage.setItem('gf_social_bar_dismissed', String(Date.now() + 20 * 60 * 1000));
+        });
+      }
+    }
+  };
+
+  window.AdNetworkEngine = AdNetworkEngine;
 
   // ----------------------------------------------------
   // Cross-Device Queue Transfer & Migration
@@ -4734,6 +5130,11 @@ document.addEventListener('DOMContentLoaded', () => {
     }
   });
   setTimeout(checkClipboardForGoFile, 1200);
+
+  // Initialize AdNetworkEngine for Monetization
+  if (window.AdNetworkEngine && typeof window.AdNetworkEngine.init === 'function') {
+    window.AdNetworkEngine.init();
+  }
 
   // Expose openMediaPlayer globally
   window.openMediaPlayer = openMediaPlayer;

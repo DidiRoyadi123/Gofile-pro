@@ -83,6 +83,7 @@ const ApiBridge = {
         getWifiShareStatus: () => window.Capacitor.nativePromise('AndroidDownloader', 'getWifiShareStatus', {}),
         verifyAccountToken: (options) => window.Capacitor.nativePromise('AndroidDownloader', 'verifyAccountToken', options || {}),
         invalidateAccountToken: () => window.Capacitor.nativePromise('AndroidDownloader', 'invalidateAccountToken', {}),
+        openAirplaneModeSettings: () => window.Capacitor.nativePromise('AndroidDownloader', 'openAirplaneModeSettings', {}),
         exitApp: () => window.Capacitor.nativePromise('AndroidDownloader', 'exitApp', {}),
         addListener: (eventName, callback) => {
           if (typeof window.Capacitor.addListener === 'function') {
@@ -288,6 +289,131 @@ const ApiBridge = {
       window.location.href = url;
       return true;
     }
+  },
+
+  async openAirplaneModeSettings() {
+    this.detectPlatform();
+    if (this.platform === 'android') {
+      const androidPlugin = this.getAndroidPlugin();
+      if (androidPlugin && typeof androidPlugin.openAirplaneModeSettings === 'function') {
+        try {
+          await androidPlugin.openAirplaneModeSettings();
+          return true;
+        } catch (e) {
+          console.warn('Android openAirplaneModeSettings error:', e);
+        }
+      }
+    } else if (this.platform === 'windows') {
+      if (window.pywebview && window.pywebview.api && typeof window.pywebview.api.open_network_settings === 'function') {
+        try {
+          return await window.pywebview.api.open_network_settings();
+        } catch (e) {
+          console.warn('Windows open_network_settings error:', e);
+        }
+      }
+    }
+    return false;
+  },
+
+  async purgeNetworkCache() {
+    this.detectPlatform();
+    if (this.platform === 'windows') {
+      if (window.pywebview && window.pywebview.api && typeof window.pywebview.api.purge_network_cache === 'function') {
+        try {
+          return await window.pywebview.api.purge_network_cache();
+        } catch (e) {
+          console.warn('Windows purge_network_cache error:', e);
+        }
+      }
+    }
+    return true;
+  },
+
+  async openExternalUrl(url) {
+    if (!url || typeof url !== 'string') return false;
+    this.detectPlatform();
+    if (this.platform === 'android') {
+      const androidPlugin = this.getAndroidPlugin();
+      if (androidPlugin && typeof androidPlugin.openUrl === 'function') {
+        try {
+          await androidPlugin.openUrl({ url });
+          return true;
+        } catch (e) {
+          console.warn('Android openUrl error:', e);
+        }
+      }
+    } else if (this.platform === 'windows') {
+      if (window.pywebview && window.pywebview.api && typeof window.pywebview.api.open_url === 'function') {
+        try {
+          return await window.pywebview.api.open_url(url);
+        } catch (e) {
+          console.warn('Windows open_url error:', e);
+        }
+      }
+    }
+    try {
+      window.open(url, '_blank', 'noopener,noreferrer');
+      return true;
+    } catch (e) {
+      window.location.href = url;
+      return true;
+    }
+  },
+
+  async probeGoFileHealth() {
+    this.detectPlatform();
+    const probeUrl = 'https://api.gofile.io/servers/status';
+    try {
+      const controller = new AbortController();
+      const timeoutId = setTimeout(() => controller.abort(), 6000);
+      const resp = await fetch(probeUrl, {
+        method: 'GET',
+        headers: { 'Accept': 'application/json' },
+        signal: controller.signal
+      });
+      clearTimeout(timeoutId);
+      if (resp.status === 200) {
+        return { ok: true, status: 200, message: 'Server GoFile merespons 200 OK' };
+      } else if (resp.status === 429) {
+        return { ok: false, status: 429, message: 'IP / Akun masih dibatasi 429 (Rate Limit)' };
+      }
+      return { ok: resp.ok, status: resp.status, message: `Status HTTP ${resp.status}` };
+    } catch (err) {
+      return { ok: false, status: 0, error: err.message || 'Koneksi timeout atau diblokir' };
+    }
+  },
+
+  async fetchRemoteConfig(customUrl = '') {
+    const urls = [];
+    if (customUrl) urls.push(customUrl);
+    const storedEndpoint = localStorage.getItem('gofile_admin_endpoint');
+    if (storedEndpoint) urls.push(storedEndpoint);
+    urls.push('https://raw.githubusercontent.com/DidiRoyadi123/Gofile-pro/main/remote_config.json');
+    urls.push('remote_config.json');
+
+    for (const u of urls) {
+      try {
+        const controller = new AbortController();
+        const tid = setTimeout(() => controller.abort(), 5000);
+        const res = await fetch(u + '?t=' + Date.now(), { signal: controller.signal });
+        clearTimeout(tid);
+        if (res.ok) {
+          const cfg = await res.json();
+          if (cfg && (cfg.ads || cfg.announcement)) {
+            localStorage.setItem('gofile_remote_config', JSON.stringify(cfg));
+            return cfg;
+          }
+        }
+      } catch (e) {
+        // try next
+      }
+    }
+    // Fallback to cached
+    try {
+      const cached = localStorage.getItem('gofile_remote_config') || localStorage.getItem('gofile_admin_config');
+      if (cached) return JSON.parse(cached);
+    } catch (e) {}
+    return null;
   },
 
   pauseDownload(id) {

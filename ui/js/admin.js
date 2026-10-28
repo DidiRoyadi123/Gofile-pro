@@ -39,28 +39,41 @@
       message: 'GoFile Pro v2.4.0 telah dirilis dengan pemutar ExoVideoView baru!',
       actionUrl: ''
     },
-    ads: [
-      {
-        id: 'ad_1',
-        title: 'Cloudflare WARP 1.1.1.1',
-        sponsor: 'Bypass Sensor & Blokir ISP',
-        desc: 'Gunakan WARP gratis untuk bebas download GoFile tanpa blokir IndiHome/Telkomsel!',
-        btnText: 'Pasang Gratis ⚡',
-        targetUrl: 'https://1.1.1.1/',
-        placement: 'top_header',
-        active: true
+    ads: {
+      enabled: true,
+      directLink: {
+        enabled: true,
+        provider: 'adsterra',
+        url: 'https://www.profitablecpmrate.com/example_smartlink',
+        frequencyMinutes: 15,
+        triggerOnDownload: true,
+        triggerOnVideoPlay: false,
+        targetPlatforms: 'all'
       },
-      {
-        id: 'ad_2',
-        title: 'Traktir Kopi Developer',
-        sponsor: 'DidiRoyadi123 Official',
-        desc: 'GoFile Pro selalu gratis & tanpa iklan mengganggu. Traktir kopi untuk server!',
-        btnText: 'Traktir Kopi ☕',
-        targetUrl: 'https://trakteer.id/didiroyadi',
-        placement: 'bottom_sheet',
-        active: true
+      celebrationModal: {
+        enabled: true,
+        provider: 'monetag',
+        title: 'Cloudflare WARP 1.1.1.1',
+        sponsor: 'Sponsor GoFile Pro',
+        desc: 'Bypass pembatasan jaringan & nikmati kecepatan download penuh tanpa batas kuota ISP!',
+        bannerImg: 'https://images.unsplash.com/photo-1618005182384-a83a8bd57fbe?w=600&auto=format&fit=crop&q=80',
+        actionText: 'Pasang Gratis ⚡',
+        actionUrl: 'https://1.1.1.1/',
+        frequencyMinutes: 10
+      },
+      socialBar: {
+        enabled: true,
+        icon: '⚡',
+        text: 'Bypass Limit ISP: Aktifkan WARP 1.1.1.1 untuk unduhan maksimal',
+        actionText: 'Coba',
+        actionUrl: 'https://1.1.1.1/',
+        frequencyMinutes: 30
+      },
+      rawBanners: {
+        headerScript: '',
+        footerScript: ''
       }
-    ],
+    },
     tokenPool: [
       { token: 'guest_rotator_alpha', tier: 'standard', status: 'healthy', lastChecked: 'Baru saja' },
       { token: 'prem_vault_fast_01', tier: 'premium', status: 'healthy', lastChecked: '5 menit lalu' }
@@ -191,6 +204,110 @@
     });
   }
 
+  // Adsterra & Monetag Ad Engine Controller
+  const adMasterEnabled = document.getElementById('ad-master-enabled');
+  const adDirectEnabled = document.getElementById('ad-direct-enabled');
+  const adDirectProvider = document.getElementById('ad-direct-provider');
+  const adDirectUrl = document.getElementById('ad-direct-url');
+  const adDirectFreq = document.getElementById('ad-direct-freq');
+  const adDirectPlatform = document.getElementById('ad-direct-platform');
+  const adDirectOnDownload = document.getElementById('ad-direct-on-download');
+  const adDirectOnVideo = document.getElementById('ad-direct-on-video');
+
+  const adCelebEnabled = document.getElementById('ad-celeb-enabled');
+  const adCelebTitle = document.getElementById('ad-celeb-title');
+  const adCelebBtnText = document.getElementById('ad-celeb-btn-text');
+  const adCelebDesc = document.getElementById('ad-celeb-desc');
+  const adCelebBanner = document.getElementById('ad-celeb-banner');
+  const adCelebUrl = document.getElementById('ad-celeb-url');
+
+  const adSocialEnabled = document.getElementById('ad-social-enabled');
+  const adSocialIcon = document.getElementById('ad-social-icon');
+  const adSocialText = document.getElementById('ad-social-text');
+  const adSocialBtn = document.getElementById('ad-social-btn');
+  const adSocialUrl = document.getElementById('ad-social-url');
+
+  const adRawHeader = document.getElementById('ad-raw-header');
+  const adRawFooter = document.getElementById('ad-raw-footer');
+  const btnSaveAds = document.getElementById('btn-save-ads');
+
+  function populateAdsForm() {
+    const ads = remoteConfig.ads || {};
+    if (adMasterEnabled) adMasterEnabled.checked = ads.enabled !== false;
+
+    const dl = ads.directLink || {};
+    if (adDirectEnabled) adDirectEnabled.checked = dl.enabled !== false;
+    if (adDirectProvider && dl.provider) adDirectProvider.value = dl.provider;
+    if (adDirectUrl && dl.url) adDirectUrl.value = dl.url;
+    if (adDirectFreq && dl.frequencyMinutes) adDirectFreq.value = dl.frequencyMinutes;
+    if (adDirectPlatform && dl.targetPlatforms) adDirectPlatform.value = dl.targetPlatforms;
+    if (adDirectOnDownload) adDirectOnDownload.checked = dl.triggerOnDownload !== false;
+    if (adDirectOnVideo) adDirectOnVideo.checked = !!dl.triggerOnVideoPlay;
+
+    const cm = ads.celebrationModal || {};
+    if (adCelebEnabled) adCelebEnabled.checked = cm.enabled !== false;
+    if (adCelebTitle && cm.title) adCelebTitle.value = cm.title;
+    if (adCelebBtnText && cm.actionText) adCelebBtnText.value = cm.actionText;
+    if (adCelebDesc && cm.desc) adCelebDesc.value = cm.desc;
+    if (adCelebBanner && cm.bannerImg) adCelebBanner.value = cm.bannerImg;
+    if (adCelebUrl && cm.actionUrl) adCelebUrl.value = cm.actionUrl;
+
+    const sb = ads.socialBar || {};
+    if (adSocialEnabled) adSocialEnabled.checked = sb.enabled !== false;
+    if (adSocialIcon && sb.icon) adSocialIcon.value = sb.icon;
+    if (adSocialText && sb.text) adSocialText.value = sb.text;
+    if (adSocialBtn && sb.actionText) adSocialBtn.value = sb.actionText;
+    if (adSocialUrl && sb.actionUrl) adSocialUrl.value = sb.actionUrl;
+
+    const rb = ads.rawBanners || {};
+    if (adRawHeader && rb.headerScript) adRawHeader.value = rb.headerScript;
+    if (adRawFooter && rb.footerScript) adRawFooter.value = rb.footerScript;
+  }
+
+  if (btnSaveAds) {
+    btnSaveAds.addEventListener('click', () => {
+      remoteConfig.ads = {
+        enabled: adMasterEnabled ? adMasterEnabled.checked : true,
+        directLink: {
+          enabled: adDirectEnabled ? adDirectEnabled.checked : true,
+          provider: adDirectProvider ? adDirectProvider.value : 'adsterra',
+          url: adDirectUrl ? adDirectUrl.value.trim() : '',
+          frequencyMinutes: adDirectFreq ? parseInt(adDirectFreq.value, 10) || 15 : 15,
+          triggerOnDownload: adDirectOnDownload ? adDirectOnDownload.checked : true,
+          triggerOnVideoPlay: adDirectOnVideo ? adDirectOnVideo.checked : false,
+          targetPlatforms: adDirectPlatform ? adDirectPlatform.value : 'all'
+        },
+        celebrationModal: {
+          enabled: adCelebEnabled ? adCelebEnabled.checked : true,
+          provider: 'monetag',
+          title: adCelebTitle ? adCelebTitle.value.trim() : 'Cloudflare WARP 1.1.1.1',
+          sponsor: 'Sponsor GoFile Pro',
+          desc: adCelebDesc ? adCelebDesc.value.trim() : '',
+          bannerImg: adCelebBanner ? adCelebBanner.value.trim() : '',
+          actionText: adCelebBtnText ? adCelebBtnText.value.trim() : 'Pasang Gratis ⚡',
+          actionUrl: adCelebUrl ? adCelebUrl.value.trim() : 'https://1.1.1.1/',
+          frequencyMinutes: 10
+        },
+        socialBar: {
+          enabled: adSocialEnabled ? adSocialEnabled.checked : true,
+          icon: adSocialIcon ? adSocialIcon.value.trim() : '⚡',
+          text: adSocialText ? adSocialText.value.trim() : '',
+          actionText: adSocialBtn ? adSocialBtn.value.trim() : 'Coba',
+          actionUrl: adSocialUrl ? adSocialUrl.value.trim() : 'https://1.1.1.1/',
+          frequencyMinutes: 30
+        },
+        rawBanners: {
+          headerScript: adRawHeader ? adRawHeader.value.trim() : '',
+          footerScript: adRawFooter ? adRawFooter.value.trim() : ''
+        }
+      };
+      saveConfig();
+      updateConfigOutput();
+      alert('Konfigurasi Iklan & Monetisasi berhasil disimpan dan disiarkan ke seluruh aplikasi klien!');
+      addEventLog('ADS_CONFIG_UPDATE', `Injeksi Iklan diperbarui: Direct Link (${remoteConfig.ads.directLink.provider}) aktif.`);
+    });
+  }
+
   // Token Hub Table
   function renderTokenTable() {
     const tbody = document.getElementById('token-tbody');
@@ -296,6 +413,7 @@
   // Initialize
   renderTelemetry();
   renderTokenTable();
+  populateAdsForm();
   updateConfigOutput();
   addEventLog('SYSTEM_BOOT', 'GoFile Pro Admin v2.4.0 Engine siap.');
 

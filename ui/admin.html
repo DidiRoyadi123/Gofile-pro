@@ -111,6 +111,167 @@
 
     <!-- 2. ADS & ANNOUNCEMENTS SECTION -->
     <div class="admin-section" id="tab-ads">
+      <!-- Master Monetization Switch -->
+      <div class="admin-card" style="border: 1px solid var(--admin-border-gold); background: linear-gradient(135deg, rgba(245, 158, 11, 0.1) 0%, rgba(15, 23, 42, 0.8) 100%);">
+        <div style="display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 0.75rem;">
+          <div>
+            <div style="font-weight: 800; font-size: 1.05rem; color: #fbbf24;">⚡ Pusat Monetisasi & Injeksi Iklan Multi-Format</div>
+            <div style="font-size: 0.78rem; color: var(--admin-text-muted);">Suntikkan iklan Adsterra, Monetag, Google AdSense ke aplikasi pengguna (APK & EXE) tanpa memutus unduhan</div>
+          </div>
+          <div style="display: flex; align-items: center; gap: 0.5rem;">
+            <input type="checkbox" id="ad-master-enabled" checked style="width: 22px; height: 22px; accent-color: var(--admin-gold); cursor: pointer;">
+            <label for="ad-master-enabled" style="font-weight: 700; font-size: 0.85rem; color: #fff; cursor: pointer;">Monetisasi Aktif</label>
+          </div>
+        </div>
+      </div>
+
+      <!-- 1. Adsterra Direct Link (Smartlink) -->
+      <div class="admin-card">
+        <div class="admin-card-header">
+          <span class="admin-card-title">🔗 1. Adsterra / Monetag Direct Link (Smartlink) — eCPM Tertinggi ($5 - $25)</span>
+          <span class="admin-status-pill" style="color: #fbbf24; border-color: rgba(245,158,11,0.4); background: rgba(245,158,11,0.12);">High Revenue</span>
+        </div>
+        <p style="font-size: 0.8rem; color: var(--admin-text-muted); margin-bottom: 0.85rem;">
+          Membuka penawaran sponsor bernilai tinggi di browser pengguna saat user mengklik aksi unduh. Unduhan tetap berjalan lancar di latar belakang.
+        </p>
+        <div class="form-group" style="display: flex; align-items: center; gap: 0.5rem;">
+          <input type="checkbox" id="ad-direct-enabled" checked style="width: 18px; height: 18px; accent-color: var(--admin-gold);">
+          <label for="ad-direct-enabled" style="font-size: 0.85rem; font-weight: 700; color: #fff;">Aktifkan Injeksi Direct Link</label>
+        </div>
+        <div class="form-group">
+          <label class="form-label">Provider Iklan</label>
+          <select class="form-select" id="ad-direct-provider">
+            <option value="adsterra">Adsterra SmartLink</option>
+            <option value="monetag">Monetag Direct Link</option>
+            <option value="propeller">PropellerAds SmartLink</option>
+            <option value="custom">URL Kustom / Affiliate</option>
+          </select>
+        </div>
+        <div class="form-group">
+          <label class="form-label">URL Direct Link Sponsor</label>
+          <input type="url" class="form-input" id="ad-direct-url" placeholder="https://www.profitablecpmrate.com/xxxxxxxx" value="https://www.profitablecpmrate.com/example_smartlink">
+        </div>
+        <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap: 0.75rem;">
+          <div class="form-group">
+            <label class="form-label">Batas Frekuensi (Menit per Pengguna)</label>
+            <input type="number" class="form-input" id="ad-direct-freq" value="15" min="1" max="1440">
+            <span style="font-size: 0.72rem; color: var(--admin-text-dim);">Minimal 15 menit agar user tidak risih.</span>
+          </div>
+          <div class="form-group">
+            <label class="form-label">Target Platform</label>
+            <select class="form-select" id="ad-direct-platform">
+              <option value="all">Semua Perangkat (APK Android & EXE Windows)</option>
+              <option value="android_only">Android APK Saja</option>
+              <option value="windows_only">Windows EXE Saja</option>
+            </select>
+          </div>
+        </div>
+        <div class="form-group" style="display: flex; gap: 1.5rem; flex-wrap: wrap; margin-top: 0.5rem;">
+          <label style="display: flex; align-items: center; gap: 0.4rem; font-size: 0.82rem; color: #fff; cursor: pointer;">
+            <input type="checkbox" id="ad-direct-on-download" checked style="accent-color: var(--admin-gold);">
+            Picu Saat Mulai Unduh (Maksimal Penghasilan)
+          </label>
+          <label style="display: flex; align-items: center; gap: 0.4rem; font-size: 0.82rem; color: #fff; cursor: pointer;">
+            <input type="checkbox" id="ad-direct-on-video" style="accent-color: var(--admin-gold);">
+            Picu Saat Membuka Video Player
+          </label>
+        </div>
+      </div>
+
+      <!-- 2. Download Complete Celebration Interstitial Modal -->
+      <div class="admin-card">
+        <div class="admin-card-header">
+          <span class="admin-card-title">🎉 2. Interstitial Perayaan Selesai Unduh (CTR Sangat Tinggi)</span>
+          <span class="admin-status-pill" style="color: #06b6d4; border-color: rgba(6,182,212,0.4); background: rgba(6,182,212,0.12);">High CTR</span>
+        </div>
+        <p style="font-size: 0.8rem; color: var(--admin-text-muted); margin-bottom: 0.85rem;">
+          Menampilkan kartu sponsor visual dengan tombol CTA saat file berhasil diunduh 100%. Pengguna sedang melihat layar dan sangat aktif berinteraksi.
+        </p>
+        <div class="form-group" style="display: flex; align-items: center; gap: 0.5rem;">
+          <input type="checkbox" id="ad-celeb-enabled" checked style="width: 18px; height: 18px; accent-color: var(--admin-gold);">
+          <label for="ad-celeb-enabled" style="font-size: 0.85rem; font-weight: 700; color: #fff;">Aktifkan Modal Perayaan Unduh</label>
+        </div>
+        <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap: 0.75rem;">
+          <div class="form-group">
+            <label class="form-label">Nama Sponsor / Judul</label>
+            <input type="text" class="form-input" id="ad-celeb-title" value="Cloudflare WARP 1.1.1.1">
+          </div>
+          <div class="form-group">
+            <label class="form-label">Teks Tombol CTA</label>
+            <input type="text" class="form-input" id="ad-celeb-btn-text" value="Pasang Gratis ⚡">
+          </div>
+        </div>
+        <div class="form-group">
+          <label class="form-label">Deskripsi Sponsor</label>
+          <input type="text" class="form-input" id="ad-celeb-desc" value="Bypass pembatasan jaringan & nikmati kecepatan download penuh tanpa batas kuota ISP!">
+        </div>
+        <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap: 0.75rem;">
+          <div class="form-group">
+            <label class="form-label">URL Gambar Banner (16:9 atau Banner)</label>
+            <input type="url" class="form-input" id="ad-celeb-banner" value="https://images.unsplash.com/photo-1618005182384-a83a8bd57fbe?w=600&auto=format&fit=crop&q=80">
+          </div>
+          <div class="form-group">
+            <label class="form-label">URL Target Sponsor</label>
+            <input type="url" class="form-input" id="ad-celeb-url" value="https://1.1.1.1/">
+          </div>
+        </div>
+      </div>
+
+      <!-- 3. Floating Social Bar (Adsterra Style Pill) -->
+      <div class="admin-card">
+        <div class="admin-card-header">
+          <span class="admin-card-title">💬 3. Floating Social Bar (In-Page Push)</span>
+          <span class="admin-status-pill" style="color: #10b981; border-color: rgba(16,185,129,0.4); background: rgba(16,185,129,0.12);">Passive Income</span>
+        </div>
+        <p style="font-size: 0.8rem; color: var(--admin-text-muted); margin-bottom: 0.85rem;">
+          Floating pill elegan melayang di bagian bawah layar menyerupai fitur Social Bar Adsterra.
+        </p>
+        <div class="form-group" style="display: flex; align-items: center; gap: 0.5rem;">
+          <input type="checkbox" id="ad-social-enabled" checked style="width: 18px; height: 18px; accent-color: var(--admin-gold);">
+          <label for="ad-social-enabled" style="font-size: 0.85rem; font-weight: 700; color: #fff;">Aktifkan Floating Social Bar</label>
+        </div>
+        <div style="display: grid; grid-template-columns: 80px 1fr 140px; gap: 0.75rem;">
+          <div class="form-group">
+            <label class="form-label">Emoji/Ikon</label>
+            <input type="text" class="form-input" id="ad-social-icon" value="⚡" style="text-align: center; font-size: 1.1rem;">
+          </div>
+          <div class="form-group">
+            <label class="form-label">Teks Pesan</label>
+            <input type="text" class="form-input" id="ad-social-text" value="Bypass Limit ISP: Aktifkan WARP 1.1.1.1 untuk unduhan maksimal">
+          </div>
+          <div class="form-group">
+            <label class="form-label">Teks Tombol</label>
+            <input type="text" class="form-input" id="ad-social-btn" value="Coba">
+          </div>
+        </div>
+        <div class="form-group">
+          <label class="form-label">URL Target Social Bar</label>
+          <input type="url" class="form-input" id="ad-social-url" value="https://1.1.1.1/">
+        </div>
+      </div>
+
+      <!-- 4. Raw Script / Banner Injection -->
+      <div class="admin-card">
+        <div class="admin-card-header">
+          <span class="admin-card-title">📜 4. Injeksi Kode Script Iklan Mentah (&lt;script&gt;)</span>
+        </div>
+        <p style="font-size: 0.8rem; color: var(--admin-text-muted); margin-bottom: 0.85rem;">
+          Tempel kode tag script banner dari Adsterra (300x250, 728x90) atau Monetag untuk ditampilkan langsung.
+        </p>
+        <div class="form-group">
+          <label class="form-label">Header Script Code</label>
+          <textarea class="form-textarea" id="ad-raw-header" style="height: 70px; font-family: var(--admin-mono); font-size: 0.75rem;" placeholder="<script type='text/javascript' src='//...'>"></textarea>
+        </div>
+        <div class="form-group">
+          <label class="form-label">Footer Script Code</label>
+          <textarea class="form-textarea" id="ad-raw-footer" style="height: 70px; font-family: var(--admin-mono); font-size: 0.75rem;" placeholder="<script type='text/javascript' src='//...'>"></textarea>
+        </div>
+        <button type="button" class="btn-admin btn-admin-gold" id="btn-save-ads" style="width: 100%; justify-content: center; padding: 0.75rem;">
+          <span>💾 Simpan & Siarkan Konfigurasi Iklan</span>
+        </button>
+      </div>
+
+      <!-- Announcement Card -->
       <div class="admin-card">
         <div class="admin-card-header">
           <span class="admin-card-title">📢 Siaran Pengumuman Mendesak (Urgent Broadcast)</span>
@@ -136,18 +297,6 @@
           <textarea class="form-textarea" id="ann-message" placeholder="Tuliskan pesan yang akan muncul di layar pengguna..."></textarea>
         </div>
         <button type="button" class="btn-admin btn-admin-gold" id="btn-save-announcement">Simpan & Siarkan Pengumuman</button>
-      </div>
-
-      <div class="admin-card">
-        <div class="admin-card-header">
-          <span class="admin-card-title">💎 Kartu Sponsor & Iklan Aktif</span>
-        </div>
-        <div class="ad-preview-box">
-          <div class="ad-preview-badge">Pratinjau Banner Klien</div>
-          <div style="font-weight:700;font-size:0.95rem;color:#fff;">Cloudflare WARP 1.1.1.1</div>
-          <div style="font-size:0.8rem;color:var(--admin-text-muted);margin:4px 0 8px 0;">Bypass Sensor & Blokir ISP — Gunakan WARP gratis untuk bebas download GoFile tanpa blokir IndiHome/Telkomsel!</div>
-          <a href="#" class="btn-admin btn-admin-gold" style="font-size:0.75rem;padding:4px 10px;">Pasang Gratis ⚡</a>
-        </div>
       </div>
     </div>
 

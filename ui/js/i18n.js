@@ -237,12 +237,30 @@ const I18n = {
       'transfer.import_placeholder': 'Tempel data antrean dari HP lain di sini...',
       'transfer.import_btn': 'Impor & Mulai Unduh',
 
-      // IP Limit Modal
-      'ip.modal_title': 'Solusi Cepat: IP Dibatasi GoFile',
+      // IP Limit & Self-Healing Auto-Repair
+      'ip.modal_title': 'Perbaikan Otomatis: Batasan IP & Server GoFile',
+      'ip.modal_subtitle': 'Sistem Diagnostik & Pemulihan Mandiri Otomatis',
+      'ip.step_cache': '1. Reset Soket & Flush Cache Jaringan',
+      'ip.step_token': '2. Rotasi Sesi & Pembaruan Token GoFile',
+      'ip.step_mirror': '3. Permintaan Ulang Mirror Direct Link',
+      'ip.step_ping': '4. Uji Probe Akses Server GoFile',
+      'ip.status_running': 'Sedang Memperbaiki Otomatis...',
+      'ip.status_success': 'Koneksi Berhasil Diperbaiki! Sesi Pulih',
+      'ip.status_carrier_block': 'IP Operator Diblokir Cloudflare',
+      'ip.airplane_action': 'Buka Mode Pesawat (1-Tap)',
+      'ip.airplane_desc': 'Aktifkan Mode Pesawat selama 3 detik lalu matikan lagi untuk mendapatkan IP baru dari operator seluler. Aplikasi akan otomatis mendeteksi saat internet terhubung kembali!',
+      'ip.btn_retry_now': 'Jalankan Perbaikan Lagi',
+      'ip.btn_resume_downloads': 'Lanjutkan Unduhan Sekarang',
       'ip.airplane_step': '1. Mode Pesawat (HP): Aktifkan Mode Pesawat selama 3 detik lalu matikan lagi untuk mendapatkan IP baru dari operator.',
       'ip.warp_step': '2. Wi-Fi / IndiHome: Sambungkan ke Cloudflare 1.1.1.1 (WARP) atau VPN gratis untuk bypass IP limit.',
       'ip.token_step': '3. Token Akun: Masukkan token GoFile Anda di tab Pengaturan untuk batas kuota unduhan yang lebih besar.',
-      'ip.close_btn': 'Mengerti & Coba Lagi',
+      'ip.close_btn': 'Tutup Dialog',
+
+      // Monetization & Celebration Ads
+      'ad.celebration_title': 'Unduhan Selesai!',
+      'ad.sponsored': 'Sponsor Pilihan',
+      'ad.open_file': 'Buka Berkas 📁',
+      'ad.claim_offer': 'Klaim / Pasang ⚡',
 
       // ExoVideoView Media Player
       'player.locked': 'Layar Terkunci • Ketuk untuk Membuka',
@@ -484,12 +502,30 @@ const I18n = {
       'transfer.import_placeholder': 'Paste queue data from other phone here...',
       'transfer.import_btn': 'Import & Start Download',
 
-      // IP Limit Modal
-      'ip.modal_title': 'Quick Fix: GoFile IP Rate Limited',
+      // IP Limit & Self-Healing Auto-Repair
+      'ip.modal_title': 'Auto-Healing: GoFile IP & Server Limit',
+      'ip.modal_subtitle': 'Automated Diagnostic & Self-Repair Engine',
+      'ip.step_cache': '1. Flush Socket & Network DNS Cache',
+      'ip.step_token': '2. Session Rotation & Fresh GoFile Token',
+      'ip.step_mirror': '3. Re-query Direct CDN Mirror Links',
+      'ip.step_ping': '4. GoFile Server Access Probe & Ping',
+      'ip.status_running': 'Running Auto-Healing Pipeline...',
+      'ip.status_success': 'Successfully Healed! Connection Restored',
+      'ip.status_carrier_block': 'Carrier IP Blocked by Cloudflare',
+      'ip.airplane_action': 'Open Airplane Mode Settings (1-Tap)',
+      'ip.airplane_desc': 'Turn on Airplane Mode for 3 seconds then turn off to get a fresh cellular IP from your carrier. The app will automatically detect reconnection!',
+      'ip.btn_retry_now': 'Run Self-Repair Again',
+      'ip.btn_resume_downloads': 'Resume Downloads Now',
       'ip.airplane_step': '1. Airplane Mode (Mobile): Turn on Airplane Mode for 3 seconds then turn off to get a fresh IP from mobile carrier.',
       'ip.warp_step': '2. Wi-Fi / ISP: Connect to Cloudflare 1.1.1.1 (WARP) or a free VPN to bypass IP limits and ISP censorship.',
       'ip.token_step': '3. Account Token: Enter your GoFile token in Settings for higher download quotas.',
-      'ip.close_btn': 'Understood & Retry',
+      'ip.close_btn': 'Close Dialog',
+
+      // Monetization & Celebration Ads
+      'ad.celebration_title': 'Download Completed!',
+      'ad.sponsored': 'Featured Sponsor',
+      'ad.open_file': 'Open File 📁',
+      'ad.claim_offer': 'Check Offer ⚡',
 
       // ExoVideoView Media Player
       'player.locked': 'Screen Locked • Tap to Unlock',

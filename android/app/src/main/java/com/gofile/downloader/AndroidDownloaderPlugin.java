@@ -877,6 +877,33 @@ public class AndroidDownloaderPlugin extends Plugin {
     }
 
     @PluginMethod
+    public void openAirplaneModeSettings(PluginCall call) {
+        mainHandler.post(() -> {
+            try {
+                Context ctx = getContext();
+                Intent intent = new Intent(Settings.ACTION_AIRPLANE_MODE_SETTINGS);
+                intent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK);
+                ctx.startActivity(intent);
+                JSObject ret = new JSObject();
+                ret.put("success", true);
+                call.resolve(ret);
+            } catch (Exception e) {
+                try {
+                    Context ctx = getContext();
+                    Intent fallback = new Intent(Settings.ACTION_WIRELESS_SETTINGS);
+                    fallback.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK);
+                    ctx.startActivity(fallback);
+                    JSObject ret = new JSObject();
+                    ret.put("success", true);
+                    call.resolve(ret);
+                } catch (Exception ex) {
+                    call.reject("Gagal membuka pengaturan jaringan: " + ex.getMessage());
+                }
+            }
+        });
+    }
+
+    @PluginMethod
     public void pauseDownload(PluginCall call) {
         String id = call.getString("id");
         if (id != null) {

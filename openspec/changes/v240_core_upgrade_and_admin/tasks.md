@@ -48,3 +48,16 @@
   - [x] 9.2 Build dedicated Admin Dashboard (`ui/admin.html` and `ui/js/admin.js`) with analytics, ad injection controller, and token pool hub.
   - [x] 9.3 Configure Android manifest & app identity for Admin Edition (`GoFile Pro Admin`).
   - [x] 9.4 Compile Admin APK with `gradlew.bat assembleDebug` and verify integrity.
+
+- [x] 10. Automated Self-Healing IP Restriction Engine
+  - [x] 10.1 In `AndroidDownloaderPlugin.java`, implement `openAirplaneModeSettings` & `openWirelessSettings`.
+  - [x] 10.2 In `desktop_app.py`, implement `open_network_settings` & socket purge.
+  - [x] 10.3 In `ui/index.html` & `ui/css/style.css`, rebuild `#ip-modal` with interactive Auto-Heal pipeline & 1-tap network reset.
+  - [x] 10.4 In `ui/js/app.js`, implement `runAutoHealPipeline()` with automated token rotation, DNS flush, link re-fetching, and auto-resume.
+
+- [x] 11. Multi-Format Adsterra / Monetag High-Yield Ad Engine (APK & EXE)
+  - [x] 11.1 In `ui/admin.html` & `ui/js/admin.js`, build Adsterra / Monetag Direct Link injector, Social Bar controller, Interstitial celebration manager, and raw script tag runner.
+  - [x] 11.2 In `ui/js/app.js` & `ui/index.html`, implement `AdNetworkEngine` with frequency capping, download start trigger, download completion celebration, and floating social bar.
+  - [x] 11.3 In `desktop_app.py` & `api.js`, enable external browser ad redirection for Windows EXE.
+  - [x] 11.4 QA test, compile both APK editions, and sync commits across `admin` and `main` branches.
+
