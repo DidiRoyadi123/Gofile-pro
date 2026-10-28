@@ -8,6 +8,7 @@ import android.content.ContentUris;
 import android.content.ContentValues;
 import android.content.Context;
 import android.content.Intent;
+import android.content.SharedPreferences;
 import android.database.Cursor;
 import android.media.MediaScannerConnection;
 import android.net.Uri;
@@ -1252,11 +1253,28 @@ public class AndroidDownloaderPlugin extends Plugin {
     private boolean isBatteryOptimizationIgnored() {
         Context ctx = getContext();
         if (ctx == null) return true;
+        SharedPreferences prefs = ctx.getSharedPreferences("gofile_downloader_prefs", Context.MODE_PRIVATE);
+        if (prefs.getBoolean("battery_unrestricted_confirmed", false)) {
+            return true;
+        }
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
             PowerManager pm = (PowerManager) ctx.getSystemService(Context.POWER_SERVICE);
             return pm != null && pm.isIgnoringBatteryOptimizations(ctx.getPackageName());
         }
         return true;
+    }
+
+    @PluginMethod
+    public void confirmBatteryOptimization(PluginCall call) {
+        Context ctx = getContext();
+        if (ctx != null) {
+            SharedPreferences prefs = ctx.getSharedPreferences("gofile_downloader_prefs", Context.MODE_PRIVATE);
+            prefs.edit().putBoolean("battery_unrestricted_confirmed", true).apply();
+        }
+        JSObject ret = new JSObject();
+        ret.put("success", true);
+        ret.put("ignoring", true);
+        call.resolve(ret);
     }
 
     @PluginMethod

@@ -10,6 +10,15 @@ document.addEventListener('DOMContentLoaded', () => {
     window.ApiBridge.setVideoPlaybackState(false);
   }
 
+  // Ensure Admin APK edition strictly directs to admin.html
+  if (window.ApiBridge && typeof window.ApiBridge.getPlatformInfo === 'function') {
+    const plat = window.ApiBridge.getPlatformInfo();
+    if (plat.isAndroid && window.ApiBridge.androidStatus?.packageName?.includes('admin')) {
+      window.location.replace('admin.html');
+      return;
+    }
+  }
+
   // State Management
   const state = {
     activeTab: 'tab-home',
@@ -865,6 +874,72 @@ document.addEventListener('DOMContentLoaded', () => {
     if (!fileOrName) return false;
     const name = typeof fileOrName === 'string' ? fileOrName : (fileOrName.name || fileOrName.filename || '');
     return DOC_EXTS.has(getFileExt(name));
+  }
+
+  // ----------------------------------------------------
+  // Video Watched History & Shuffle Prioritization Tracker
+  // ----------------------------------------------------
+  const WATCHED_STORAGE_KEY = 'gf_video_watched_history';
+  function getWatchedHistory() {
+    try {
+      return JSON.parse(localStorage.getItem(WATCHED_STORAGE_KEY) || '{}');
+    } catch (e) {
+      return {};
+    }
+  }
+
+  function getMediaFileKey(fileOrItem) {
+    if (!fileOrItem) return '';
+    if (typeof fileOrItem === 'string') return fileOrItem.toLowerCase().trim();
+    return (fileOrItem.path || fileOrItem.fileUri || fileOrItem.name || fileOrItem.filename || fileOrItem.id || '').toLowerCase().trim();
+  }
+
+  function isVideoWatched(fileOrItem) {
+    if (!isVideoFile(fileOrItem)) return false;
+    const key = getMediaFileKey(fileOrItem);
+    if (!key) return false;
+    const history = getWatchedHistory();
+    return !!(history[key] && history[key].watched);
+  }
+
+  function recordWatchProgress(fileOrItem, currentTime, duration) {
+    if (!fileOrItem || !duration || isNaN(duration) || duration <= 0) return;
+    const key = getMediaFileKey(fileOrItem);
+    if (!key) return;
+    const history = getWatchedHistory();
+    const pct = Math.round((currentTime / duration) * 100);
+    const prev = history[key] || {};
+    // Mark as watched if played for at least 10 seconds or >= 40% duration, or already watched
+    const isWatched = prev.watched || currentTime >= 10 || pct >= 40;
+    history[key] = {
+      name: fileOrItem.name || fileOrItem.filename || key,
+      lastPlayed: Date.now(),
+      currentTime: Math.round(currentTime),
+      duration: Math.round(duration),
+      pct: Math.max(pct, prev.pct || 0),
+      watched: isWatched
+    };
+    try {
+      localStorage.setItem(WATCHED_STORAGE_KEY, JSON.stringify(history));
+    } catch (e) {}
+
+    updateWatchedBannerUI(fileOrItem);
+  }
+
+  function updateWatchedBannerUI(fileOrItem) {
+    const dot = document.getElementById('sheet-watched-dot');
+    const txt = document.getElementById('sheet-watched-text');
+    if (!dot || !txt) return;
+    const key = getMediaFileKey(fileOrItem);
+    const history = getWatchedHistory();
+    const entry = history[key];
+    if (entry && entry.watched) {
+      dot.className = 'watched-dot watched';
+      txt.textContent = `Sudah Pernah Ditonton (Terakhir: ${entry.pct || 100}% durasi)`;
+    } else {
+      dot.className = 'watched-dot unplayed';
+      txt.textContent = 'Video Baru (Belum pernah ditonton)';
+    }
   }
 
   function resolveSmartSubfolder(file, currentRelDir, isEnabled = state.autoCategorize) {
@@ -1838,7 +1913,10 @@ document.addEventListener('DOMContentLoaded', () => {
           <div class="file-type-badge" style="color:var(--emerald-400);">${getFileIcon(item.name)}</div>
           <div class="file-names">
             <div class="file-title" title="${escapeHtml(item.name)}">${escapeHtml(item.name)}</div>
-            <div class="file-subpath">${item.relDir ? `/${escapeHtml(item.relDir)}` : 'Root'} • ${formatBytes(item.size)}</div>
+            <div class="file-subpath">
+              ${item.relDir ? `/${escapeHtml(item.relDir)}` : 'Root'} • ${formatBytes(item.size)}
+              ${isVideoFile(item) ? (isVideoWatched(item) ? '<span class="video-watched-badge watched">✓ Ditonton</span>' : '<span class="video-watched-badge unplayed">Baru</span>') : ''}
+            </div>
           </div>
         </div>
         <div class="queue-actions">
@@ -2371,8 +2449,9 @@ document.addEventListener('DOMContentLoaded', () => {
       const storageStatus = await ApiBridge.checkStoragePermissions();
       permStorageGranted = !!(storageStatus && storageStatus.granted);
 
+      const isConfirmedManual = localStorage.getItem('gf_battery_confirmed') === 'true';
       const batteryStatus = await ApiBridge.isIgnoringBatteryOptimizations();
-      permBatteryIgnored = !!(batteryStatus && batteryStatus.ignoring);
+      permBatteryIgnored = isConfirmedManual || !!(batteryStatus && batteryStatus.ignoring);
 
       if (badgePermStorage) {
         if (permStorageGranted) {
@@ -2386,15 +2465,18 @@ document.addEventListener('DOMContentLoaded', () => {
         }
       }
 
+      const btnConfirmManual = document.getElementById('btn-perm-confirm-battery-manual');
       if (badgePermBattery) {
         if (permBatteryIgnored) {
           badgePermBattery.className = 'perm-badge granted';
           badgePermBattery.textContent = window.I18n ? I18n.t('perm.status_granted') : 'Sudah Aktif ✅';
           if (btnPermGrantBattery) btnPermGrantBattery.style.display = 'none';
+          if (btnConfirmManual) btnConfirmManual.style.display = 'none';
         } else {
           badgePermBattery.className = 'perm-badge pending';
           badgePermBattery.textContent = window.I18n ? I18n.t('perm.status_pending') : 'Belum Aktif ⚠️';
           if (btnPermGrantBattery) btnPermGrantBattery.style.display = 'inline-block';
+          if (btnConfirmManual) btnConfirmManual.style.display = 'inline-block';
         }
       }
 
@@ -2417,6 +2499,28 @@ document.addEventListener('DOMContentLoaded', () => {
     }
   }
   window.checkPermissionsOnboarding = checkPermissionsOnboarding;
+
+  const btnPermConfirmBatteryManual = document.getElementById('btn-perm-confirm-battery-manual');
+  if (btnPermConfirmBatteryManual) {
+    if (localStorage.getItem('gf_battery_confirmed') === 'true') {
+      btnPermConfirmBatteryManual.style.display = 'none';
+    }
+    btnPermConfirmBatteryManual.addEventListener('click', async () => {
+      localStorage.setItem('gf_battery_confirmed', 'true');
+      if (ApiBridge.confirmBatteryOptimization) {
+        await ApiBridge.confirmBatteryOptimization();
+      }
+      permBatteryIgnored = true;
+      if (badgePermBattery) {
+        badgePermBattery.className = 'perm-badge granted';
+        badgePermBattery.textContent = 'Sudah Aktif (Manual) ✅';
+        if (btnPermGrantBattery) btnPermGrantBattery.style.display = 'none';
+      }
+      btnPermConfirmBatteryManual.style.display = 'none';
+      showToast('Status Antikill Baterai berhasil dikonfirmasi aktif!', 'success', 2500);
+      setTimeout(checkPermissionsOnboarding, 500);
+    });
+  }
 
   if (btnPermGrantStorage) {
     btnPermGrantStorage.addEventListener('click', async () => {
@@ -2453,7 +2557,11 @@ document.addEventListener('DOMContentLoaded', () => {
     btnPermFinish.addEventListener('click', async () => {
       await checkPermissionsOnboarding(true);
       if (modalPermGuard) modalPermGuard.style.display = 'none';
-      showToast(permStorageGranted && permBatteryIgnored ? 'Izin lengkap! GoFile Pro siap mengunduh tanpa henti.' : 'Mode terbatas aktif.', 'info', 2500);
+      if (permStorageGranted) {
+        showToast('Izin aktif! GoFile Pro siap mengunduh tanpa henti.', 'success', 2800);
+      } else {
+        showToast('Mode terbatas aktif: Harap berikan izin akses penyimpanan file.', 'warning', 3000);
+      }
     });
   }
 
@@ -3343,6 +3451,7 @@ document.addEventListener('DOMContentLoaded', () => {
             <span>•</span>
             <span>${escapeHtml(subpath)}</span>
             ${dateStr ? `<span>•</span><span>${escapeHtml(dateStr)}</span>` : ''}
+            ${isVideo ? (isVideoWatched(file) ? '<span class="video-watched-badge watched">✓ Ditonton</span>' : '<span class="video-watched-badge unplayed">Baru</span>') : ''}
           </div>
         </div>
       </div>
@@ -3593,15 +3702,54 @@ document.addEventListener('DOMContentLoaded', () => {
       return true;
     }
 
+    // 1. If Video Settings / Hamburger Sheet is open, dismiss it
+    const videoSettingsSheet = document.getElementById('video-settings-sheet');
+    if (videoSettingsSheet && videoSettingsSheet.classList.contains('active')) {
+      videoSettingsSheet.classList.remove('active');
+      return true;
+    }
+
+    // 2. If Media Player Modal is open, CLOSE PLAYER & RETURN TO APP (DO NOT EXIT APP!)
+    const playerModal = document.getElementById('media-player-modal');
+    if (playerModal && (playerModal.classList.contains('active') || playerModal.style.display === 'flex' || playerModal.style.display === 'block')) {
+      if (typeof closeMediaPlayer === 'function') {
+        closeMediaPlayer();
+      } else {
+        playerModal.classList.remove('active');
+        playerModal.style.display = 'none';
+      }
+      return true;
+    }
+
+    // 3. If Wi-Fi Sharing Modal is open
+    const modalWifi = document.getElementById('wifi-share-modal');
+    if (modalWifi && (modalWifi.classList.contains('active') || modalWifi.style.display === 'flex')) {
+      modalWifi.classList.remove('active');
+      modalWifi.style.display = 'none';
+      return true;
+    }
+
+    // 4. If IP Auto-Heal Modal is open
+    const modalIp = document.getElementById('modal-ip-helper');
+    if (modalIp && (modalIp.style.display === 'flex' || modalIp.style.display === 'block')) {
+      modalIp.style.display = 'none';
+      return true;
+    }
+
+    // 5. If Update Modal is open
     if (updateModal && (updateModal.classList.contains('active') || updateModal.classList.contains('open'))) {
       updateModal.classList.remove('active');
       updateModal.classList.remove('open');
       return true;
     }
+
+    // 6. If Inspection Modal is open
     if (inspectionModal && (inspectionModal.classList.contains('active') || inspectionModal.classList.contains('open'))) {
       closeModal();
       return true;
     }
+
+    // 7. If not on Home tab, return to Home tab
     if (state.activeTab !== 'tab-home') {
       const homeTab = document.getElementById('nav-home-tab');
       if (homeTab) {
@@ -3878,7 +4026,8 @@ document.addEventListener('DOMContentLoaded', () => {
     isSeekingVideo: false,
     playlist: [],
     playlistIndex: -1,
-    autoNext: localStorage.getItem('gofile_video_autonext') !== 'false'
+    autoNext: localStorage.getItem('gofile_video_autonext') !== 'false',
+    shuffle: localStorage.getItem('gofile_video_shuffle') === 'true'
   };
 
   // Media Player DOM Elements
@@ -3906,7 +4055,7 @@ document.addEventListener('DOMContentLoaded', () => {
   const videoLockedPill = document.getElementById('video-locked-pill');
   const videoBufferedBar = document.getElementById('video-buffered-bar');
 
-  // Video View Elements
+  // Video View Elements & Modern Controls
   const mediaVideoContainer = document.getElementById('media-video-container');
   const mediaVideoEl = document.getElementById('media-video-element');
   const videoControlsOverlay = document.getElementById('video-controls-overlay');
@@ -3916,10 +4065,10 @@ document.addEventListener('DOMContentLoaded', () => {
   const iconVideoPause = document.getElementById('icon-video-pause');
   const btnVideoPrev = document.getElementById('btn-video-prev');
   const btnVideoNext = document.getElementById('btn-video-next');
-  const btnVideoAutoNext = document.getElementById('btn-video-autonext');
   const videoTimeDisplay = document.getElementById('video-time-display');
-  const btnVideoSpeed = document.getElementById('btn-video-speed');
-  const btnVideoPipQuick = document.getElementById('btn-video-pip-quick');
+  const btnVideoQuickRandom = document.getElementById('btn-video-quick-random');
+  const btnVideoHamburger = document.getElementById('btn-video-hamburger');
+  const btnVideoFullscreenQuick = document.getElementById('btn-video-fullscreen-quick');
   const videoWrapper = document.getElementById('video-wrapper');
   const videoBrightnessOverlay = document.getElementById('video-brightness-overlay');
   const videoHudBrightness = document.getElementById('video-hud-brightness');
@@ -3929,6 +4078,22 @@ document.addEventListener('DOMContentLoaded', () => {
   const hudVolumeFill = document.getElementById('hud-volume-fill');
   const hudVolumeText = document.getElementById('hud-volume-text');
   const hudVolumeIcon = document.getElementById('hud-volume-icon');
+
+  // Video Settings Bottom Sheet Elements
+  const videoSettingsSheet = document.getElementById('video-settings-sheet');
+  const btnCloseVideoSheet = document.getElementById('btn-close-video-sheet');
+  const videoSheetBackdrop = document.getElementById('video-sheet-backdrop');
+  const sheetSpeedChips = document.querySelectorAll('#sheet-speed-chips .sheet-chip');
+  const sheetAspectChips = document.querySelectorAll('#sheet-aspect-chips .sheet-chip');
+  const sheetToggleRandom = document.getElementById('sheet-toggle-random');
+  const sheetSwitchRandom = document.getElementById('sheet-switch-random');
+  const sheetToggleAutoNext = document.getElementById('sheet-toggle-autonext');
+  const sheetSwitchAutoNext = document.getElementById('sheet-switch-autonext');
+  const sheetToggleLoop = document.getElementById('sheet-toggle-loop');
+  const sheetSwitchLoop = document.getElementById('sheet-switch-loop');
+  const btnSheetPip = document.getElementById('btn-sheet-pip');
+  const btnSheetLock = document.getElementById('btn-sheet-lock');
+  const sheetLockLabel = document.getElementById('sheet-lock-label');
 
   // ExoVideoView: Aspect Ratio Modes & Screen Lock State
   const aspectModes = [
@@ -4193,9 +4358,8 @@ document.addEventListener('DOMContentLoaded', () => {
       btnVideoNext.disabled = !hasMultiple;
       btnVideoNext.style.opacity = hasMultiple ? '1' : '0.4';
     }
-    if (btnVideoAutoNext) {
-      btnVideoAutoNext.classList.toggle('active', !!mediaState.autoNext);
-      btnVideoAutoNext.setAttribute('title', mediaState.autoNext ? 'Putar Otomatis: AKTIF (Klik untuk menonaktifkan)' : 'Putar Otomatis: NONAKTIF (Klik untuk mengaktifkan)');
+    if (btnVideoQuickRandom) {
+      btnVideoQuickRandom.classList.toggle('active', !!mediaState.shuffle);
     }
   }
 
@@ -4203,7 +4367,24 @@ document.addEventListener('DOMContentLoaded', () => {
     mediaState.autoNext = !mediaState.autoNext;
     localStorage.setItem('gofile_video_autonext', mediaState.autoNext ? 'true' : 'false');
     updatePlaylistNavUI();
+    if (sheetSwitchAutoNext) sheetSwitchAutoNext.classList.toggle('active', !!mediaState.autoNext);
     showToast(mediaState.autoNext ? 'Putar otomatis (Autoplay): AKTIF' : 'Putar otomatis (Autoplay): NONAKTIF', 'info', 1800);
+  }
+
+  function toggleVideoShuffle(forceState = null) {
+    if (forceState !== null) {
+      mediaState.shuffle = forceState;
+    } else {
+      mediaState.shuffle = !mediaState.shuffle;
+    }
+    localStorage.setItem('gofile_video_shuffle', mediaState.shuffle ? 'true' : 'false');
+    if (btnVideoQuickRandom) {
+      btnVideoQuickRandom.classList.toggle('active', mediaState.shuffle);
+    }
+    if (sheetSwitchRandom) {
+      sheetSwitchRandom.classList.toggle('active', mediaState.shuffle);
+    }
+    showToast(mediaState.shuffle ? '🔀 Putar Acak: AKTIF (Memprioritaskan video yang belum pernah ditonton)' : '🔀 Putar Acak: NONAKTIF (Pemutaran Berurutan)', 'info', 2200);
   }
 
   async function playNextVideo(isAuto = false) {
@@ -4211,18 +4392,40 @@ document.addEventListener('DOMContentLoaded', () => {
       if (!isAuto) showToast('Tidak ada video berikutnya dalam daftar', 'info', 1800);
       return false;
     }
-    let nextIdx = mediaState.playlistIndex + 1;
-    if (nextIdx >= mediaState.playlist.length) {
-      if (isAuto) {
-        showToast('Semua video dalam daftar telah selesai diputar', 'info', 2500);
-        return false;
+
+    let nextIdx = -1;
+    if (mediaState.shuffle) {
+      // SHUFFLE MODE: Prioritize unwatched videos!
+      const candidates = mediaState.playlist.map((f, i) => ({ file: f, index: i }));
+      const unwatched = candidates.filter(c => c.index !== mediaState.playlistIndex && !isVideoWatched(c.file));
+      if (unwatched.length > 0) {
+        const pick = unwatched[Math.floor(Math.random() * unwatched.length)];
+        nextIdx = pick.index;
+        showToast(`🔀 Memprioritaskan video baru: ${pick.file.name || pick.file.filename || 'Video'}`, 'info', 2200);
+      } else {
+        const others = candidates.filter(c => c.index !== mediaState.playlistIndex);
+        const pick = others.length > 0 ? others[Math.floor(Math.random() * others.length)] : candidates[0];
+        nextIdx = pick.index;
+        showToast(`🔀 Putar acak: ${pick.file.name || pick.file.filename || 'Video'}`, 'info', 1800);
       }
-      nextIdx = 0; // Wrap around on manual click
+    } else {
+      nextIdx = mediaState.playlistIndex + 1;
+      if (nextIdx >= mediaState.playlist.length) {
+        if (isAuto) {
+          showToast('Semua video dalam daftar telah selesai diputar', 'info', 2500);
+          return false;
+        }
+        nextIdx = 0; // Wrap around on manual click
+      }
+      const nextFile = mediaState.playlist[nextIdx];
+      if (nextFile) {
+        showToast(`Memutar: ${nextFile.name || nextFile.filename || 'Video berikutnya'}`, 'info', 1800);
+      }
     }
+
     const nextFile = mediaState.playlist[nextIdx];
     if (!nextFile) return false;
     mediaState.playlistIndex = nextIdx;
-    showToast(`Memutar: ${nextFile.name || nextFile.filename || 'Video berikutnya'}`, 'info', 1800);
     return await openMediaPlayer(nextFile, 'video');
   }
 
@@ -4308,6 +4511,10 @@ document.addEventListener('DOMContentLoaded', () => {
 
     if (type === 'video') {
       buildVideoPlaylist(fileOrItem);
+      updateWatchedBannerUI(fileOrItem);
+      if (btnVideoQuickRandom) {
+        btnVideoQuickRandom.classList.toggle('active', !!mediaState.shuffle);
+      }
       if (mediaVideoContainer) {
         mediaVideoContainer.style.display = 'flex';
         mediaVideoContainer.classList.remove('is-locked');
@@ -4317,7 +4524,10 @@ document.addEventListener('DOMContentLoaded', () => {
       if (iconLockClosed) iconLockClosed.style.display = 'none';
       if (videoBufferedBar) videoBufferedBar.style.width = '0%';
       aspectIndex = 0;
-      if (mediaVideoEl) mediaVideoEl.className = 'video-aspect-fit';
+      if (mediaVideoEl) {
+        mediaVideoEl.className = 'video-aspect-fit';
+        mediaVideoEl.loop = false;
+      }
       if (videoAspectTag) videoAspectTag.textContent = 'FIT';
 
       setVideoBrightness(currentBrightness, false);
@@ -4325,7 +4535,6 @@ document.addEventListener('DOMContentLoaded', () => {
       if (mediaVideoEl) {
         mediaVideoEl.src = mediaUrl;
         mediaVideoEl.playbackRate = mediaState.playbackSpeeds[mediaState.speedIndex];
-        if (btnVideoSpeed) btnVideoSpeed.textContent = `${mediaState.playbackSpeeds[mediaState.speedIndex]}x`;
         mediaVideoEl.load();
         mediaVideoEl.play().catch(e => console.log('Video autoplay:', e));
       }
@@ -4362,6 +4571,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
   function closeMediaPlayer() {
     clearTimeout(controlsHideTimeout);
+    closeVideoSettingsSheet();
     isVideoScreenLocked = false;
     if (mediaVideoContainer) {
       mediaVideoContainer.classList.remove('controls-hidden');
@@ -4553,6 +4763,17 @@ document.addEventListener('DOMContentLoaded', () => {
       ApiBridge.setVideoPlaybackState(false);
       resetControlsTimeout();
 
+      // Record 100% completed watch
+      if (mediaState.currentFile && mediaVideoEl.duration) {
+        recordWatchProgress(mediaState.currentFile, mediaVideoEl.duration, mediaVideoEl.duration);
+      }
+
+      if (mediaVideoEl.loop) {
+        mediaVideoEl.currentTime = 0;
+        mediaVideoEl.play().catch(e => console.warn(e));
+        return;
+      }
+
       if (mediaState.autoNext && mediaState.playlist && mediaState.playlist.length > 1) {
         const played = await playNextVideo(true);
         if (played) return;
@@ -4565,6 +4786,10 @@ document.addEventListener('DOMContentLoaded', () => {
         if (videoSeekBar) videoSeekBar.value = pct;
         if (videoTimeDisplay) {
           videoTimeDisplay.textContent = `${formatMediaTime(mediaVideoEl.currentTime)} / ${formatMediaTime(mediaVideoEl.duration)}`;
+        }
+        // Record watch progress throttled
+        if (mediaState.currentFile && mediaVideoEl.currentTime >= 5) {
+          recordWatchProgress(mediaState.currentFile, mediaVideoEl.currentTime, mediaVideoEl.duration);
         }
       }
     });
@@ -4797,22 +5022,127 @@ document.addEventListener('DOMContentLoaded', () => {
     btnVideoNext.addEventListener('click', () => playNextVideo(false));
   }
 
-  if (btnVideoAutoNext) {
-    btnVideoAutoNext.addEventListener('click', () => toggleAutoplayNext());
-  }
-
-  if (btnVideoSpeed && mediaVideoEl) {
-    btnVideoSpeed.addEventListener('click', () => {
-      mediaState.speedIndex = (mediaState.speedIndex + 1) % mediaState.playbackSpeeds.length;
-      const spd = mediaState.playbackSpeeds[mediaState.speedIndex];
-      mediaVideoEl.playbackRate = spd;
-      btnVideoSpeed.textContent = `${spd}x`;
-      showToast(`Kecepatan putar: ${spd}x`, 'info', 1200);
+  if (btnVideoQuickRandom) {
+    btnVideoQuickRandom.classList.toggle('active', !!mediaState.shuffle);
+    btnVideoQuickRandom.addEventListener('click', (e) => {
+      e.stopPropagation();
+      toggleVideoShuffle();
       resetControlsTimeout();
     });
   }
 
-  if (btnVideoPipQuick) btnVideoPipQuick.addEventListener('click', triggerPictureInPicture);
+  function openVideoSettingsSheet() {
+    if (!videoSettingsSheet) return;
+    updateWatchedBannerUI(mediaState.currentFile);
+    if (sheetSwitchRandom) sheetSwitchRandom.classList.toggle('active', !!mediaState.shuffle);
+    if (sheetSwitchAutoNext) sheetSwitchAutoNext.classList.toggle('active', !!mediaState.autoNext);
+    if (sheetSwitchLoop) sheetSwitchLoop.classList.toggle('active', !!mediaVideoEl?.loop);
+    if (sheetLockLabel) sheetLockLabel.textContent = isVideoScreenLocked ? 'Buka Kunci Layar' : 'Kunci Sentuhan Layar';
+
+    const curSpeed = mediaVideoEl ? mediaVideoEl.playbackRate : 1.0;
+    sheetSpeedChips.forEach(chip => {
+      const spd = parseFloat(chip.getAttribute('data-speed'));
+      chip.classList.toggle('active', Math.abs(spd - curSpeed) < 0.05);
+    });
+
+    const curAspect = aspectModes[aspectIndex]?.id || 'fit';
+    sheetAspectChips.forEach(chip => {
+      chip.classList.toggle('active', chip.getAttribute('data-aspect') === curAspect);
+    });
+
+    videoSettingsSheet.classList.add('active');
+  }
+
+  function closeVideoSettingsSheet() {
+    if (videoSettingsSheet) videoSettingsSheet.classList.remove('active');
+  }
+
+  if (btnVideoHamburger) {
+    btnVideoHamburger.addEventListener('click', (e) => {
+      e.stopPropagation();
+      openVideoSettingsSheet();
+    });
+  }
+
+  if (btnCloseVideoSheet) {
+    btnCloseVideoSheet.addEventListener('click', (e) => {
+      e.stopPropagation();
+      closeVideoSettingsSheet();
+    });
+  }
+
+  if (videoSheetBackdrop) {
+    videoSheetBackdrop.addEventListener('click', (e) => {
+      e.stopPropagation();
+      closeVideoSettingsSheet();
+    });
+  }
+
+  sheetSpeedChips.forEach(chip => {
+    chip.addEventListener('click', (e) => {
+      e.stopPropagation();
+      const spd = parseFloat(chip.getAttribute('data-speed'));
+      if (mediaVideoEl && !isNaN(spd)) {
+        mediaVideoEl.playbackRate = spd;
+        sheetSpeedChips.forEach(c => c.classList.remove('active'));
+        chip.classList.add('active');
+        showToast(`Kecepatan putar: ${spd}x`, 'info', 1200);
+      }
+    });
+  });
+
+  sheetAspectChips.forEach(chip => {
+    chip.addEventListener('click', (e) => {
+      e.stopPropagation();
+      const aspId = chip.getAttribute('data-aspect');
+      const idx = aspectModes.findIndex(m => m.id === aspId);
+      if (idx !== -1) {
+        setVideoAspect(idx);
+        sheetAspectChips.forEach(c => c.classList.remove('active'));
+        chip.classList.add('active');
+      }
+    });
+  });
+
+  if (sheetToggleRandom) {
+    sheetToggleRandom.addEventListener('click', (e) => {
+      e.stopPropagation();
+      toggleVideoShuffle();
+    });
+  }
+
+  if (sheetToggleAutoNext) {
+    sheetToggleAutoNext.addEventListener('click', (e) => {
+      e.stopPropagation();
+      toggleAutoplayNext();
+    });
+  }
+
+  if (sheetToggleLoop && mediaVideoEl) {
+    sheetToggleLoop.addEventListener('click', (e) => {
+      e.stopPropagation();
+      mediaVideoEl.loop = !mediaVideoEl.loop;
+      if (sheetSwitchLoop) sheetSwitchLoop.classList.toggle('active', mediaVideoEl.loop);
+      showToast(mediaVideoEl.loop ? '🔁 Putar berulang (Loop): AKTIF' : '🔁 Putar berulang (Loop): NONAKTIF', 'info', 1500);
+    });
+  }
+
+  if (btnSheetPip) {
+    btnSheetPip.addEventListener('click', (e) => {
+      e.stopPropagation();
+      closeVideoSettingsSheet();
+      triggerPictureInPicture();
+    });
+  }
+
+  if (btnSheetLock) {
+    btnSheetLock.addEventListener('click', (e) => {
+      e.stopPropagation();
+      closeVideoSettingsSheet();
+      toggleVideoScreenLock();
+    });
+  }
+
   if (btnVideoFullscreenQuick) btnVideoFullscreenQuick.addEventListener('click', toggleMediaFullscreen);
 
   // Keyboard navigation for video player and media modal

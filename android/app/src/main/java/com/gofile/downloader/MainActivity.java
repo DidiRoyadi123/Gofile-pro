@@ -162,6 +162,13 @@ public class MainActivity extends BridgeActivity {
             });
         }
 
+        // Direct Admin APK to admin.html dashboard automatically
+        if (getPackageName().contains("admin") && getBridge() != null && getBridge().getWebView() != null) {
+            getBridge().getWebView().post(() -> {
+                getBridge().getWebView().loadUrl("https://localhost/admin.html");
+            });
+        }
+
         // Hardware Back Button Controller
         getOnBackPressedDispatcher().addCallback(this, new OnBackPressedCallback(true) {
             @Override
