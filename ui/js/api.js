@@ -401,36 +401,94 @@ const ApiBridge = {
   },
 
   async fetchRemoteConfig(customUrl = '') {
-    const urls = [];
-    if (customUrl) urls.push(customUrl);
+    const endpoints = [];
+    if (customUrl) endpoints.push({ url: customUrl, headers: {} });
     const storedEndpoint = localStorage.getItem('gofile_admin_endpoint');
-    if (storedEndpoint) urls.push(storedEndpoint);
-    urls.push('https://raw.githubusercontent.com/DidiRoyadi123/Gofile-pro/main/remote_config.json');
-    urls.push('remote_config.json');
+    if (storedEndpoint) endpoints.push({ url: storedEndpoint, headers: {} });
 
-    for (const u of urls) {
+    // Primary: GitHub API Raw endpoint (Realtime, bypasses CDN cache)
+    endpoints.push({
+      url: 'https://api.github.com/repos/DidiRoyadi123/Gofile-pro/contents/remote_config.json',
+      headers: {
+        'Accept': 'application/vnd.github.raw+json',
+        'User-Agent': 'GoFilePro-Client'
+      }
+    });
+
+    // Fallback 1: Raw GitHub UserContent with timestamp cache-buster
+    endpoints.push({
+      url: 'https://raw.githubusercontent.com/DidiRoyadi123/Gofile-pro/main/remote_config.json',
+      headers: {}
+    });
+
+    // Fallback 2: Local bundled config
+    endpoints.push({
+      url: 'remote_config.json',
+      headers: {}
+    });
+
+    for (const ep of endpoints) {
       try {
         const controller = new AbortController();
-        const tid = setTimeout(() => controller.abort(), 5000);
-        const res = await fetch(u + '?t=' + Date.now(), { signal: controller.signal });
+        const tid = setTimeout(() => controller.abort(), 6000);
+        const separator = ep.url.includes('?') ? '&' : '?';
+        const fetchUrl = ep.url.startsWith('http') ? (ep.url + separator + 't=' + Date.now()) : ep.url;
+        const res = await fetch(fetchUrl, {
+          headers: ep.headers,
+          signal: controller.signal
+        });
         clearTimeout(tid);
         if (res.ok) {
           const cfg = await res.json();
-          if (cfg && (cfg.ads || cfg.announcement)) {
+          if (cfg && (cfg.ads || cfg.announcement || cfg.version)) {
             localStorage.setItem('gofile_remote_config', JSON.stringify(cfg));
             return cfg;
           }
         }
       } catch (e) {
-        // try next
+        // try next endpoint
       }
     }
+
     // Fallback to cached
     try {
       const cached = localStorage.getItem('gofile_remote_config') || localStorage.getItem('gofile_admin_config');
       if (cached) return JSON.parse(cached);
     } catch (e) {}
     return null;
+  },
+
+  openExternalUrl(url) {
+    if (!url || typeof url !== 'string') return;
+    const cleanUrl = url.trim();
+    if (!cleanUrl.startsWith('http://') && !cleanUrl.startsWith('https://')) return;
+
+    // 1. Python pywebview Windows Desktop App
+    try {
+      if (window.pywebview && window.pywebview.api && typeof window.pywebview.api.open_external_url === 'function') {
+        window.pywebview.api.open_external_url(cleanUrl);
+        return;
+      }
+      if (window.pywebview && window.pywebview.api && typeof window.pywebview.api.open_url === 'function') {
+        window.pywebview.api.open_url(cleanUrl);
+        return;
+      }
+    } catch (e) {}
+
+    // 2. Android Capacitor App
+    try {
+      if (window.Capacitor && window.Capacitor.Plugins && window.Capacitor.Plugins.Browser) {
+        window.Capacitor.Plugins.Browser.open({ url: cleanUrl });
+        return;
+      }
+    } catch (e) {}
+
+    // 3. Fallback: Browser window.open
+    try {
+      window.open(cleanUrl, '_blank', 'noopener,noreferrer');
+    } catch (e) {
+      location.href = cleanUrl;
+    }
   },
 
   pauseDownload(id) {

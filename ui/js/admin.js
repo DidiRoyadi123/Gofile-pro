@@ -344,49 +344,300 @@
     if (adRawFooter && rb.footerScript) adRawFooter.value = rb.footerScript;
   }
 
+  function collectAdsFromForm() {
+    return {
+      enabled: adMasterEnabled ? adMasterEnabled.checked : true,
+      directLink: {
+        enabled: adDirectEnabled ? adDirectEnabled.checked : true,
+        provider: adDirectProvider ? adDirectProvider.value : 'adsterra',
+        url: adDirectUrl ? adDirectUrl.value.trim() : '',
+        frequencyMinutes: adDirectFreq ? parseInt(adDirectFreq.value, 10) || 15 : 15,
+        triggerOnDownload: adDirectOnDownload ? adDirectOnDownload.checked : true,
+        triggerOnVideoPlay: adDirectOnVideo ? adDirectOnVideo.checked : false,
+        targetPlatforms: adDirectPlatform ? adDirectPlatform.value : 'all'
+      },
+      celebrationModal: {
+        enabled: adCelebEnabled ? adCelebEnabled.checked : true,
+        provider: 'monetag',
+        title: adCelebTitle ? adCelebTitle.value.trim() : 'Cloudflare WARP 1.1.1.1',
+        sponsor: 'Sponsor GoFile Pro',
+        desc: adCelebDesc ? adCelebDesc.value.trim() : '',
+        bannerImg: adCelebBanner ? adCelebBanner.value.trim() : '',
+        actionText: adCelebBtnText ? adCelebBtnText.value.trim() : 'Pasang Gratis ⚡',
+        actionUrl: adCelebUrl ? adCelebUrl.value.trim() : 'https://1.1.1.1/',
+        frequencyMinutes: 10
+      },
+      socialBar: {
+        enabled: adSocialEnabled ? adSocialEnabled.checked : true,
+        icon: adSocialIcon ? adSocialIcon.value.trim() : '⚡',
+        text: adSocialText ? adSocialText.value.trim() : '',
+        actionText: adSocialBtn ? adSocialBtn.value.trim() : 'Coba',
+        actionUrl: adSocialUrl ? adSocialUrl.value.trim() : 'https://1.1.1.1/',
+        frequencyMinutes: 30
+      },
+      rawBanners: {
+        headerScript: adRawHeader ? adRawHeader.value.trim() : '',
+        footerScript: adRawFooter ? adRawFooter.value.trim() : ''
+      }
+    };
+  }
+
+  function collectAnnouncementFromForm() {
+    return {
+      enabled: annEnabled ? annEnabled.checked : false,
+      level: annLevel ? annLevel.value : 'info',
+      title: annTitle ? annTitle.value.trim() : '',
+      message: annMessage ? annMessage.value.trim() : ''
+    };
+  }
+
   if (btnSaveAds) {
     btnSaveAds.addEventListener('click', () => {
-      remoteConfig.ads = {
-        enabled: adMasterEnabled ? adMasterEnabled.checked : true,
-        directLink: {
-          enabled: adDirectEnabled ? adDirectEnabled.checked : true,
-          provider: adDirectProvider ? adDirectProvider.value : 'adsterra',
-          url: adDirectUrl ? adDirectUrl.value.trim() : '',
-          frequencyMinutes: adDirectFreq ? parseInt(adDirectFreq.value, 10) || 15 : 15,
-          triggerOnDownload: adDirectOnDownload ? adDirectOnDownload.checked : true,
-          triggerOnVideoPlay: adDirectOnVideo ? adDirectOnVideo.checked : false,
-          targetPlatforms: adDirectPlatform ? adDirectPlatform.value : 'all'
-        },
-        celebrationModal: {
-          enabled: adCelebEnabled ? adCelebEnabled.checked : true,
-          provider: 'monetag',
-          title: adCelebTitle ? adCelebTitle.value.trim() : 'Cloudflare WARP 1.1.1.1',
-          sponsor: 'Sponsor GoFile Pro',
-          desc: adCelebDesc ? adCelebDesc.value.trim() : '',
-          bannerImg: adCelebBanner ? adCelebBanner.value.trim() : '',
-          actionText: adCelebBtnText ? adCelebBtnText.value.trim() : 'Pasang Gratis ⚡',
-          actionUrl: adCelebUrl ? adCelebUrl.value.trim() : 'https://1.1.1.1/',
-          frequencyMinutes: 10
-        },
-        socialBar: {
-          enabled: adSocialEnabled ? adSocialEnabled.checked : true,
-          icon: adSocialIcon ? adSocialIcon.value.trim() : '⚡',
-          text: adSocialText ? adSocialText.value.trim() : '',
-          actionText: adSocialBtn ? adSocialBtn.value.trim() : 'Coba',
-          actionUrl: adSocialUrl ? adSocialUrl.value.trim() : 'https://1.1.1.1/',
-          frequencyMinutes: 30
-        },
-        rawBanners: {
-          headerScript: adRawHeader ? adRawHeader.value.trim() : '',
-          footerScript: adRawFooter ? adRawFooter.value.trim() : ''
-        }
-      };
+      remoteConfig.ads = collectAdsFromForm();
       saveConfig();
       updateConfigOutput();
-      alert('Konfigurasi Iklan & Monetisasi berhasil disimpan dan disiarkan ke seluruh aplikasi klien!');
-      addEventLog('ADS_CONFIG_UPDATE', `Injeksi Iklan diperbarui: Direct Link (${remoteConfig.ads.directLink.provider}) aktif.`);
+      alert('Konfigurasi Iklan & Monetisasi berhasil disimpan secara lokal!');
+      addEventLog('ADS_CONFIG_LOCAL', `Iklan disimpan secara lokal.`);
     });
   }
+
+  // ----------------------------------------------------
+  // GitHub Cloud Serverless Synchronizer (Zero Hosting)
+  // ----------------------------------------------------
+  const ghRepoInput = document.getElementById('gh-repo');
+  const ghBranchInput = document.getElementById('gh-branch');
+  const ghPathInput = document.getElementById('gh-path');
+  const ghTokenInput = document.getElementById('gh-token');
+  const btnToggleGhToken = document.getElementById('btn-toggle-gh-token');
+  const btnGhTest = document.getElementById('btn-gh-test');
+  const btnGhPull = document.getElementById('btn-gh-pull');
+  const btnGhPublish = document.getElementById('btn-gh-publish');
+  const btnPublishAdsGh = document.getElementById('btn-publish-ads-github');
+  const btnPublishAnnGh = document.getElementById('btn-publish-ann-github');
+  const ghSyncPill = document.getElementById('github-sync-pill');
+  const ghStatusBox = document.getElementById('gh-status-box');
+  const ghStatusMsg = document.getElementById('gh-status-msg');
+  const ghStatusMeta = document.getElementById('gh-status-meta');
+
+  function loadGitHubSettings() {
+    if (ghRepoInput) ghRepoInput.value = localStorage.getItem('gf_admin_gh_repo') || 'DidiRoyadi123/Gofile-pro';
+    if (ghBranchInput) ghBranchInput.value = localStorage.getItem('gf_admin_gh_branch') || 'main';
+    if (ghPathInput) ghPathInput.value = localStorage.getItem('gf_admin_gh_path') || 'remote_config.json';
+    const storedToken = localStorage.getItem('gf_admin_gh_token') || '';
+    if (ghTokenInput) ghTokenInput.value = storedToken;
+
+    if (storedToken && ghSyncPill) {
+      ghSyncPill.textContent = 'Token Tersimpan';
+      ghSyncPill.style.color = '#38bdf8';
+      ghSyncPill.style.borderColor = 'rgba(56,189,248,0.4)';
+    }
+  }
+
+  function saveGitHubSettings() {
+    if (ghRepoInput) localStorage.setItem('gf_admin_gh_repo', ghRepoInput.value.trim());
+    if (ghBranchInput) localStorage.setItem('gf_admin_gh_branch', ghBranchInput.value.trim());
+    if (ghPathInput) localStorage.setItem('gf_admin_gh_path', ghPathInput.value.trim());
+    if (ghTokenInput) localStorage.setItem('gf_admin_gh_token', ghTokenInput.value.trim());
+  }
+
+  if (btnToggleGhToken && ghTokenInput) {
+    btnToggleGhToken.addEventListener('click', () => {
+      ghTokenInput.type = ghTokenInput.type === 'password' ? 'text' : 'password';
+      btnToggleGhToken.textContent = ghTokenInput.type === 'password' ? '👁️ Lihat' : '🔒 Sembunyikan';
+    });
+  }
+
+  function showGitHubStatus(msg, meta = '', isSuccess = true) {
+    if (!ghStatusBox) return;
+    ghStatusBox.style.display = 'block';
+    if (ghStatusMsg) {
+      ghStatusMsg.textContent = msg;
+      ghStatusMsg.style.color = isSuccess ? '#10b981' : '#f87171';
+    }
+    if (ghStatusMeta) ghStatusMeta.textContent = meta;
+  }
+
+  async function testGitHubConnection() {
+    saveGitHubSettings();
+    const repo = (ghRepoInput ? ghRepoInput.value.trim() : '') || 'DidiRoyadi123/Gofile-pro';
+    const branch = (ghBranchInput ? ghBranchInput.value.trim() : '') || 'main';
+    const path = (ghPathInput ? ghPathInput.value.trim() : '') || 'remote_config.json';
+    const token = (ghTokenInput ? ghTokenInput.value.trim() : '') || '';
+
+    showGitHubStatus('Menghubungi GitHub API...', 'Menguji koneksi ke ' + repo, true);
+
+    const headers = {
+      'Accept': 'application/vnd.github+json',
+      'User-Agent': 'GoFilePro-Admin'
+    };
+    if (token) headers['Authorization'] = `Bearer ${token}`;
+
+    try {
+      const resp = await fetch(`https://api.github.com/repos/${repo}/contents/${path}?ref=${branch}&t=${Date.now()}`, { headers });
+      if (resp.ok) {
+        const data = await resp.json();
+        const shortSha = (data.sha || '').substring(0, 8);
+        showGitHubStatus(`Koneksi GitHub Terverifikasi! 🟢`, `Repositori: ${repo} | Branch: ${branch} | File SHA: ${shortSha}`, true);
+        if (ghSyncPill) {
+          ghSyncPill.textContent = 'Terhubung 🟢';
+          ghSyncPill.style.color = '#10b981';
+          ghSyncPill.style.borderColor = 'rgba(16,185,129,0.4)';
+        }
+        addEventLog('GITHUB_TEST_OK', `Koneksi GitHub terverifikasi ke ${repo}`);
+        return true;
+      } else if (resp.status === 401) {
+        showGitHubStatus('Autentikasi Gagal (HTTP 401) ❌', 'Token GitHub tidak valid atau kedaluwarsa. Silakan periksa kembali Token PAT Anda.', false);
+        return false;
+      } else if (resp.status === 404) {
+        showGitHubStatus('Berkas/Repositori Tidak Ditemukan (HTTP 404) ⚠️', `Periksa nama repositori (${repo}) dan path file (${path}).`, false);
+        return false;
+      } else {
+        showGitHubStatus(`Respons GitHub: HTTP ${resp.status}`, resp.statusText, false);
+        return false;
+      }
+    } catch (e) {
+      showGitHubStatus('Gagal Terhubung ke GitHub ❌', e.message || 'Periksa koneksi internet Anda.', false);
+      return false;
+    }
+  }
+
+  async function pullFromGitHub() {
+    saveGitHubSettings();
+    const repo = (ghRepoInput ? ghRepoInput.value.trim() : '') || 'DidiRoyadi123/Gofile-pro';
+    const branch = (ghBranchInput ? ghBranchInput.value.trim() : '') || 'main';
+    const path = (ghPathInput ? ghPathInput.value.trim() : '') || 'remote_config.json';
+    const token = (ghTokenInput ? ghTokenInput.value.trim() : '') || '';
+
+    showGitHubStatus('Mengunduh konfigurasi dari GitHub...', '', true);
+
+    const headers = {
+      'Accept': 'application/vnd.github.raw+json',
+      'User-Agent': 'GoFilePro-Admin'
+    };
+    if (token) headers['Authorization'] = `Bearer ${token}`;
+
+    try {
+      const resp = await fetch(`https://api.github.com/repos/${repo}/contents/${path}?ref=${branch}&t=${Date.now()}`, { headers });
+      if (resp.ok) {
+        const pulledConfig = await resp.json();
+        if (pulledConfig) {
+          remoteConfig = pulledConfig;
+          saveConfig();
+          populateAdsForm();
+          if (annEnabled && remoteConfig.announcement) annEnabled.checked = remoteConfig.announcement.enabled;
+          if (annLevel && remoteConfig.announcement) annLevel.value = remoteConfig.announcement.level;
+          if (annTitle && remoteConfig.announcement) annTitle.value = remoteConfig.announcement.title;
+          if (annMessage && remoteConfig.announcement) annMessage.value = remoteConfig.announcement.message;
+          renderTokenTable();
+          updateConfigOutput();
+          showGitHubStatus('Konfigurasi Berhasil Ditarik dari GitHub! 🟢', `Versi: ${remoteConfig.version || 'v2.4.0'} | Updated: ${remoteConfig.updatedAt || 'N/A'}`, true);
+          addEventLog('GITHUB_PULL_OK', `Konfigurasi berhasil disinkronkan dari GitHub.`);
+          alert('Konfigurasi remote_config.json berhasil ditarik dari GitHub dan diterapkan ke form admin!');
+        }
+      } else {
+        throw new Error(`HTTP ${resp.status}`);
+      }
+    } catch (e) {
+      showGitHubStatus('Gagal Menarik dari GitHub ❌', e.message, false);
+      alert('Gagal menarik konfigurasi dari GitHub: ' + e.message);
+    }
+  }
+
+  async function publishToGitHub() {
+    saveGitHubSettings();
+    const repo = (ghRepoInput ? ghRepoInput.value.trim() : '') || 'DidiRoyadi123/Gofile-pro';
+    const branch = (ghBranchInput ? ghBranchInput.value.trim() : '') || 'main';
+    const path = (ghPathInput ? ghPathInput.value.trim() : '') || 'remote_config.json';
+    const token = (ghTokenInput ? ghTokenInput.value.trim() : '') || '';
+
+    if (!token) {
+      alert('Token GitHub (PAT) diperlukan untuk mempublikasikan ke repositori!\n\nSilakan isi kolom Token GitHub di tab "☁️ GitHub Serverless Endpoint" (lihat panduan 1 menit di bawah form).');
+      // Switch tab to GitHub
+      const tabGhBtn = document.querySelector('[data-target="tab-github"]');
+      if (tabGhBtn) tabGhBtn.click();
+      if (ghTokenInput) ghTokenInput.focus();
+      return;
+    }
+
+    // 1. Collect latest data from forms
+    remoteConfig.ads = collectAdsFromForm();
+    remoteConfig.announcement = collectAnnouncementFromForm();
+    remoteConfig.updatedAt = new Date().toISOString();
+    remoteConfig.version = '2.4.0';
+
+    saveConfig();
+    updateConfigOutput();
+
+    showGitHubStatus('1/3 Menghubungi GitHub API...', 'Mengambil SHA berkas terkini...', true);
+
+    const headers = {
+      'Authorization': `Bearer ${token}`,
+      'Accept': 'application/vnd.github+json',
+      'User-Agent': 'GoFilePro-Admin',
+      'Content-Type': 'application/json'
+    };
+
+    try {
+      // Step A: Get current file SHA
+      const getResp = await fetch(`https://api.github.com/repos/${repo}/contents/${path}?ref=${branch}&t=${Date.now()}`, { headers });
+      let existingSha = null;
+      if (getResp.ok) {
+        const existingData = await getResp.json();
+        existingSha = existingData.sha;
+      }
+
+      showGitHubStatus('2/3 Mengenkode Konfigurasi...', 'Mempersiapkan commit...', true);
+
+      // Step B: Encode JSON to Base64 (supporting UTF-8 characters)
+      const jsonContent = JSON.stringify(remoteConfig, null, 2);
+      const base64Content = btoa(unescape(encodeURIComponent(jsonContent)));
+
+      showGitHubStatus('3/3 Melakukan Commit ke GitHub...', `Mengirim ke branch ${branch}...`, true);
+
+      // Step C: Commit via PUT
+      const putBody = {
+        message: 'chore(ads): update remote_config.json via GoFile Pro Admin APK',
+        content: base64Content,
+        branch: branch
+      };
+      if (existingSha) {
+        putBody.sha = existingSha;
+      }
+
+      const putResp = await fetch(`https://api.github.com/repos/${repo}/contents/${path}`, {
+        method: 'PUT',
+        headers,
+        body: JSON.stringify(putBody)
+      });
+
+      if (putResp.ok) {
+        const putResult = await putResp.json();
+        const commitSha = (putResult.commit?.sha || '').substring(0, 8);
+        showGitHubStatus('BERHASIL DIPUBLIKASIKAN KE GITHUB! 🟢', `Commit: ${commitSha} | Seluruh user APK & EXE otomatis menerima pembaruan ini secara live!`, true);
+        if (ghSyncPill) {
+          ghSyncPill.textContent = 'Tersinkron 🟢';
+          ghSyncPill.style.color = '#10b981';
+          ghSyncPill.style.borderColor = 'rgba(16,185,129,0.4)';
+        }
+        addEventLog('GITHUB_PUBLISH_OK', `Konfigurasi iklan berhasil dipublikasikan ke GitHub (Commit ${commitSha}).`);
+        alert('🎉 BERHASIL DIPUBLIKASIKAN KE SERVER GITHUB!\n\nKonfigurasi iklan dan pengumuman terbaru telah aktif di repositori GitHub.\nSemua aplikasi klien pengguna (Android APK & Windows EXE) akan otomatis membaca data ini secara realtime tanpa perlu sewa server!');
+      } else {
+        const errJson = await putResp.json().catch(() => ({}));
+        throw new Error(errJson.message || `HTTP ${putResp.status}`);
+      }
+    } catch (err) {
+      showGitHubStatus('Gagal Mempublikasikan ke GitHub ❌', err.message, false);
+      alert('Gagal mempublikasikan ke GitHub: ' + err.message);
+    }
+  }
+
+  if (btnGhTest) btnGhTest.addEventListener('click', testGitHubConnection);
+  if (btnGhPull) btnGhPull.addEventListener('click', pullFromGitHub);
+  if (btnGhPublish) btnGhPublish.addEventListener('click', publishToGitHub);
+  if (btnPublishAdsGh) btnPublishAdsGh.addEventListener('click', publishToGitHub);
+  if (btnPublishAnnGh) btnPublishAnnGh.addEventListener('click', publishToGitHub);
+
+  loadGitHubSettings();
 
   // Token Hub Table
   function renderTokenTable() {

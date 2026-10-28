@@ -431,6 +431,10 @@ class DesktopAPI:
         except Exception:
             return False
 
+    def open_external_url(self, url: str) -> bool:
+        """Alias for open_url to ensure compatibility with AdNetworkEngine."""
+        return self.open_url(url)
+
     def install_update(self, exe_path: str) -> bool:
         """Launches the updated Windows executable and closes the current application."""
         try:
