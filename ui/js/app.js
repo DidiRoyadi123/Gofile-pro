@@ -10,14 +10,34 @@ document.addEventListener('DOMContentLoaded', () => {
     window.ApiBridge.setVideoPlaybackState(false);
   }
 
-  // Ensure Admin APK edition strictly directs to admin.html
-  if (window.ApiBridge && typeof window.ApiBridge.getPlatformInfo === 'function') {
-    const plat = window.ApiBridge.getPlatformInfo();
-    if (plat.isAndroid && window.ApiBridge.androidStatus?.packageName?.includes('admin')) {
-      window.location.replace('admin.html');
-      return;
+  // Admin APK Edition: retains ALL downloader features + reveals Admin Hub tab
+  async function checkAdminEdition() {
+    try {
+      let isAdmin = false;
+      if (window.ApiBridge && typeof window.ApiBridge.getAppInfo === 'function') {
+        const info = await window.ApiBridge.getAppInfo();
+        if (info && info.isAdminApp) {
+          isAdmin = true;
+        }
+      }
+      if (!isAdmin && window.ApiBridge?.androidStatus?.packageName?.includes('admin')) {
+        isAdmin = true;
+      }
+      if (!isAdmin && localStorage.getItem('gf_is_admin') === 'true') {
+        isAdmin = true;
+      }
+
+      if (isAdmin) {
+        const navAdminTab = document.getElementById('nav-admin-tab');
+        if (navAdminTab) navAdminTab.style.display = 'flex';
+        const headerAdminBadge = document.getElementById('header-admin-badge');
+        if (headerAdminBadge) headerAdminBadge.style.display = 'inline-flex';
+      }
+    } catch (e) {
+      console.warn('Check admin edition error:', e);
     }
   }
+  checkAdminEdition();
 
   // State Management
   const state = {
@@ -458,6 +478,10 @@ document.addEventListener('DOMContentLoaded', () => {
   navTabs.forEach(btn => {
     btn.addEventListener('click', () => {
       const targetTab = btn.getAttribute('data-tab');
+      if (targetTab === 'tab-admin') {
+        window.location.href = 'admin.html';
+        return;
+      }
       navTabs.forEach(b => b.classList.remove('active'));
       tabContents.forEach(c => c.classList.remove('active'));
 

@@ -86,6 +86,7 @@ const ApiBridge = {
         openAirplaneModeSettings: () => window.Capacitor.nativePromise('AndroidDownloader', 'openAirplaneModeSettings', {}),
         confirmBatteryOptimization: () => window.Capacitor.nativePromise('AndroidDownloader', 'confirmBatteryOptimization', {}),
         exitApp: () => window.Capacitor.nativePromise('AndroidDownloader', 'exitApp', {}),
+        getAppInfo: () => window.Capacitor.nativePromise('AndroidDownloader', 'getAppInfo', {}),
         addListener: (eventName, callback) => {
           if (typeof window.Capacitor.addListener === 'function') {
             return window.Capacitor.addListener('AndroidDownloader', eventName, callback);
@@ -106,6 +107,26 @@ const ApiBridge = {
       isWindows,
       isAndroid,
       isWeb: !isWindows && !isAndroid
+    };
+  },
+
+  async getAppInfo() {
+    this.detectPlatform();
+    if (this.platform === 'android') {
+      try {
+        const plugin = this.getAndroidPlugin();
+        if (plugin && typeof plugin.getAppInfo === 'function') {
+          return await plugin.getAppInfo();
+        }
+      } catch (e) {
+        console.warn('getAppInfo error:', e);
+      }
+    }
+    return {
+      packageName: 'com.gofile.downloader',
+      isAdminApp: false,
+      versionName: '2.4.1',
+      versionCode: 16
     };
   },
 

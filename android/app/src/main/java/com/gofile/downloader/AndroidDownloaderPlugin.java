@@ -2098,6 +2098,18 @@ public class AndroidDownloaderPlugin extends Plugin {
     }
 
     @PluginMethod
+    public void getAppInfo(PluginCall call) {
+        JSObject ret = new JSObject();
+        Context ctx = getContext();
+        String pkg = ctx != null ? ctx.getPackageName() : "com.gofile.downloader";
+        ret.put("packageName", pkg);
+        ret.put("isAdminApp", pkg != null && (pkg.contains(".admin") || "com.gofile.downloader.admin".equals(pkg)));
+        ret.put("versionName", "2.4.1");
+        ret.put("versionCode", 16);
+        call.resolve(ret);
+    }
+
+    @PluginMethod
     public void exitApp(PluginCall call) {
         if (getActivity() != null) {
             mainHandler.post(() -> getActivity().finishAffinity());

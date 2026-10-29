@@ -18,6 +18,44 @@
   <div class="admin-ambient"></div>
   <div class="admin-ambient-2"></div>
 
+  <!-- GitHub Owner Authentication Gate (Exclusive for didiroyadi123) -->
+  <div id="admin-auth-overlay" class="admin-auth-overlay" style="display: flex;">
+    <div class="admin-auth-card">
+      <div class="admin-auth-icon">🛡️</div>
+      <h2 class="admin-auth-title">Autentikasi Pemilik Repositori</h2>
+      <p class="admin-auth-subtitle">
+        Khusus Pemilik Resmi: <strong style="color:#fbbf24;">@didiroyadi123</strong><br>
+        Repositori: <code style="color:#38bdf8;">DidiRoyadi123/Gofile-pro</code>
+      </p>
+
+      <div class="admin-auth-alert info" id="auth-info-box">
+        🔒 <strong>Akses Terbatas:</strong> Untuk mencegah orang asing menyuntikkan iklan atau mengubah konfigurasi, Anda wajib login memverifikasi kredensial GitHub owner.
+      </div>
+
+      <div class="admin-auth-alert error" id="auth-error-box" style="display: none;"></div>
+
+      <div class="form-group" style="text-align: left; margin-bottom: 1rem;">
+        <label class="form-label" style="display:flex; justify-content:space-between; align-items:center;">
+          <span>GitHub Personal Access Token (PAT)</span>
+          <button type="button" id="btn-toggle-auth-token" style="background:none;border:none;color:var(--admin-gold);font-size:0.75rem;cursor:pointer;">👁️ Lihat</button>
+        </label>
+        <input type="password" class="form-input" id="auth-token-input" placeholder="ghp_xxxxxxxxxxxxxxxxxxxxxxxxxxxx" style="font-family: var(--admin-mono);">
+        <span style="font-size:0.72rem;color:var(--admin-text-dim);margin-top:4px;display:block;">
+          Token dengan izin <code>repo</code> milik akun <strong>didiroyadi123</strong>.
+        </span>
+      </div>
+
+      <div style="display: flex; flex-direction: column; gap: 0.6rem;">
+        <button type="button" class="btn-admin btn-admin-gold" id="btn-verify-owner" style="width: 100%; justify-content: center; font-weight: 700; padding: 0.75rem;">
+          <span id="btn-verify-owner-text">🔓 Verifikasi & Buka Admin Suite</span>
+        </button>
+        <a href="index.html" class="btn-admin btn-admin-secondary" style="width: 100%; justify-content: center; text-decoration: none;">
+          📲 Kembali ke Mode Downloader
+        </a>
+      </div>
+    </div>
+  </div>
+
   <div class="admin-container">
     <!-- Header -->
     <header class="admin-header">
@@ -33,11 +71,18 @@
       </div>
 
       <div class="admin-header-actions">
+        <a href="index.html" class="btn-admin btn-admin-secondary" style="text-decoration:none;" title="Gunakan semua fitur downloader seperti user">
+          <span>📲 Mode Downloader</span>
+        </a>
+        <span id="admin-owner-badge" class="admin-owner-badge" style="display:none;">👑 @didiroyadi123 (Verified)</span>
         <button type="button" class="btn-admin btn-admin-secondary" id="btn-refresh-telemetry" title="Segarkan Telemetri Real-Time">
-          <span>🔄 Segarkan Telemetri</span>
+          <span>🔄 Segarkan</span>
         </button>
         <button type="button" class="btn-admin btn-admin-gold" id="btn-export-config">
           <span>🚀 Siarkan Config</span>
+        </button>
+        <button type="button" class="btn-admin btn-admin-secondary" id="btn-admin-logout" style="display:none; color:#f87171;" title="Kunci Dashboard & Keluar">
+          <span>🔒 Keluar</span>
         </button>
       </div>
     </header>
