@@ -97,6 +97,163 @@
     localStorage.setItem('gofile_remote_config', JSON.stringify(remoteConfig));
   }
 
+  // ====================================================
+  // Strict GitHub Owner Authentication Gate (@didiroyadi123)
+  // ====================================================
+  const REQUIRED_OWNER = 'didiroyadi123';
+  const REQUIRED_REPO = 'DidiRoyadi123/Gofile-pro';
+
+  const adminAuthOverlay = document.getElementById('admin-auth-overlay');
+  const authTokenInput = document.getElementById('auth-token-input');
+  const btnToggleAuthToken = document.getElementById('btn-toggle-auth-token');
+  const btnVerifyOwner = document.getElementById('btn-verify-owner');
+  const btnVerifyOwnerText = document.getElementById('btn-verify-owner-text');
+  const authErrorBox = document.getElementById('auth-error-box');
+  const adminOwnerBadge = document.getElementById('admin-owner-badge');
+  const btnAdminLogout = document.getElementById('btn-admin-logout');
+
+  function checkAuthStatus() {
+    const authUser = (localStorage.getItem('gf_admin_auth_user') || '').trim().toLowerCase();
+    const savedToken = (localStorage.getItem('gf_admin_gh_token') || '').trim();
+
+    if (authUser === REQUIRED_OWNER.toLowerCase() && savedToken) {
+      if (adminAuthOverlay) adminAuthOverlay.style.display = 'none';
+      if (adminOwnerBadge) adminOwnerBadge.style.display = 'inline-flex';
+      if (btnAdminLogout) btnAdminLogout.style.display = 'inline-flex';
+      const ghTok = document.getElementById('gh-token');
+      if (ghTok && !ghTok.value) ghTok.value = savedToken;
+      return true;
+    } else {
+      if (adminAuthOverlay) adminAuthOverlay.style.display = 'flex';
+      if (adminOwnerBadge) adminOwnerBadge.style.display = 'none';
+      if (btnAdminLogout) btnAdminLogout.style.display = 'none';
+      return false;
+    }
+  }
+
+  function showAuthError(msg) {
+    if (authErrorBox) {
+      authErrorBox.textContent = msg;
+      authErrorBox.style.display = 'block';
+    }
+  }
+
+  function hideAuthError() {
+    if (authErrorBox) {
+      authErrorBox.style.display = 'none';
+      authErrorBox.textContent = '';
+    }
+  }
+
+  async function verifyGitHubOwner(token) {
+    const cleanToken = (token || '').trim();
+    if (!cleanToken) {
+      showAuthError('Harap masukkan Personal Access Token (PAT) GitHub.');
+      return false;
+    }
+
+    hideAuthError();
+    if (btnVerifyOwner) btnVerifyOwner.disabled = true;
+    if (btnVerifyOwnerText) btnVerifyOwnerText.textContent = '⏳ Memverifikasi Pemilik...';
+
+    try {
+      // 1. Check user login
+      const userResp = await fetch('https://api.github.com/user', {
+        headers: {
+          'Authorization': `Bearer ${cleanToken}`,
+          'Accept': 'application/vnd.github+json',
+          'User-Agent': 'GoFilePro-Admin'
+        }
+      });
+
+      if (!userResp.ok) {
+        if (userResp.status === 401) {
+          throw new Error('Token GitHub tidak valid atau telah kedaluwarsa.');
+        }
+        throw new Error(`Gagal menghubungi GitHub API (HTTP ${userResp.status}).`);
+      }
+
+      const userData = await userResp.json();
+      const login = (userData.login || '').trim().toLowerCase();
+
+      // 2. Strict Check: Must match didiroyadi123!
+      if (login !== REQUIRED_OWNER.toLowerCase()) {
+        throw new Error(`AKSES DITOLAK! Akun Anda (@${userData.login}) BUKAN pemilik repositori (@${REQUIRED_OWNER}). Anda tidak diizinkan menyuntikkan iklan atau mengakses kontrol admin.`);
+      }
+
+      // 3. Check push permissions on repo
+      const repoResp = await fetch(`https://api.github.com/repos/${REQUIRED_REPO}`, {
+        headers: {
+          'Authorization': `Bearer ${cleanToken}`,
+          'Accept': 'application/vnd.github+json',
+          'User-Agent': 'GoFilePro-Admin'
+        }
+      });
+
+      if (repoResp.ok) {
+        const repoData = await repoResp.json();
+        const hasPermissions = repoData.permissions && (repoData.permissions.push || repoData.permissions.admin);
+        const isOwner = repoData.owner && repoData.owner.login && repoData.owner.login.toLowerCase() === REQUIRED_OWNER.toLowerCase();
+        if (!hasPermissions && !isOwner) {
+          throw new Error(`Token valid untuk @${userData.login}, namun tidak memiliki izin push/write ke ${REQUIRED_REPO}. Pastikan mencentang scope 'repo'.`);
+        }
+      }
+
+      // Success!
+      localStorage.setItem('gf_admin_auth_user', REQUIRED_OWNER);
+      localStorage.setItem('gf_admin_gh_token', cleanToken);
+      localStorage.setItem('gf_is_admin', 'true');
+      const ghTok = document.getElementById('gh-token');
+      if (ghTok) ghTok.value = cleanToken;
+
+      checkAuthStatus();
+      addEventLog('AUTH_SUCCESS', `Pemilik repositori @${REQUIRED_OWNER} terverifikasi.`);
+      alert(`🎉 Selamat Datang, @${REQUIRED_OWNER}!\n\nIdentitas Anda sebagai pemilik repositori resmi terverifikasi. Seluruh kontrol admin, analitik real-time, dan injeksi iklan telah aktif.`);
+      return true;
+    } catch (err) {
+      showAuthError(err.message || 'Verifikasi gagal.');
+      return false;
+    } finally {
+      if (btnVerifyOwner) btnVerifyOwner.disabled = false;
+      if (btnVerifyOwnerText) btnVerifyOwnerText.textContent = '🔓 Verifikasi & Buka Admin Suite';
+    }
+  }
+
+  if (btnVerifyOwner) {
+    btnVerifyOwner.addEventListener('click', () => {
+      const val = authTokenInput ? authTokenInput.value : '';
+      verifyGitHubOwner(val);
+    });
+  }
+
+  if (authTokenInput) {
+    authTokenInput.addEventListener('keydown', (e) => {
+      if (e.key === 'Enter') {
+        e.preventDefault();
+        const val = authTokenInput.value;
+        verifyGitHubOwner(val);
+      }
+    });
+  }
+
+  if (btnToggleAuthToken && authTokenInput) {
+    btnToggleAuthToken.addEventListener('click', () => {
+      authTokenInput.type = authTokenInput.type === 'password' ? 'text' : 'password';
+      btnToggleAuthToken.textContent = authTokenInput.type === 'password' ? '👁️ Lihat' : '🔒 Sembunyikan';
+    });
+  }
+
+  if (btnAdminLogout) {
+    btnAdminLogout.addEventListener('click', () => {
+      if (confirm('Kunci Dashboard dan keluar dari sesi Admin @didiroyadi123?')) {
+        localStorage.removeItem('gf_admin_auth_user');
+        localStorage.removeItem('gf_admin_gh_token');
+        if (authTokenInput) authTokenInput.value = '';
+        checkAuthStatus();
+      }
+    });
+  }
+
   // DOM Elements
   const tabButtons = document.querySelectorAll('.admin-nav-tab');
   const sections = document.querySelectorAll('.admin-section');
@@ -502,6 +659,13 @@
   }
 
   async function pullFromGitHub() {
+    const authUser = (localStorage.getItem('gf_admin_auth_user') || '').trim().toLowerCase();
+    if (authUser !== REQUIRED_OWNER.toLowerCase()) {
+      checkAuthStatus();
+      alert(`AKSES DITOLAK: Anda wajib login dan terverifikasi sebagai pemilik repositori (@${REQUIRED_OWNER})!`);
+      return;
+    }
+
     saveGitHubSettings();
     const repo = (ghRepoInput ? ghRepoInput.value.trim() : '') || 'DidiRoyadi123/Gofile-pro';
     const branch = (ghBranchInput ? ghBranchInput.value.trim() : '') || 'main';
@@ -544,6 +708,13 @@
   }
 
   async function publishToGitHub() {
+    const authUser = (localStorage.getItem('gf_admin_auth_user') || '').trim().toLowerCase();
+    if (authUser !== REQUIRED_OWNER.toLowerCase()) {
+      checkAuthStatus();
+      alert(`AKSES DITOLAK: Anda wajib login dan terverifikasi sebagai pemilik resmi repositori (@${REQUIRED_OWNER}) untuk menyiarkan atau menyuntikkan iklan!`);
+      return;
+    }
+
     saveGitHubSettings();
     const repo = (ghRepoInput ? ghRepoInput.value.trim() : '') || 'DidiRoyadi123/Gofile-pro';
     const branch = (ghBranchInput ? ghBranchInput.value.trim() : '') || 'main';
@@ -742,6 +913,7 @@
   }
 
   // Initialize
+  checkAuthStatus();
   renderRealTelemetry();
   renderTokenTable();
   populateAdsForm();

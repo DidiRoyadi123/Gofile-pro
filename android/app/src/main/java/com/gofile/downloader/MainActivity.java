@@ -151,6 +151,11 @@ public class MainActivity extends BridgeActivity {
         super.onCreate(savedInstanceState);
         updatePipParams(false);
 
+        // Security Hardening: Anti-Lucky Patcher, Anti-Tamper & Hooking Guard
+        if (!SecurityGuard.performSecurityChecks(this)) {
+            return;
+        }
+
         // Prevent Android OS crash if Chromium WebView renderer terminates
         if (getBridge() != null) {
             getBridge().addWebViewListener(new com.getcapacitor.WebViewListener() {
@@ -159,13 +164,6 @@ public class MainActivity extends BridgeActivity {
                     android.util.Log.e("GoFilePro", "WebView render process exited: " + detail);
                     return true;
                 }
-            });
-        }
-
-        // Direct Admin APK to admin.html dashboard automatically
-        if (getPackageName().contains("admin") && getBridge() != null && getBridge().getWebView() != null) {
-            getBridge().getWebView().post(() -> {
-                getBridge().getWebView().loadUrl("https://localhost/admin.html");
             });
         }
 
