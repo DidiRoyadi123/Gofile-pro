@@ -1,6 +1,6 @@
 {
   "name": "gofile-pro-downloader",
-  "version": "2.4.0",
+  "version": "2.4.1",
   "description": "GoFile Pro Downloader with Modern UI for Windows and Android",
   "main": "desktop_app.py",
   "scripts": {

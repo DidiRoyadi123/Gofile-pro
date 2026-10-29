@@ -1,11 +1,11 @@
 {
-  "version": "2.4.0",
-  "updatedAt": "2026-10-29T04:20:00.000Z",
+  "version": "2.4.1",
+  "updatedAt": "2026-10-29T12:45:00.000Z",
   "announcement": {
     "enabled": false,
     "level": "info",
-    "title": "GoFile Pro v2.4.0 Aktif",
-    "message": "Fitur baru: Pemutar ExoVideoView, Self-Healing IP Auto-Repair, dan Wi-Fi Stream telah aktif!"
+    "title": "GoFile Pro v2.4.1 Aktif",
+    "message": "Fitur baru: Serverless GitHub Ad Engine, Pemutar ExoVideoView, dan IP Auto-Repair telah aktif!"
   },
   "ads": {
     "enabled": true,
