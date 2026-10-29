@@ -40,11 +40,7 @@ public final class SecurityGuard {
         "bin.mt.plus.canary",
         "com.applisto.appcloner",           // App Cloner
         "com.applisto.appcloner.premium",
-        "org.lucky.patcher",
-        "de.robv.android.xposed.installer", // Xposed Installer
-        "org.meowcat.edxposed.manager",     // EdXposed
-        "org.lsposed.manager",              // LSPosed
-        "com.topjohnwu.magisk"              // Magisk Manager
+        "org.lucky.patcher"
     );
 
     private SecurityGuard() {}
@@ -54,11 +50,13 @@ public final class SecurityGuard {
      * Returns true if environment is safe, false if tampering/Lucky Patcher detected.
      */
     public static boolean performSecurityChecks(Activity activity) {
-        if (activity == null) return true;
+        if (activity == null || activity.isFinishing()) return true;
 
         // 1. Disable WebView debugging in production
         try {
-            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.KITKAT) {
+            ApplicationInfo appInfo = activity.getApplicationInfo();
+            boolean isDebuggable = (appInfo.flags & ApplicationInfo.FLAG_DEBUGGABLE) != 0;
+            if (!isDebuggable && Build.VERSION.SDK_INT >= Build.VERSION_CODES.KITKAT) {
                 WebView.setWebContentsDebuggingEnabled(false);
             }
         } catch (Exception ignored) {}
@@ -70,9 +68,9 @@ public final class SecurityGuard {
             return false;
         }
 
-        // 3. Check for Active Debugger / Tamper Flags
+        // 3. Check for Active Debugger / Tamper Flags on Release Builds
         if (isDebuggerAttached(activity)) {
-            handleThreatDetected(activity, "Terdeteksi debugger aktif. Aplikasi ditutup demi keamanan.");
+            handleThreatDetected(activity, "Terdeteksi debugger aktif pada aplikasi rilis. Aplikasi ditutup demi keamanan.");
             return false;
         }
 
@@ -121,34 +119,30 @@ public final class SecurityGuard {
     }
 
     /**
-     * Checks if an active debugger is attached to process.
+     * Checks if an active debugger is attached to process on release builds.
      */
     private static boolean isDebuggerAttached(Context context) {
         try {
-            if (Debug.isDebuggerConnected() || Debug.waitingForDebugger()) {
-                return true;
-            }
             ApplicationInfo appInfo = context.getApplicationInfo();
             boolean isDebuggable = (appInfo.flags & ApplicationInfo.FLAG_DEBUGGABLE) != 0;
-            // Only enforce strictly on non-debug builds
-            return isDebuggable && Debug.isDebuggerConnected();
-        } catch (Exception ignored) {
-            return false;
-        }
+            if (!isDebuggable && (Debug.isDebuggerConnected() || Debug.waitingForDebugger())) {
+                return true;
+            }
+        } catch (Exception ignored) {}
+        return false;
     }
 
     /**
-     * Detects Frida or Xposed hooking presence in stack trace or local sockets.
+     * Detects Frida or Xposed hooking presence in stack trace.
      */
     private static boolean isHookingFrameworkPresent() {
         try {
-            // Check stack trace for Xposed classes
             StackTraceElement[] stack = Thread.currentThread().getStackTrace();
             for (StackTraceElement el : stack) {
                 String className = el.getClassName();
                 if (className != null) {
                     if (className.contains("de.robv.android.xposed.XposedBridge") ||
-                        className.contains("com.android.internal.os.ZygoteInit") && className.contains("Xposed") ||
+                        (className.contains("com.android.internal.os.ZygoteInit") && className.contains("Xposed")) ||
                         className.contains("me.weishu.epic") ||
                         className.contains("com.saurik.substrate")) {
                         return true;
@@ -161,25 +155,26 @@ public final class SecurityGuard {
     }
 
     /**
-     * Shows security alert dialog and terminates process.
+     * Shows security alert dialog safely after window attachment and terminates process on user confirmation.
      */
     private static void handleThreatDetected(final Activity activity, final String message) {
+        if (activity == null || activity.isFinishing()) return;
         activity.runOnUiThread(() -> {
             try {
-                new AlertDialog.Builder(activity)
-                    .setTitle("🛡️ Keamanan GoFile Pro")
-                    .setMessage(message)
-                    .setCancelable(false)
-                    .setPositiveButton("Tutup Aplikasi", (dialog, which) -> {
-                        activity.finishAffinity();
-                        Process.killProcess(Process.myPid());
-                        System.exit(0);
-                    })
-                    .show();
+                if (!activity.isFinishing() && (Build.VERSION.SDK_INT < Build.VERSION_CODES.JELLY_BEAN_MR1 || !activity.isDestroyed())) {
+                    new AlertDialog.Builder(activity)
+                        .setTitle("🛡️ Keamanan GoFile Pro")
+                        .setMessage(message)
+                        .setCancelable(false)
+                        .setPositiveButton("Tutup Aplikasi", (dialog, which) -> {
+                            activity.finishAffinity();
+                            Process.killProcess(Process.myPid());
+                            System.exit(0);
+                        })
+                        .show();
+                }
             } catch (Exception e) {
-                activity.finishAffinity();
-                Process.killProcess(Process.myPid());
-                System.exit(0);
+                Log.w(TAG, "Security alert non-fatal: " + e.getMessage());
             }
         });
     }
