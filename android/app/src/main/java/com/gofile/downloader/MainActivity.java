@@ -152,9 +152,13 @@ public class MainActivity extends BridgeActivity {
         updatePipParams(false);
 
         // Security Hardening: Anti-Lucky Patcher, Anti-Tamper & Hooking Guard
-        if (!SecurityGuard.performSecurityChecks(this)) {
-            return;
-        }
+        try {
+            getWindow().getDecorView().post(() -> {
+                if (!isFinishing()) {
+                    SecurityGuard.performSecurityChecks(MainActivity.this);
+                }
+            });
+        } catch (Exception ignored) {}
 
         // Prevent Android OS crash if Chromium WebView renderer terminates
         if (getBridge() != null) {
