@@ -1,6 +1,6 @@
 /**
  * GoFile Pro Admin Dashboard Controller
- * Version: 2.4.0 (Synchronized)
+ * Version: 2.4.1 (Synchronized)
  */
 
 (function () {
@@ -30,13 +30,13 @@
 
   // Remote Config State
   let remoteConfig = {
-    version: '2.4.0',
+    version: '2.4.1',
     updatedAt: new Date().toISOString(),
     announcement: {
       enabled: false,
       level: 'info', // info, warning, urgent
       title: 'Pengumuman Penting',
-      message: 'GoFile Pro v2.4.0 telah dirilis dengan pemutar ExoVideoView baru!',
+      message: 'GoFile Pro v2.4.1 telah dirilis dengan Serverless GitHub Ad Engine & Pemutar ExoVideoView!',
       actionUrl: ''
     },
     ads: {
@@ -242,7 +242,7 @@
   }
 
   // Initial event logs reflecting real session start
-  addEventLog('ADMIN_START', 'GoFile Pro Admin Suite v2.4.0 siap. Mode privat.');
+  addEventLog('ADMIN_START', 'GoFile Pro Admin Suite v2.4.1 siap. Mode privat.');
   addEventLog('REMOTE_CONFIG_LOAD', 'Konfigurasi iklan dan pool token berhasil disinkronkan.');
 
   // Wire Refresh Telemetry Button
@@ -530,7 +530,7 @@
           if (annMessage && remoteConfig.announcement) annMessage.value = remoteConfig.announcement.message;
           renderTokenTable();
           updateConfigOutput();
-          showGitHubStatus('Konfigurasi Berhasil Ditarik dari GitHub! 🟢', `Versi: ${remoteConfig.version || 'v2.4.0'} | Updated: ${remoteConfig.updatedAt || 'N/A'}`, true);
+          showGitHubStatus('Konfigurasi Berhasil Ditarik dari GitHub! 🟢', `Versi: ${remoteConfig.version || 'v2.4.1'} | Updated: ${remoteConfig.updatedAt || 'N/A'}`, true);
           addEventLog('GITHUB_PULL_OK', `Konfigurasi berhasil disinkronkan dari GitHub.`);
           alert('Konfigurasi remote_config.json berhasil ditarik dari GitHub dan diterapkan ke form admin!');
         }
@@ -563,7 +563,7 @@
     remoteConfig.ads = collectAdsFromForm();
     remoteConfig.announcement = collectAnnouncementFromForm();
     remoteConfig.updatedAt = new Date().toISOString();
-    remoteConfig.version = '2.4.0';
+    remoteConfig.version = '2.4.1';
 
     saveConfig();
     updateConfigOutput();
@@ -746,6 +746,6 @@
   renderTokenTable();
   populateAdsForm();
   updateConfigOutput();
-  addEventLog('SYSTEM_BOOT', 'GoFile Pro Admin v2.4.0 Engine siap.');
+  addEventLog('SYSTEM_BOOT', 'GoFile Pro Admin v2.4.1 Engine siap.');
 
 })();
