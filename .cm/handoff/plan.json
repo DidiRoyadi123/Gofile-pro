@@ -1,0 +1,21 @@
+{
+  "schema": "plan@1",
+  "goal": "GoFile Pro v2.4.1 Release Complete — GitHub Owner Security Gate, Anti-Tamper Hardening, ExoVideoView In-App Player & Serverless Ad Engine",
+  "status": "completed",
+  "current_version": "v2.4.1",
+  "last_commit": "67047de",
+  "decisions": [
+    "Upgrade Wi-Fi Share Web Server to include an embedded, high-performance HTML5 video player modal with range streaming so users can watch directly in browser without downloading",
+    "Overhaul In-App Media Player inspired by ExoVideoView with Aspect Ratio toggle, Screen Lock, Double-tap -10s/+10s seek gestures with ripple animation, and frosted controls",
+    "Enforce mandatory All Files Access & Battery Optimization Onboarding Modal with reactive realtime check",
+    "Maintain complete bilingual Indonesian & English parity with dynamic languageChanged event re-render",
+    "Release User App v2.4.1 on main, and Admin App v2.4.1 on admin branch with GitHub Owner (@didiroyadi123) Auth Gate and SecurityGuard anti-tamper",
+    "Serverless Ad & Announcement Broadcaster via GitHub REST API (remote_config.json)",
+    "Cleaned up duplicate GoFile-Pro.apk asset from v2.4.1 GitHub release, keeping GoFile-Pro-v2.4.1.apk and GoFile-Pro-Admin-v2.4.1.apk"
+  ],
+  "branches": {
+    "main": "User App build (v2.4.1, clean working tree, up to date with origin/main)",
+    "admin": "Admin App build (v2.4.1, clean working tree, up to date with origin/admin)"
+  },
+  "openspec_path": "openspec/changes/v241_security_and_admin_auth/"
+}

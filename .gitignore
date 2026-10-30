@@ -21,7 +21,11 @@ android/capacitor-cordova-android-plugins/build/
 # IDE & Editor Settings
 .vscode/
 .idea/
-.cm/
+.cm/*
+!.cm/CONTINUITY.md
+!.cm/handoff/
+!.cm/handoff/**
+
 
 # Build Artefacts
 build/
